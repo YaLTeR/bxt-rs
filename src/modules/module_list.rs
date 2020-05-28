@@ -2,9 +2,9 @@
 
 use super::{Module, MODULES};
 use crate::{
-    engine,
+    engine, handler,
     modules::commands::{self, Command},
-    utils::{abort_on_panic, MainThreadMarker},
+    utils::MainThreadMarker,
 };
 use std::ffi::CString;
 
@@ -26,31 +26,33 @@ impl Module for ModuleList {
 
 static BXT_MODULES_LIST: Command = Command {
     name: b"bxt_modules_list\0",
-    function: modules_list,
+    function: handler!(
+        b"Usage: bxt_module_list\n \
+           Shows the list of modules and their status.\0",
+        modules_list as fn(_)
+    ),
 };
 
-unsafe extern "C" fn modules_list() {
-    abort_on_panic(move || {
-        let marker = MainThreadMarker::new();
+fn modules_list(marker: MainThreadMarker) {
+    if !ModuleList.is_enabled(marker) {
+        return;
+    }
 
-        if !ModuleList.is_enabled(marker) {
-            return;
-        }
+    let mut output = String::new();
+    for module in MODULES {
+        output.push_str(&format!(
+            "- {}{}\n",
+            if module.is_enabled(marker) {
+                ""
+            } else {
+                "[DISABLED] "
+            },
+            module.name()
+        ));
+    }
 
-        let mut output = String::new();
-        for module in MODULES {
-            output.push_str(&format!(
-                "- {}{}\n",
-                if module.is_enabled(marker) {
-                    ""
-                } else {
-                    "[DISABLED] "
-                },
-                module.name()
-            ));
-        }
-
-        let c_string = CString::new(output).unwrap();
+    let c_string = CString::new(output).unwrap();
+    unsafe {
         engine::CON_PRINTF.get(marker)(b"%s\0".as_ptr().cast(), c_string.as_ptr());
-    })
+    }
 }
