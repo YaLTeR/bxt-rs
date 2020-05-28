@@ -11,6 +11,8 @@ use crate::{
 pub static CMD_ADDMALLOCCOMMAND: Function<
     unsafe extern "C" fn(*const c_char, unsafe extern "C" fn(), c_int),
 > = Function::empty();
+pub static CMD_ARGC: Function<unsafe extern "C" fn() -> c_int> = Function::empty();
+pub static CMD_ARGV: Function<unsafe extern "C" fn(c_int) -> *const c_char> = Function::empty();
 pub static CMD_FUNCTIONS: Variable<*mut ffi::command::cmd_function_s> = Variable::empty();
 pub static CON_PRINTF: Function<unsafe extern "C" fn(*const c_char, ...)> = Function::empty();
 pub static CVAR_REGISTERVARIABLE: Function<unsafe extern "C" fn(*mut ffi::cvar::cvar_s)> =
@@ -28,6 +30,8 @@ fn find_pointers(marker: MainThreadMarker) {
 
     unsafe {
         CMD_ADDMALLOCCOMMAND.set(marker, handle.sym("Cmd_AddMallocCommand").ok());
+        CMD_ARGC.set(marker, handle.sym("Cmd_Argc").ok());
+        CMD_ARGV.set(marker, handle.sym("Cmd_Argv").ok());
         CMD_FUNCTIONS.set(marker, handle.sym("cmd_functions").ok());
         CON_PRINTF.set(marker, handle.sym("Con_Printf").ok());
         CVAR_REGISTERVARIABLE.set(marker, handle.sym("Cvar_RegisterVariable").ok());
@@ -42,6 +46,8 @@ fn find_pointers(marker: MainThreadMarker) {
 
 fn reset_pointers(marker: MainThreadMarker) {
     CMD_ADDMALLOCCOMMAND.reset(marker);
+    CMD_ARGC.reset(marker);
+    CMD_ARGV.reset(marker);
     CMD_FUNCTIONS.reset(marker);
     CON_PRINTF.reset(marker);
     CVAR_REGISTERVARIABLE.reset(marker);

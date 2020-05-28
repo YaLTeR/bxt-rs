@@ -5,6 +5,9 @@ use std::ffi::CStr;
 use super::{Module, MODULES};
 use crate::{engine, utils::MainThreadMarker};
 
+mod args;
+pub use args::Args;
+
 /// Console command.
 #[derive(Debug)]
 pub struct Command {
@@ -151,6 +154,8 @@ impl Module for Commands {
             && engine::CMD_ADDMALLOCCOMMAND.is_set(marker)
             && engine::MEM_FREE.is_set(marker)
             && engine::CMD_FUNCTIONS.is_set(marker)
+            && engine::CMD_ARGC.is_set(marker)
+            && engine::CMD_ARGV.is_set(marker)
     }
 }
 
