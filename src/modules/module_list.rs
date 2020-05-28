@@ -2,11 +2,11 @@
 
 use super::{Module, MODULES};
 use crate::{
-    engine, handler,
+    handler,
+    hooks::engine::{self, Engine},
     modules::commands::{self, Command},
     utils::MainThreadMarker,
 };
-use std::ffi::CString;
 
 pub struct ModuleList;
 impl Module for ModuleList {
@@ -27,14 +27,14 @@ impl Module for ModuleList {
 static BXT_MODULES_LIST: Command = Command {
     name: b"bxt_modules_list\0",
     function: handler!(
-        b"Usage: bxt_module_list\n \
-           Shows the list of modules and their status.\0",
+        "Usage: bxt_module_list\n \
+          Shows the list of modules and their status.\n",
         modules_list as fn(_)
     ),
 };
 
-fn modules_list(marker: MainThreadMarker) {
-    if !ModuleList.is_enabled(marker) {
+fn modules_list(engine: &Engine) {
+    if !ModuleList.is_enabled(engine.marker()) {
         return;
     }
 
@@ -42,7 +42,7 @@ fn modules_list(marker: MainThreadMarker) {
     for module in MODULES {
         output.push_str(&format!(
             "- {}{}\n",
-            if module.is_enabled(marker) {
+            if module.is_enabled(engine.marker()) {
                 ""
             } else {
                 "[DISABLED] "
@@ -51,8 +51,5 @@ fn modules_list(marker: MainThreadMarker) {
         ));
     }
 
-    let c_string = CString::new(output).unwrap();
-    unsafe {
-        engine::CON_PRINTF.get(marker)(b"%s\0".as_ptr().cast(), c_string.as_ptr());
-    }
+    engine.print(&output);
 }
