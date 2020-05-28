@@ -1,6 +1,6 @@
 //! `hw`, `sw`, `hl`.
 
-use std::os::raw::*;
+use std::{ffi::CString, os::raw::*};
 
 use crate::{
     ffi,
@@ -24,6 +24,52 @@ pub static MEMORY_INIT: Function<unsafe extern "C" fn(*mut c_void, c_int) -> c_i
 pub static MEM_FREE: Function<unsafe extern "C" fn(*mut c_void)> = Function::empty();
 pub static V_FADEALPHA: Function<unsafe extern "C" fn() -> c_int> = Function::empty();
 pub static Z_FREE: Function<unsafe extern "C" fn(*mut c_void)> = Function::empty();
+
+/// Wrapper providing safe access to some engine functions.
+///
+/// This can be seen as a slightly stronger variant of `MainThreadMarker`. While `MainThreadMarker`
+/// merely guarantees being on the main thread, `Engine` also guarantees the ability to call
+/// certain engine functions.
+// No Clone or Copy ensures that if an Engine is given by reference to some function, the function
+// cannot store the Engine in a global variable and access it later when it's unsafe to do so.
+pub struct Engine {
+    marker: MainThreadMarker,
+}
+
+impl Engine {
+    /// Creates a new `Engine`.
+    ///
+    /// # Safety
+    ///
+    /// All `Engine` methods must be safe to call over the whole lifespan of the `Engine` returned
+    /// by this function.
+    pub unsafe fn new(marker: MainThreadMarker) -> Self {
+        Self { marker }
+    }
+
+    /// Returns a `MainThreadMarker`.
+    pub fn marker(&self) -> MainThreadMarker {
+        self.marker
+    }
+
+    /// Prints the string to the console.
+    ///
+    /// If `Con_Printf` was not found, does nothing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the string cannot be converted to a `CString`.
+    pub fn print(&self, s: &str) {
+        if !CON_PRINTF.is_set(self.marker) {
+            return;
+        }
+
+        let s = CString::new(s).unwrap();
+        unsafe {
+            CON_PRINTF.get(self.marker)(b"%s\0".as_ptr().cast(), s.as_ptr());
+        }
+    }
+}
 
 fn find_pointers(marker: MainThreadMarker) {
     let handle = dl::open("hw.so").unwrap();
