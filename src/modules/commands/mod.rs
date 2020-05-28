@@ -8,6 +8,9 @@ use crate::{engine, utils::MainThreadMarker};
 mod args;
 pub use args::Args;
 
+mod handler;
+pub use handler::CommandHandler;
+
 /// Console command.
 #[derive(Debug)]
 pub struct Command {
