@@ -5,7 +5,7 @@ use std::{ffi::OsString, io, path::Path};
 use super::Module;
 use crate::{
     handler,
-    hooks::engine::{self, Engine},
+    hooks::engine::Engine,
     modules::{
         commands::{self, Command},
         cvars::{self, CVar},
@@ -33,7 +33,7 @@ impl Module for TASLogging {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        commands::Commands.is_enabled(marker) && engine::CON_PRINTF.is_set(marker)
+        commands::Commands.is_enabled(marker)
     }
 }
 
