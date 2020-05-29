@@ -10,6 +10,7 @@ use cvars::CVar;
 
 pub mod fade_remove;
 pub mod module_list;
+pub mod tas_logging;
 
 /// Trait for getting module information.
 pub trait Module: Sync {
@@ -36,4 +37,5 @@ pub static MODULES: &[&dyn Module] = &[
     &cvars::CVars,
     &fade_remove::FadeRemove,
     &module_list::ModuleList,
+    &tas_logging::TASLogging,
 ];
