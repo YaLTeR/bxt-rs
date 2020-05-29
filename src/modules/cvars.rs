@@ -2,12 +2,16 @@
 
 use std::{
     cell::UnsafeCell,
-    ffi::{c_void, CStr},
+    ffi::{c_void, CStr, OsString},
     ptr::null_mut,
 };
 
 use super::{Module, MODULES};
-use crate::{engine, ffi::cvar as ffi, utils::MainThreadMarker};
+use crate::{
+    engine,
+    ffi::cvar as ffi,
+    utils::{c_str_to_os_string, MainThreadMarker},
+};
 
 /// Console variable.
 #[derive(Debug)]
@@ -66,6 +70,23 @@ impl CVar {
         let raw = unsafe { &*self.raw.get() };
 
         raw.value != 0.
+    }
+
+    /// Returns the value of the variable as an `OsString`.
+    ///
+    /// Use this for variables representing filenames and paths.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the variable is not registered.
+    pub fn to_os_string(&self, marker: MainThreadMarker) -> OsString {
+        assert!(self.is_registered(marker));
+
+        // Safety: we're not calling any engine methods while the reference is active.
+        let raw = unsafe { &*self.raw.get() };
+
+        let c_str = unsafe { CStr::from_ptr(raw.string) };
+        c_str_to_os_string(c_str)
     }
 }
 
