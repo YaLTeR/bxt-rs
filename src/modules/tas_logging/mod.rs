@@ -19,7 +19,7 @@ use serializer::Serializer;
 pub struct TASLogging;
 impl Module for TASLogging {
     fn name(&self) -> &'static str {
-        "TAS logging"
+        "bxt_taslog"
     }
 
     fn commands(&self) -> &'static [&'static Command] {
