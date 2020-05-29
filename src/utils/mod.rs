@@ -14,6 +14,9 @@ pub use function::Function;
 pub mod variable;
 pub use variable::Variable;
 
+pub mod main_thread_ref_cell;
+pub use main_thread_ref_cell::MainThreadRefCell;
+
 pub mod dl;
 
 /// Runs the given function and aborts the process if it panics.
