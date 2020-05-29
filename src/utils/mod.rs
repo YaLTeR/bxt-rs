@@ -1,6 +1,7 @@
 //! Utility objects.
 
 use std::{
+    ffi::{CStr, OsStr, OsString},
     panic::{catch_unwind, UnwindSafe},
     process::abort,
 };
@@ -28,4 +29,11 @@ pub fn abort_on_panic<R, F: FnOnce() -> R + UnwindSafe>(f: F) -> R {
         Ok(rv) => rv,
         Err(_) => abort(),
     }
+}
+
+/// Converts a `CStr` into an `OsString`.
+#[cfg(unix)]
+pub fn c_str_to_os_string(c_str: &CStr) -> OsString {
+    use std::os::unix::ffi::OsStrExt;
+    OsStr::from_bytes(c_str.to_bytes()).to_os_string()
 }
