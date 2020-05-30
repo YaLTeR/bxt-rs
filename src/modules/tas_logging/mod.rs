@@ -86,21 +86,15 @@ fn taslog(engine: &Engine, enabled: i32) {
         OsString::from("taslogger.log")
     };
 
-    let build_number = if engine::BUILD_NUMBER.is_set(marker) {
-        unsafe { engine::BUILD_NUMBER.get(marker)() }
-    } else {
-        -1
-    };
+    let build_number = engine::BUILD_NUMBER.get_opt(marker).map(|f| unsafe { f() });
 
-    let game_dir = if engine::COM_GAMEDIR.is_set(marker) {
-        // Safety: the reference does not outlive this command handler, and com_gamedir can only be
-        // modified at engine start and while setting the HD models or the addon folder.
-        unsafe { CStr::from_ptr(engine::COM_GAMEDIR.get(marker).as_ptr().cast()).to_string_lossy() }
-    } else {
-        "".into()
-    };
+    // Safety: the reference does not outlive this command handler, and com_gamedir can only be
+    // modified at engine start and while setting the HD models or the addon folder.
+    let game_dir = engine::COM_GAMEDIR
+        .get_opt(marker)
+        .map(|dir| unsafe { CStr::from_ptr(dir.as_ptr().cast()).to_string_lossy() });
 
-    match TASLog::new(&filename, "bxt-rs 0.1", build_number, &game_dir) {
+    match TASLog::new(&filename, "bxt-rs 0.1", build_number, game_dir.as_deref()) {
         Ok(tas_log_new) => {
             engine.print(&format!(
                 "Started TAS logging into {}\n",
@@ -121,15 +115,20 @@ impl TASLog {
     fn new<P: AsRef<Path>>(
         path: P,
         tool_version: &str,
-        build_number: i32,
-        game_dir: &str,
+        build_number: Option<i32>,
+        game_dir: Option<&str>,
     ) -> Result<Self, io::Error> {
         let mut ser = Serializer::new(path)?;
 
         ser.begin_object()?;
         ser.entry("tool_ver", tool_version)?;
-        ser.entry("build", &build_number)?;
-        ser.entry("game_dir", game_dir)?;
+
+        if let Some(build_number) = build_number {
+            ser.entry("build", &build_number)?;
+        }
+        if let Some(game_dir) = game_dir {
+            ser.entry("game_dir", game_dir)?;
+        }
 
         ser.key("pf")?;
         ser.begin_object_value()?;
