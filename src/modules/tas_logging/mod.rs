@@ -5,7 +5,7 @@ use std::{ffi::OsString, io, path::Path};
 use super::Module;
 use crate::{
     handler,
-    hooks::engine::Engine,
+    hooks::engine::{self, Engine},
     modules::{
         commands::{self, Command},
         cvars::{self, CVar},
@@ -82,7 +82,13 @@ fn taslog(engine: &Engine, enabled: i32) {
         OsString::from("taslogger.log")
     };
 
-    match TASLog::new(&filename, "bxt-rs 0.1", 1337, "valve") {
+    let build_number = if engine::BUILD_NUMBER.is_set(marker) {
+        unsafe { engine::BUILD_NUMBER.get(marker)() }
+    } else {
+        -1
+    };
+
+    match TASLog::new(&filename, "bxt-rs 0.1", build_number, "valve") {
         Ok(tas_log_new) => {
             engine.print(&format!(
                 "Started TAS logging into {}\n",

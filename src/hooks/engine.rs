@@ -8,6 +8,7 @@ use crate::{
     utils::{abort_on_panic, dl, Function, MainThreadMarker, Variable},
 };
 
+pub static BUILD_NUMBER: Function<unsafe extern "C" fn() -> c_int> = Function::empty();
 pub static CMD_ADDMALLOCCOMMAND: Function<
     unsafe extern "C" fn(*const c_char, unsafe extern "C" fn(), c_int),
 > = Function::empty();
@@ -75,6 +76,7 @@ fn find_pointers(marker: MainThreadMarker) {
     let handle = dl::open("hw.so").unwrap();
 
     unsafe {
+        BUILD_NUMBER.set(marker, handle.sym("build_number").ok());
         CMD_ADDMALLOCCOMMAND.set(marker, handle.sym("Cmd_AddMallocCommand").ok());
         CMD_ARGC.set(marker, handle.sym("Cmd_Argc").ok());
         CMD_ARGV.set(marker, handle.sym("Cmd_Argv").ok());
@@ -91,6 +93,7 @@ fn find_pointers(marker: MainThreadMarker) {
 }
 
 fn reset_pointers(marker: MainThreadMarker) {
+    BUILD_NUMBER.reset(marker);
     CMD_ADDMALLOCCOMMAND.reset(marker);
     CMD_ARGC.reset(marker);
     CMD_ARGV.reset(marker);
