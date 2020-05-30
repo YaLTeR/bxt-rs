@@ -9,7 +9,7 @@ mod args;
 pub use args::Args;
 
 mod handler;
-pub use handler::HandleCommand;
+pub use handler::CommandHandler;
 
 /// Console command.
 #[derive(Debug)]
