@@ -51,11 +51,13 @@ static BXT_TASLOG_FILENAME: CVar = CVar::new(b"bxt_taslog_filename\0", b"taslogg
 static TAS_LOG: MainThreadRefCell<Option<TASLog>> = MainThreadRefCell::new(None);
 
 fn taslog(engine: &Engine, enabled: i32) {
-    if !TASLogging.is_enabled(engine.marker()) {
+    let marker = engine.marker();
+
+    if !TASLogging.is_enabled(marker) {
         return;
     }
 
-    let mut tas_log = TAS_LOG.borrow_mut(engine.marker());
+    let mut tas_log = TAS_LOG.borrow_mut(marker);
 
     if enabled == 0 {
         if let Some(tas_log) = tas_log.take() {
@@ -74,8 +76,8 @@ fn taslog(engine: &Engine, enabled: i32) {
         return;
     }
 
-    let filename = if cvars::CVars.is_enabled(engine.marker()) {
-        BXT_TASLOG_FILENAME.to_os_string(engine.marker())
+    let filename = if cvars::CVars.is_enabled(marker) {
+        BXT_TASLOG_FILENAME.to_os_string(marker)
     } else {
         OsString::from("taslogger.log")
     };
