@@ -36,6 +36,11 @@ impl<F: Copy> Function<F> {
         self.ptr.get().unwrap()
     }
 
+    /// Retrieves the stored pointer if it's present.
+    pub fn get_opt(&self, _marker: MainThreadMarker) -> Option<F> {
+        self.ptr.get()
+    }
+
     /// Sets the pointer.
     ///
     /// # Safety
