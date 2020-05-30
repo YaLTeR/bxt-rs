@@ -1,6 +1,10 @@
 //! TAS logging.
 
-use std::{ffi::OsString, io, path::Path};
+use std::{
+    ffi::{CStr, OsString},
+    io,
+    path::Path,
+};
 
 use super::Module;
 use crate::{
@@ -88,7 +92,15 @@ fn taslog(engine: &Engine, enabled: i32) {
         -1
     };
 
-    match TASLog::new(&filename, "bxt-rs 0.1", build_number, "valve") {
+    let game_dir = if engine::COM_GAMEDIR.is_set(marker) {
+        // Safety: the reference does not outlive this command handler, and com_gamedir can only be
+        // modified at engine start and while setting the HD models or the addon folder.
+        unsafe { CStr::from_ptr(engine::COM_GAMEDIR.get(marker).as_ptr().cast()).to_string_lossy() }
+    } else {
+        "".into()
+    };
+
+    match TASLog::new(&filename, "bxt-rs 0.1", build_number, &game_dir) {
         Ok(tas_log_new) => {
             engine.print(&format!(
                 "Started TAS logging into {}\n",

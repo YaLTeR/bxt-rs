@@ -16,6 +16,7 @@ pub static CMD_ARGC: Function<unsafe extern "C" fn() -> c_int> = Function::empty
 pub static CMD_ARGV: Function<unsafe extern "C" fn(c_int) -> *const c_char> = Function::empty();
 pub static CMD_FUNCTIONS: Variable<*mut ffi::command::cmd_function_s> = Variable::empty();
 pub static CON_PRINTF: Function<unsafe extern "C" fn(*const c_char, ...)> = Function::empty();
+pub static COM_GAMEDIR: Variable<[c_char; 260]> = Variable::empty();
 pub static CVAR_REGISTERVARIABLE: Function<unsafe extern "C" fn(*mut ffi::cvar::cvar_s)> =
     Function::empty();
 pub static CVAR_VARS: Variable<*mut ffi::cvar::cvar_s> = Variable::empty();
@@ -81,6 +82,7 @@ fn find_pointers(marker: MainThreadMarker) {
         CMD_ARGC.set(marker, handle.sym("Cmd_Argc").ok());
         CMD_ARGV.set(marker, handle.sym("Cmd_Argv").ok());
         CMD_FUNCTIONS.set(marker, handle.sym("cmd_functions").ok());
+        COM_GAMEDIR.set(marker, handle.sym("com_gamedir").ok());
         CON_PRINTF.set(marker, handle.sym("Con_Printf").ok());
         CVAR_REGISTERVARIABLE.set(marker, handle.sym("Cvar_RegisterVariable").ok());
         CVAR_VARS.set(marker, handle.sym("cvar_vars").ok());
@@ -98,6 +100,7 @@ fn reset_pointers(marker: MainThreadMarker) {
     CMD_ARGC.reset(marker);
     CMD_ARGV.reset(marker);
     CMD_FUNCTIONS.reset(marker);
+    COM_GAMEDIR.reset(marker);
     CON_PRINTF.reset(marker);
     CVAR_REGISTERVARIABLE.reset(marker);
     CVAR_VARS.reset(marker);
