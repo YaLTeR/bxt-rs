@@ -4,11 +4,12 @@ use std::{ffi::CString, os::raw::*};
 
 use crate::{
     ffi,
-    modules::{commands, cvars, fade_remove},
+    modules::{commands, cvars, fade_remove, tas_logging},
     utils::{abort_on_panic, dl, Function, MainThreadMarker, Variable},
 };
 
 pub static BUILD_NUMBER: Function<unsafe extern "C" fn() -> c_int> = Function::empty();
+pub static CLS: Variable<c_void> = Variable::empty();
 pub static CMD_ADDMALLOCCOMMAND: Function<
     unsafe extern "C" fn(*const c_char, unsafe extern "C" fn(), c_int),
 > = Function::empty();
@@ -20,10 +21,13 @@ pub static COM_GAMEDIR: Variable<[c_char; 260]> = Variable::empty();
 pub static CVAR_REGISTERVARIABLE: Function<unsafe extern "C" fn(*mut ffi::cvar::cvar_s)> =
     Function::empty();
 pub static CVAR_VARS: Variable<*mut ffi::cvar::cvar_s> = Variable::empty();
+pub static HOST_FRAMETIME: Variable<c_double> = Variable::empty();
 pub static HOST_SHUTDOWN: Function<unsafe extern "C" fn()> = Function::empty();
 pub static MEMORY_INIT: Function<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
     Function::empty();
 pub static MEM_FREE: Function<unsafe extern "C" fn(*mut c_void)> = Function::empty();
+pub static SV: Variable<c_void> = Variable::empty();
+pub static SV_FRAME: Function<unsafe extern "C" fn()> = Function::empty();
 pub static V_FADEALPHA: Function<unsafe extern "C" fn() -> c_int> = Function::empty();
 pub static Z_FREE: Function<unsafe extern "C" fn(*mut c_void)> = Function::empty();
 
@@ -78,6 +82,7 @@ fn find_pointers(marker: MainThreadMarker) {
 
     unsafe {
         BUILD_NUMBER.set(marker, handle.sym("build_number").ok());
+        CLS.set(marker, handle.sym("cls").ok());
         CMD_ADDMALLOCCOMMAND.set(marker, handle.sym("Cmd_AddMallocCommand").ok());
         CMD_ARGC.set(marker, handle.sym("Cmd_Argc").ok());
         CMD_ARGV.set(marker, handle.sym("Cmd_Argv").ok());
@@ -86,9 +91,12 @@ fn find_pointers(marker: MainThreadMarker) {
         CON_PRINTF.set(marker, handle.sym("Con_Printf").ok());
         CVAR_REGISTERVARIABLE.set(marker, handle.sym("Cvar_RegisterVariable").ok());
         CVAR_VARS.set(marker, handle.sym("cvar_vars").ok());
+        HOST_FRAMETIME.set(marker, handle.sym("host_frametime").ok());
         HOST_SHUTDOWN.set(marker, handle.sym("Host_Shutdown").ok());
         MEMORY_INIT.set(marker, handle.sym("Memory_Init").ok());
         MEM_FREE.set(marker, handle.sym("Mem_Free").ok());
+        SV.set(marker, handle.sym("sv").ok());
+        SV_FRAME.set(marker, handle.sym("SV_Frame").ok());
         V_FADEALPHA.set(marker, handle.sym("V_FadeAlpha").ok());
         Z_FREE.set(marker, handle.sym("Z_Free").ok());
     }
@@ -96,6 +104,7 @@ fn find_pointers(marker: MainThreadMarker) {
 
 fn reset_pointers(marker: MainThreadMarker) {
     BUILD_NUMBER.reset(marker);
+    CLS.reset(marker);
     CMD_ADDMALLOCCOMMAND.reset(marker);
     CMD_ARGC.reset(marker);
     CMD_ARGV.reset(marker);
@@ -104,9 +113,12 @@ fn reset_pointers(marker: MainThreadMarker) {
     CON_PRINTF.reset(marker);
     CVAR_REGISTERVARIABLE.reset(marker);
     CVAR_VARS.reset(marker);
+    HOST_FRAMETIME.reset(marker);
     HOST_SHUTDOWN.reset(marker);
     MEMORY_INIT.reset(marker);
     MEM_FREE.reset(marker);
+    SV.reset(marker);
+    SV_FRAME.reset(marker);
     V_FADEALPHA.reset(marker);
     Z_FREE.reset(marker);
 }
@@ -156,5 +168,19 @@ pub unsafe extern "C" fn V_FadeAlpha() -> c_int {
         } else {
             V_FADEALPHA.get(marker)()
         }
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn SV_Frame() {
+    abort_on_panic(move || {
+        let marker = MainThreadMarker::new();
+        let engine = Engine::new(marker);
+
+        tas_logging::on_sv_frame_start(&engine);
+
+        SV_FRAME.get(marker)();
+
+        tas_logging::on_sv_frame_end(&engine);
     })
 }

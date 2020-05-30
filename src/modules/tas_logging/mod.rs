@@ -107,6 +107,41 @@ fn taslog(engine: &Engine, enabled: i32) {
     }
 }
 
+/// # Safety
+///
+/// This function must only be called right before SV_Frame().
+pub unsafe fn on_sv_frame_start(engine: &Engine) {
+    let marker = engine.marker();
+
+    if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
+        let frame_time = engine::HOST_FRAMETIME
+            .get_opt(marker)
+            .map(|frame_time| *frame_time.as_ptr());
+        let client_state = engine::CLS.get_opt(marker).map(|cls| *cls.as_ptr().cast());
+        let is_paused = engine::SV
+            .get_opt(marker)
+            .map(|sv| *sv.as_ptr().offset(4).cast());
+
+        // TODO: command_buffer
+        if let Err(err) = tas_log.begin_physics_frame(frame_time, client_state, is_paused, None) {
+            engine.print(&format!("Error writing to the TAS log: {}", err));
+        }
+    }
+}
+
+/// # Safety
+///
+/// This function must only be called right after SV_Frame().
+pub unsafe fn on_sv_frame_end(engine: &Engine) {
+    let marker = engine.marker();
+
+    if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
+        if let Err(err) = tas_log.end_physics_frame() {
+            engine.print(&format!("Error writing to the TAS log: {}", err));
+        }
+    }
+}
+
 struct TASLog {
     ser: Serializer,
 }
@@ -141,6 +176,54 @@ impl TASLog {
         self.ser.end_array()?;
         self.ser.end_object_value()?;
         self.ser.end_object()?;
+        Ok(())
+    }
+
+    fn begin_physics_frame(
+        &mut self,
+        frame_time: Option<f64>,
+        client_state: Option<i32>,
+        is_paused: Option<bool>,
+        command_buffer: Option<&str>,
+    ) -> Result<(), io::Error> {
+        self.ser.begin_array_value()?;
+        self.ser.begin_object()?;
+
+        if let Some(frame_time) = frame_time {
+            self.ser.entry("ft", &frame_time)?;
+        }
+
+        if let Some(client_state) = client_state {
+            if client_state != 5 {
+                self.ser.entry("cls", &client_state)?;
+            }
+        }
+
+        if let Some(is_paused) = is_paused {
+            if is_paused {
+                self.ser.entry("p", &is_paused)?;
+            }
+        }
+
+        if let Some(command_buffer) = command_buffer {
+            self.ser.entry("cbuf", command_buffer)?;
+        }
+
+        self.ser.key("cf")?;
+        self.ser.begin_object_value()?;
+        self.ser.begin_array()?;
+
+        Ok(())
+    }
+
+    fn end_physics_frame(&mut self) -> Result<(), io::Error> {
+        self.ser.end_array()?;
+
+        // TODO: console messages, damage, object move.
+
+        self.ser.end_object_value()?;
+        self.ser.end_object()?;
+        self.ser.end_array_value()?;
         Ok(())
     }
 }
