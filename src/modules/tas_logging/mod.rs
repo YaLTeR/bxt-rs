@@ -218,10 +218,10 @@ impl TASLog {
 
     fn end_physics_frame(&mut self) -> Result<(), io::Error> {
         self.ser.end_array()?;
+        self.ser.end_object_value()?;
 
         // TODO: console messages, damage, object move.
 
-        self.ser.end_object_value()?;
         self.ser.end_object()?;
         self.ser.end_array_value()?;
         Ok(())
