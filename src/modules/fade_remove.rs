@@ -2,7 +2,7 @@
 
 use super::Module;
 use crate::{
-    engine,
+    hooks::engine,
     modules::cvars::{self, CVar},
     utils::MainThreadMarker,
 };

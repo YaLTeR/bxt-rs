@@ -2,7 +2,7 @@
 
 use std::{ffi::CStr, marker::PhantomData};
 
-use crate::{engine, utils::MainThreadMarker};
+use crate::{hooks::engine, utils::MainThreadMarker};
 
 /// An iterator over arguments of a console command.
 pub struct Args<'a> {
