@@ -162,7 +162,7 @@ impl TASLog {
             ser.entry("build", &build_number)?;
         }
         if let Some(game_dir) = game_dir {
-            ser.entry("game_dir", game_dir)?;
+            ser.entry("mod", game_dir)?;
         }
 
         ser.key("pf")?;
