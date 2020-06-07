@@ -109,7 +109,7 @@ fn taslog(engine: &Engine, enabled: i32) {
 
 /// # Safety
 ///
-/// This function must only be called right before SV_Frame().
+/// This function must only be called right before `SV_Frame()`.
 pub unsafe fn on_sv_frame_start(engine: &Engine) {
     let marker = engine.marker();
 
@@ -131,7 +131,7 @@ pub unsafe fn on_sv_frame_start(engine: &Engine) {
 
 /// # Safety
 ///
-/// This function must only be called right after SV_Frame().
+/// This function must only be called right after `SV_Frame()`.
 pub unsafe fn on_sv_frame_end(engine: &Engine) {
     let marker = engine.marker();
 
