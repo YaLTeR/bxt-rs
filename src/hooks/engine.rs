@@ -3,7 +3,7 @@
 use std::{ffi::CString, os::raw::*};
 
 use crate::{
-    ffi,
+    ffi::{command::cmd_function_s, cvar::cvar_s},
     modules::{commands, cvars, fade_remove, tas_logging},
     utils::{abort_on_panic, dl, Function, MainThreadMarker, Variable},
 };
@@ -15,12 +15,11 @@ pub static CMD_ADDMALLOCCOMMAND: Function<
 > = Function::empty();
 pub static CMD_ARGC: Function<unsafe extern "C" fn() -> c_int> = Function::empty();
 pub static CMD_ARGV: Function<unsafe extern "C" fn(c_int) -> *const c_char> = Function::empty();
-pub static CMD_FUNCTIONS: Variable<*mut ffi::command::cmd_function_s> = Variable::empty();
+pub static CMD_FUNCTIONS: Variable<*mut cmd_function_s> = Variable::empty();
 pub static CON_PRINTF: Function<unsafe extern "C" fn(*const c_char, ...)> = Function::empty();
 pub static COM_GAMEDIR: Variable<[c_char; 260]> = Variable::empty();
-pub static CVAR_REGISTERVARIABLE: Function<unsafe extern "C" fn(*mut ffi::cvar::cvar_s)> =
-    Function::empty();
-pub static CVAR_VARS: Variable<*mut ffi::cvar::cvar_s> = Variable::empty();
+pub static CVAR_REGISTERVARIABLE: Function<unsafe extern "C" fn(*mut cvar_s)> = Function::empty();
+pub static CVAR_VARS: Variable<*mut cvar_s> = Variable::empty();
 pub static HOST_FRAMETIME: Variable<c_double> = Variable::empty();
 pub static HOST_SHUTDOWN: Function<unsafe extern "C" fn()> = Function::empty();
 pub static MEMORY_INIT: Function<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
