@@ -4,7 +4,8 @@ use std::{os::raw::*, ptr::NonNull};
 
 use crate::{
     ffi::{playermove::playermove_s, usercmd::usercmd_s},
-    hooks::engine,
+    hooks::engine::{self, Engine},
+    modules::tas_logging,
     utils::{abort_on_panic, Function, MainThreadMarker},
 };
 
@@ -49,6 +50,9 @@ pub unsafe fn reset_entity_interface(marker: MainThreadMarker) {
 pub unsafe extern "C" fn CmdStart(player: *mut c_void, cmd: *mut usercmd_s, random_seed: c_uint) {
     abort_on_panic(move || {
         let marker = MainThreadMarker::new();
+        let engine = Engine::new(marker);
+
+        tas_logging::on_cmd_start(&engine, *cmd, random_seed);
 
         CMD_START.get(marker)(player, cmd, random_seed);
     })
@@ -57,7 +61,12 @@ pub unsafe extern "C" fn CmdStart(player: *mut c_void, cmd: *mut usercmd_s, rand
 pub unsafe extern "C" fn PM_Move(ppmove: *mut playermove_s, server: c_int) {
     abort_on_panic(move || {
         let marker = MainThreadMarker::new();
+        let engine = Engine::new(marker);
+
+        tas_logging::on_pm_move_start(&engine, ppmove);
 
         PM_MOVE.get(marker)(ppmove, server);
+
+        tas_logging::on_pm_move_end(&engine, ppmove);
     })
 }

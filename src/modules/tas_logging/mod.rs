@@ -8,6 +8,7 @@ use std::{
 
 use super::Module;
 use crate::{
+    ffi::{edict, playermove::playermove_s, usercmd::usercmd_s},
     handler,
     hooks::engine::{self, Engine},
     modules::{
@@ -142,6 +143,48 @@ pub unsafe fn on_sv_frame_end(engine: &Engine) {
     }
 }
 
+/// # Safety
+///
+/// This function must only be called right before `CmdStart()`.
+pub unsafe fn on_cmd_start(engine: &Engine, cmd: usercmd_s, random_seed: u32) {
+    let marker = engine.marker();
+
+    if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
+        if let Err(err) = tas_log.begin_cmd_frame(None, None, &cmd, random_seed) {
+            engine.print(&format!("Error writing to the TAS log: {}", err));
+        }
+    }
+}
+
+/// # Safety
+///
+/// This function must only be called right before serverside `PM_Move()`.
+pub unsafe fn on_pm_move_start(engine: &Engine, ppmove: *const playermove_s) {
+    let marker = engine.marker();
+
+    if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
+        if let Err(err) = tas_log.write_pre_pm_state(&*ppmove) {
+            engine.print(&format!("Error writing to the TAS log: {}", err));
+        }
+    }
+}
+
+/// # Safety
+///
+/// This function must only be called right after serverside `PM_Move()`.
+pub unsafe fn on_pm_move_end(engine: &Engine, ppmove: *const playermove_s) {
+    let marker = engine.marker();
+
+    if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
+        if let Err(err) = tas_log.write_post_pm_state(&*ppmove) {
+            engine.print(&format!("Error writing to the TAS log: {}", err));
+        }
+        if let Err(err) = tas_log.end_cmd_frame() {
+            engine.print(&format!("Error writing to the TAS log: {}", err));
+        }
+    }
+}
+
 struct TASLog {
     ser: Serializer,
 }
@@ -224,6 +267,110 @@ impl TASLog {
 
         self.ser.end_object()?;
         self.ser.end_array_value()?;
+        Ok(())
+    }
+
+    fn begin_cmd_frame(
+        &mut self,
+        frame_bulk_id: Option<usize>,
+        frame_time_remainder: Option<f64>,
+        cmd: &usercmd_s,
+        shared_seed: u32,
+    ) -> Result<(), io::Error> {
+        self.ser.begin_array_value()?;
+        self.ser.begin_object()?;
+
+        if let Some(frame_bulk_id) = frame_bulk_id {
+            self.ser.entry("bid", &frame_bulk_id)?;
+        }
+        if let Some(frame_time_remainder) = frame_time_remainder {
+            self.ser.entry("rem", &frame_time_remainder)?;
+        }
+
+        self.ser.entry("ms", &cmd.msec)?;
+        self.ser.entry("btns", &cmd.buttons)?;
+        self.ser.entry("impls", &cmd.impulse)?;
+        self.ser
+            .entry("fsu", &[cmd.forwardmove, cmd.sidemove, cmd.upmove])?;
+        self.ser.entry(
+            "view",
+            &[cmd.viewangles[1], cmd.viewangles[0], cmd.viewangles[2]],
+        )?;
+
+        self.ser.entry("ss", &shared_seed)?;
+
+        // TODO: health, armor.
+
+        Ok(())
+    }
+
+    fn end_cmd_frame(&mut self) -> Result<(), io::Error> {
+        self.ser.end_object()?;
+        self.ser.end_array_value()?;
+        Ok(())
+    }
+
+    fn write_pre_pm_state(&mut self, pmove: &playermove_s) -> Result<(), io::Error> {
+        if pmove.friction != 1. {
+            self.ser.entry("efric", &pmove.friction)?;
+        }
+        if pmove.gravity != 1. {
+            self.ser.entry("egrav", &pmove.gravity)?;
+        }
+        if pmove.punchangle.iter().any(|x| *x != 0.) {
+            self.ser.entry(
+                "pview",
+                &[
+                    pmove.punchangle[1],
+                    pmove.punchangle[0],
+                    pmove.punchangle[2],
+                ],
+            )?;
+        }
+
+        self.ser.key("prepm")?;
+        self.ser.begin_object_value()?;
+        self.ser.begin_object()?;
+
+        self.write_pm_state(pmove)?;
+
+        self.ser.end_object()?;
+        self.ser.end_object_value()?;
+
+        Ok(())
+    }
+
+    fn write_post_pm_state(&mut self, pmove: &playermove_s) -> Result<(), io::Error> {
+        self.ser.key("postpm")?;
+        self.ser.begin_object_value()?;
+        self.ser.begin_object()?;
+
+        self.write_pm_state(pmove)?;
+
+        self.ser.end_object()?;
+        self.ser.end_object_value()?;
+
+        Ok(())
+    }
+
+    fn write_pm_state(&mut self, pmove: &playermove_s) -> Result<(), io::Error> {
+        self.ser.entry("pos", &pmove.origin)?;
+        self.ser.entry("vel", &pmove.velocity)?;
+        self.ser.entry("og", &(pmove.onground != -1))?;
+        if pmove.basevelocity.iter().any(|x| *x != 0.) {
+            self.ser.entry("bvel", &pmove.basevelocity)?;
+        }
+        if pmove.waterlevel != 0 {
+            self.ser.entry("wlvl", &pmove.waterlevel)?;
+        }
+        if pmove.flags.contains(edict::Flags::FL_DUCKING) {
+            self.ser.entry("dst", &2)?;
+        } else if pmove.bInDuck != 0 {
+            self.ser.entry("dst", &1)?;
+        }
+
+        // TODO: ladder
+
         Ok(())
     }
 }
