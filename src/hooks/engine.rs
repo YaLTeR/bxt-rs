@@ -3,7 +3,7 @@
 use std::{ffi::CString, os::raw::*};
 
 use crate::{
-    ffi::{command::cmd_function_s, cvar::cvar_s},
+    ffi::{command::cmd_function_s, cvar::cvar_s, playermove::playermove_s, usercmd::usercmd_s},
     modules::{commands, cvars, fade_remove, tas_logging},
     utils::{abort_on_panic, dl, Function, MainThreadMarker, Variable},
 };
@@ -20,15 +20,26 @@ pub static CON_PRINTF: Function<unsafe extern "C" fn(*const c_char, ...)> = Func
 pub static COM_GAMEDIR: Variable<[c_char; 260]> = Variable::empty();
 pub static CVAR_REGISTERVARIABLE: Function<unsafe extern "C" fn(*mut cvar_s)> = Function::empty();
 pub static CVAR_VARS: Variable<*mut cvar_s> = Variable::empty();
+pub static GENTITYINTERFACE: Variable<DllFunctions> = Variable::empty();
+pub static LOADENTITYDLLS: Function<unsafe extern "C" fn(*const c_char)> = Function::empty();
 pub static HOST_FRAMETIME: Variable<c_double> = Variable::empty();
 pub static HOST_SHUTDOWN: Function<unsafe extern "C" fn()> = Function::empty();
 pub static MEMORY_INIT: Function<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
     Function::empty();
 pub static MEM_FREE: Function<unsafe extern "C" fn(*mut c_void)> = Function::empty();
+pub static RELEASEENTITYDLLS: Function<unsafe extern "C" fn()> = Function::empty();
 pub static SV: Variable<c_void> = Variable::empty();
 pub static SV_FRAME: Function<unsafe extern "C" fn()> = Function::empty();
 pub static V_FADEALPHA: Function<unsafe extern "C" fn() -> c_int> = Function::empty();
 pub static Z_FREE: Function<unsafe extern "C" fn(*mut c_void)> = Function::empty();
+
+#[repr(C)]
+pub struct DllFunctions {
+    _padding_1: [u8; 136],
+    pub pm_move: Option<unsafe extern "C" fn(*mut playermove_s, c_int)>,
+    _padding_2: [u8; 32],
+    pub cmd_start: Option<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)>,
+}
 
 /// Wrapper providing safe access to some engine functions.
 ///
@@ -90,10 +101,13 @@ fn find_pointers(marker: MainThreadMarker) {
         CON_PRINTF.set(marker, handle.sym("Con_Printf").ok());
         CVAR_REGISTERVARIABLE.set(marker, handle.sym("Cvar_RegisterVariable").ok());
         CVAR_VARS.set(marker, handle.sym("cvar_vars").ok());
+        GENTITYINTERFACE.set(marker, handle.sym("gEntityInterface").ok());
+        LOADENTITYDLLS.set(marker, handle.sym("LoadEntityDLLs").ok());
         HOST_FRAMETIME.set(marker, handle.sym("host_frametime").ok());
         HOST_SHUTDOWN.set(marker, handle.sym("Host_Shutdown").ok());
         MEMORY_INIT.set(marker, handle.sym("Memory_Init").ok());
         MEM_FREE.set(marker, handle.sym("Mem_Free").ok());
+        RELEASEENTITYDLLS.set(marker, handle.sym("ReleaseEntityDlls").ok());
         SV.set(marker, handle.sym("sv").ok());
         SV_FRAME.set(marker, handle.sym("SV_Frame").ok());
         V_FADEALPHA.set(marker, handle.sym("V_FadeAlpha").ok());
@@ -112,10 +126,13 @@ fn reset_pointers(marker: MainThreadMarker) {
     CON_PRINTF.reset(marker);
     CVAR_REGISTERVARIABLE.reset(marker);
     CVAR_VARS.reset(marker);
+    GENTITYINTERFACE.reset(marker);
+    LOADENTITYDLLS.reset(marker);
     HOST_FRAMETIME.reset(marker);
     HOST_SHUTDOWN.reset(marker);
     MEMORY_INIT.reset(marker);
     MEM_FREE.reset(marker);
+    RELEASEENTITYDLLS.reset(marker);
     SV.reset(marker);
     SV_FRAME.reset(marker);
     V_FADEALPHA.reset(marker);
@@ -181,5 +198,23 @@ pub unsafe extern "C" fn SV_Frame() {
         SV_FRAME.get(marker)();
 
         tas_logging::on_sv_frame_end(&engine);
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ReleaseEntityDlls() {
+    abort_on_panic(move || {
+        let marker = MainThreadMarker::new();
+
+        RELEASEENTITYDLLS.get(marker)();
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn LoadEntityDLLs(base_dir: *const c_char) {
+    abort_on_panic(move || {
+        let marker = MainThreadMarker::new();
+
+        LOADENTITYDLLS.get(marker)(base_dir);
     })
 }
