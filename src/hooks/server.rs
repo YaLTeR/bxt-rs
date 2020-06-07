@@ -47,6 +47,7 @@ pub unsafe fn reset_entity_interface(marker: MainThreadMarker) {
     }
 }
 
+#[allow(non_snake_case, clippy::missing_safety_doc)]
 pub unsafe extern "C" fn CmdStart(player: *mut c_void, cmd: *mut usercmd_s, random_seed: c_uint) {
     abort_on_panic(move || {
         let marker = MainThreadMarker::new();
@@ -58,6 +59,7 @@ pub unsafe extern "C" fn CmdStart(player: *mut c_void, cmd: *mut usercmd_s, rand
     })
 }
 
+#[allow(non_snake_case, clippy::missing_safety_doc)]
 pub unsafe extern "C" fn PM_Move(ppmove: *mut playermove_s, server: c_int) {
     abort_on_panic(move || {
         let marker = MainThreadMarker::new();

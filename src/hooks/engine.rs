@@ -140,6 +140,7 @@ fn reset_pointers(marker: MainThreadMarker) {
     Z_FREE.reset(marker);
 }
 
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn Memory_Init(buf: *mut c_void, size: c_int) -> c_int {
     abort_on_panic(move || {
@@ -160,6 +161,7 @@ pub unsafe extern "C" fn Memory_Init(buf: *mut c_void, size: c_int) -> c_int {
     })
 }
 
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn Host_Shutdown() {
     abort_on_panic(move || {
@@ -175,6 +177,7 @@ pub unsafe extern "C" fn Host_Shutdown() {
     })
 }
 
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn V_FadeAlpha() -> c_int {
     abort_on_panic(move || {
@@ -188,6 +191,7 @@ pub unsafe extern "C" fn V_FadeAlpha() -> c_int {
     })
 }
 
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn SV_Frame() {
     abort_on_panic(move || {
@@ -202,6 +206,7 @@ pub unsafe extern "C" fn SV_Frame() {
     })
 }
 
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn ReleaseEntityDlls() {
     abort_on_panic(move || {
@@ -213,6 +218,7 @@ pub unsafe extern "C" fn ReleaseEntityDlls() {
     })
 }
 
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn LoadEntityDLLs(base_dir: *const c_char) {
     abort_on_panic(move || {

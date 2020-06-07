@@ -18,6 +18,7 @@ impl<T> MainThreadRefCell<T> {
     }
 
     /// Immutably borrows the wrapped value.
+    #[allow(unused)]
     pub fn borrow(&self, _marker: MainThreadMarker) -> Ref<T> {
         self.0.borrow()
     }
@@ -29,6 +30,7 @@ impl<T> MainThreadRefCell<T> {
 
     /// Replaces the wrapped value with a new one, returning the old value, without deinitializing
     /// either one.
+    #[allow(unused)]
     pub fn replace(&self, t: T) -> T {
         self.0.replace(t)
     }
