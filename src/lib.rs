@@ -1,4 +1,5 @@
 //! Speedrun and TAS tool for Half-Life 1 and mods.
+#![allow(clippy::float_cmp, clippy::type_complexity)]
 
 #[macro_use]
 extern crate log;
