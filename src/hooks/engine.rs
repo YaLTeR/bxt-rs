@@ -4,6 +4,7 @@ use std::{ffi::CString, os::raw::*};
 
 use crate::{
     ffi::{command::cmd_function_s, cvar::cvar_s, playermove::playermove_s, usercmd::usercmd_s},
+    hooks::server,
     modules::{commands, cvars, fade_remove, tas_logging},
     utils::{abort_on_panic, dl, Function, MainThreadMarker, Variable},
 };
@@ -206,6 +207,8 @@ pub unsafe extern "C" fn ReleaseEntityDlls() {
     abort_on_panic(move || {
         let marker = MainThreadMarker::new();
 
+        server::reset_entity_interface(marker);
+
         RELEASEENTITYDLLS.get(marker)();
     })
 }
@@ -216,5 +219,7 @@ pub unsafe extern "C" fn LoadEntityDLLs(base_dir: *const c_char) {
         let marker = MainThreadMarker::new();
 
         LOADENTITYDLLS.get(marker)(base_dir);
+
+        server::hook_entity_interface(marker);
     })
 }
