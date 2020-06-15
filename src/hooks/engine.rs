@@ -92,27 +92,27 @@ fn find_pointers(marker: MainThreadMarker) {
     let handle = dl::open("hw.so").unwrap();
 
     unsafe {
-        BUILD_NUMBER.set(marker, handle.sym("build_number").ok());
-        CLS.set(marker, handle.sym("cls").ok());
-        CMD_ADDMALLOCCOMMAND.set(marker, handle.sym("Cmd_AddMallocCommand").ok());
-        CMD_ARGC.set(marker, handle.sym("Cmd_Argc").ok());
-        CMD_ARGV.set(marker, handle.sym("Cmd_Argv").ok());
-        CMD_FUNCTIONS.set(marker, handle.sym("cmd_functions").ok());
-        COM_GAMEDIR.set(marker, handle.sym("com_gamedir").ok());
-        CON_PRINTF.set(marker, handle.sym("Con_Printf").ok());
-        CVAR_REGISTERVARIABLE.set(marker, handle.sym("Cvar_RegisterVariable").ok());
-        CVAR_VARS.set(marker, handle.sym("cvar_vars").ok());
-        GENTITYINTERFACE.set(marker, handle.sym("gEntityInterface").ok());
-        LOADENTITYDLLS.set(marker, handle.sym("LoadEntityDLLs").ok());
-        HOST_FRAMETIME.set(marker, handle.sym("host_frametime").ok());
-        HOST_SHUTDOWN.set(marker, handle.sym("Host_Shutdown").ok());
-        MEMORY_INIT.set(marker, handle.sym("Memory_Init").ok());
-        MEM_FREE.set(marker, handle.sym("Mem_Free").ok());
-        RELEASEENTITYDLLS.set(marker, handle.sym("ReleaseEntityDlls").ok());
-        SV.set(marker, handle.sym("sv").ok());
-        SV_FRAME.set(marker, handle.sym("SV_Frame").ok());
-        V_FADEALPHA.set(marker, handle.sym("V_FadeAlpha").ok());
-        Z_FREE.set(marker, handle.sym("Z_Free").ok());
+        BUILD_NUMBER.set(marker, handle.sym(b"build_number\0").ok());
+        CLS.set(marker, handle.sym(b"cls\0").ok());
+        CMD_ADDMALLOCCOMMAND.set(marker, handle.sym(b"Cmd_AddMallocCommand\0").ok());
+        CMD_ARGC.set(marker, handle.sym(b"Cmd_Argc\0").ok());
+        CMD_ARGV.set(marker, handle.sym(b"Cmd_Argv\0").ok());
+        CMD_FUNCTIONS.set(marker, handle.sym(b"cmd_functions\0").ok());
+        COM_GAMEDIR.set(marker, handle.sym(b"com_gamedir\0").ok());
+        CON_PRINTF.set(marker, handle.sym(b"Con_Printf\0").ok());
+        CVAR_REGISTERVARIABLE.set(marker, handle.sym(b"Cvar_RegisterVariable\0").ok());
+        CVAR_VARS.set(marker, handle.sym(b"cvar_vars\0").ok());
+        GENTITYINTERFACE.set(marker, handle.sym(b"gEntityInterface\0").ok());
+        LOADENTITYDLLS.set(marker, handle.sym(b"LoadEntityDLLs\0").ok());
+        HOST_FRAMETIME.set(marker, handle.sym(b"host_frametime\0").ok());
+        HOST_SHUTDOWN.set(marker, handle.sym(b"Host_Shutdown\0").ok());
+        MEMORY_INIT.set(marker, handle.sym(b"Memory_Init\0").ok());
+        MEM_FREE.set(marker, handle.sym(b"Mem_Free\0").ok());
+        RELEASEENTITYDLLS.set(marker, handle.sym(b"ReleaseEntityDlls\0").ok());
+        SV.set(marker, handle.sym(b"sv\0").ok());
+        SV_FRAME.set(marker, handle.sym(b"SV_Frame\0").ok());
+        V_FADEALPHA.set(marker, handle.sym(b"V_FadeAlpha\0").ok());
+        Z_FREE.set(marker, handle.sym(b"Z_Free\0").ok());
     }
 }
 

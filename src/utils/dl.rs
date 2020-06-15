@@ -26,13 +26,13 @@ impl Drop for Handle {
 
 impl Handle {
     /// Obtains a symbol address using `dlsym()`.
-    pub fn sym(&self, symbol: &str) -> Result<NonNull<c_void>, CString> {
+    pub fn sym(&self, symbol: &[u8]) -> Result<NonNull<c_void>, CString> {
         // Clear the previous error.
         unsafe {
             dlerror();
         }
 
-        let symbol = CString::new(symbol).unwrap();
+        let symbol = CStr::from_bytes_with_nul(symbol).unwrap();
         let ptr = unsafe { dlsym(self.ptr.as_ptr(), symbol.as_ptr()) };
 
         match NonNull::new(ptr) {
