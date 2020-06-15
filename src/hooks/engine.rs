@@ -146,7 +146,7 @@ pub unsafe extern "C" fn Memory_Init(buf: *mut c_void, size: c_int) -> c_int {
     abort_on_panic(move || {
         let marker = MainThreadMarker::new();
 
-        let _ = pretty_env_logger::try_init();
+        let _ = env_logger::try_init();
 
         find_pointers(marker);
 
