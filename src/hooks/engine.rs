@@ -6,33 +6,33 @@ use crate::{
     ffi::{command::cmd_function_s, cvar::cvar_s, playermove::playermove_s, usercmd::usercmd_s},
     hooks::server,
     modules::{commands, cvars, fade_remove, tas_logging},
-    utils::{abort_on_panic, dl, Function, MainThreadMarker, Variable},
+    utils::{abort_on_panic, dl, MainThreadMarker, Pointer, Variable},
 };
 
-pub static BUILD_NUMBER: Function<unsafe extern "C" fn() -> c_int> = Function::empty();
+pub static BUILD_NUMBER: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty();
 pub static CLS: Variable<c_void> = Variable::empty();
-pub static CMD_ADDMALLOCCOMMAND: Function<
+pub static CMD_ADDMALLOCCOMMAND: Pointer<
     unsafe extern "C" fn(*const c_char, unsafe extern "C" fn(), c_int),
-> = Function::empty();
-pub static CMD_ARGC: Function<unsafe extern "C" fn() -> c_int> = Function::empty();
-pub static CMD_ARGV: Function<unsafe extern "C" fn(c_int) -> *const c_char> = Function::empty();
+> = Pointer::empty();
+pub static CMD_ARGC: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty();
+pub static CMD_ARGV: Pointer<unsafe extern "C" fn(c_int) -> *const c_char> = Pointer::empty();
 pub static CMD_FUNCTIONS: Variable<*mut cmd_function_s> = Variable::empty();
-pub static CON_PRINTF: Function<unsafe extern "C" fn(*const c_char, ...)> = Function::empty();
+pub static CON_PRINTF: Pointer<unsafe extern "C" fn(*const c_char, ...)> = Pointer::empty();
 pub static COM_GAMEDIR: Variable<[c_char; 260]> = Variable::empty();
-pub static CVAR_REGISTERVARIABLE: Function<unsafe extern "C" fn(*mut cvar_s)> = Function::empty();
+pub static CVAR_REGISTERVARIABLE: Pointer<unsafe extern "C" fn(*mut cvar_s)> = Pointer::empty();
 pub static CVAR_VARS: Variable<*mut cvar_s> = Variable::empty();
 pub static GENTITYINTERFACE: Variable<DllFunctions> = Variable::empty();
-pub static LOADENTITYDLLS: Function<unsafe extern "C" fn(*const c_char)> = Function::empty();
+pub static LOADENTITYDLLS: Pointer<unsafe extern "C" fn(*const c_char)> = Pointer::empty();
 pub static HOST_FRAMETIME: Variable<c_double> = Variable::empty();
-pub static HOST_SHUTDOWN: Function<unsafe extern "C" fn()> = Function::empty();
-pub static MEMORY_INIT: Function<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
-    Function::empty();
-pub static MEM_FREE: Function<unsafe extern "C" fn(*mut c_void)> = Function::empty();
-pub static RELEASEENTITYDLLS: Function<unsafe extern "C" fn()> = Function::empty();
+pub static HOST_SHUTDOWN: Pointer<unsafe extern "C" fn()> = Pointer::empty();
+pub static MEMORY_INIT: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
+    Pointer::empty();
+pub static MEM_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty();
+pub static RELEASEENTITYDLLS: Pointer<unsafe extern "C" fn()> = Pointer::empty();
 pub static SV: Variable<c_void> = Variable::empty();
-pub static SV_FRAME: Function<unsafe extern "C" fn()> = Function::empty();
-pub static V_FADEALPHA: Function<unsafe extern "C" fn() -> c_int> = Function::empty();
-pub static Z_FREE: Function<unsafe extern "C" fn(*mut c_void)> = Function::empty();
+pub static SV_FRAME: Pointer<unsafe extern "C" fn()> = Pointer::empty();
+pub static V_FADEALPHA: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty();
+pub static Z_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty();
 
 #[repr(C)]
 pub struct DllFunctions {

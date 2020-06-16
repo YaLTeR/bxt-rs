@@ -9,8 +9,8 @@ use std::{
 pub mod marker;
 pub use marker::MainThreadMarker;
 
-pub mod function;
-pub use function::Function;
+pub mod pointer;
+pub use pointer::Pointer;
 
 pub mod variable;
 pub use variable::Variable;
