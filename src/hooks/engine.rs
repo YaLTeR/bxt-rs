@@ -137,7 +137,19 @@ fn find_pointers(marker: MainThreadMarker) {
 /// duration of this call. If any pointers are found in memory, then the memory must be valid until
 /// the pointers are reset (according to the safety section of `PointerTrait::set`).
 #[cfg(windows)]
-pub unsafe fn find_pointers(_marker: MainThreadMarker, _base: *mut c_void, _size: usize) {}
+pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: usize) {
+    use std::{ptr::NonNull, slice};
+
+    // Find all pattern-based pointers.
+    {
+        let memory = slice::from_raw_parts(base.cast(), size);
+        for pointer in POINTERS {
+            if let Some((offset, index)) = pointer.patterns().find(memory) {
+                pointer.set(marker, NonNull::new(base.add(offset)), Some(index));
+            }
+        }
+    }
+}
 
 fn reset_pointers(marker: MainThreadMarker) {
     for pointer in POINTERS {
