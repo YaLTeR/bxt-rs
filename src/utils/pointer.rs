@@ -71,6 +71,42 @@ pub trait PointerTrait: Sync {
 
     /// Logs pointer name and value.
     fn log(&self, marker: MainThreadMarker);
+
+    /// Returns a pointer stored at an offset from this pointer.
+    ///
+    /// # Safety
+    ///
+    /// The memory stored at an offset from this pointer must be valid.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `Pointer` is empty.
+    unsafe fn by_offset(&self, marker: MainThreadMarker, offset: isize) -> Option<NonNull<c_void>> {
+        let ptr = self.get_raw(marker).as_ptr();
+        let ptr = *ptr.offset(offset).cast();
+        NonNull::new(ptr)
+    }
+
+    /// Returns a pointer stored at an offset from this pointer plus offset plus 4.
+    ///
+    /// This is used for getting the address from E8 ?? ?? ?? ?? relative call instructions.
+    ///
+    /// # Safety
+    ///
+    /// The memory stored at an offset from this pointer must be valid.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `Pointer` is empty.
+    unsafe fn by_relative_call(
+        &self,
+        marker: MainThreadMarker,
+        offset: isize,
+    ) -> Option<NonNull<c_void>> {
+        let ptr = self.get_raw(marker).as_ptr();
+        let ptr = ptr.offset(*ptr.offset(offset).cast::<isize>() + offset + 4);
+        NonNull::new(ptr)
+    }
 }
 
 // Safety: all methods are guarded with MainThreadMarker.
