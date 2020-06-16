@@ -125,6 +125,8 @@ fn find_pointers(marker: MainThreadMarker) {
         unsafe {
             pointer.set(marker, handle.sym(pointer.symbol()).ok());
         }
+
+        pointer.log(marker);
     }
 }
 

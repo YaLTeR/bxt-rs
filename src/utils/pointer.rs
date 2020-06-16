@@ -29,6 +29,9 @@ pub trait PointerTrait: Sync {
 
     /// Returns the pointer's symbol name.
     fn symbol(&self) -> &'static [u8];
+
+    /// Logs pointer name and value.
+    fn log(&self, marker: MainThreadMarker);
 }
 
 // Safety: all methods are guarded with MainThreadMarker.
@@ -76,5 +79,24 @@ impl<P: Copy> PointerTrait for Pointer<P> {
 
     fn symbol(&self) -> &'static [u8] {
         self.symbol
+    }
+
+    fn log(&self, marker: MainThreadMarker) {
+        if !log_enabled!(log::Level::Debug) {
+            return;
+        }
+
+        let name = CStr::from_bytes_with_nul(self.symbol)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        let ptr = self
+            .get_opt(marker)
+            .map(|ptr| unsafe { *(&ptr as *const P as *const *const c_void) });
+
+        match ptr {
+            Some(ptr) => debug!("{:p}: {}", ptr, name),
+            None => debug!("MISSING: {}", name),
+        }
     }
 }
