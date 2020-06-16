@@ -50,6 +50,13 @@ pub trait PointerTrait: Sync {
     /// Resets the `Pointer` to the empty state.
     fn reset(&self, marker: MainThreadMarker);
 
+    /// Gets the stored pointer in raw form (casted to `*mut c_void`)..
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `Pointer` is empty.
+    fn get_raw(&self, marker: MainThreadMarker) -> NonNull<c_void>;
+
     /// Returns the index of the pattern which matched this pointer, if any.
     fn pattern_index(&self, marker: MainThreadMarker) -> Option<usize>;
 
@@ -137,6 +144,10 @@ impl<P: Copy> PointerTrait for Pointer<P> {
         unsafe {
             self.set(marker, None, None);
         }
+    }
+
+    fn get_raw(&self, marker: MainThreadMarker) -> NonNull<c_void> {
+        unsafe { NonNull::new_unchecked(*(&self.get(marker) as *const P as *const *mut c_void)) }
     }
 
     fn pattern_index(&self, _marker: MainThreadMarker) -> Option<usize> {
