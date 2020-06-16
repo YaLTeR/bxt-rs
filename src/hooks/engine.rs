@@ -34,6 +34,30 @@ pub static SV_FRAME: Pointer<unsafe extern "C" fn()> = Pointer::empty();
 pub static V_FADEALPHA: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty();
 pub static Z_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty();
 
+static POINTERS: &[&dyn PointerTrait] = &[
+    &BUILD_NUMBER,
+    &CLS,
+    &CMD_ADDMALLOCCOMMAND,
+    &CMD_ARGC,
+    &CMD_ARGV,
+    &CMD_FUNCTIONS,
+    &CON_PRINTF,
+    &COM_GAMEDIR,
+    &CVAR_REGISTERVARIABLE,
+    &CVAR_VARS,
+    &GENTITYINTERFACE,
+    &LOADENTITYDLLS,
+    &HOST_FRAMETIME,
+    &HOST_SHUTDOWN,
+    &MEMORY_INIT,
+    &MEM_FREE,
+    &RELEASEENTITYDLLS,
+    &SV,
+    &SV_FRAME,
+    &V_FADEALPHA,
+    &Z_FREE,
+];
+
 #[repr(C)]
 pub struct DllFunctions {
     _padding_1: [u8; 136],
@@ -117,27 +141,9 @@ fn find_pointers(marker: MainThreadMarker) {
 }
 
 fn reset_pointers(marker: MainThreadMarker) {
-    BUILD_NUMBER.reset(marker);
-    CLS.reset(marker);
-    CMD_ADDMALLOCCOMMAND.reset(marker);
-    CMD_ARGC.reset(marker);
-    CMD_ARGV.reset(marker);
-    CMD_FUNCTIONS.reset(marker);
-    COM_GAMEDIR.reset(marker);
-    CON_PRINTF.reset(marker);
-    CVAR_REGISTERVARIABLE.reset(marker);
-    CVAR_VARS.reset(marker);
-    GENTITYINTERFACE.reset(marker);
-    LOADENTITYDLLS.reset(marker);
-    HOST_FRAMETIME.reset(marker);
-    HOST_SHUTDOWN.reset(marker);
-    MEMORY_INIT.reset(marker);
-    MEM_FREE.reset(marker);
-    RELEASEENTITYDLLS.reset(marker);
-    SV.reset(marker);
-    SV_FRAME.reset(marker);
-    V_FADEALPHA.reset(marker);
-    Z_FREE.reset(marker);
+    for pointer in POINTERS {
+        pointer.reset(marker);
+    }
 }
 
 #[allow(clippy::missing_safety_doc)]
