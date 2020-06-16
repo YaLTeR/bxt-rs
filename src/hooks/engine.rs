@@ -124,7 +124,7 @@ fn find_pointers(marker: MainThreadMarker) {
 
     for pointer in POINTERS {
         unsafe {
-            pointer.set(marker, handle.sym(pointer.symbol()).ok());
+            pointer.set(marker, handle.sym(pointer.symbol()).ok(), None);
         }
 
         pointer.log(marker);

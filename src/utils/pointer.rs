@@ -17,7 +17,10 @@ pub struct Pointer<P> {
 #[derive(Clone, Copy)]
 enum Inner<P> {
     NotFound,
-    Found { ptr: P },
+    Found {
+        ptr: P,
+        pattern_index: Option<usize>,
+    },
 }
 
 /// Non-generic `Pointer` methods.
@@ -29,13 +32,21 @@ pub trait PointerTrait: Sync {
     /// # Safety
     ///
     /// `ptr` must be a valid pointer of type `P` at least until the `Pointer` is reset.
-    unsafe fn set(&self, marker: MainThreadMarker, ptr: Option<NonNull<c_void>>);
+    unsafe fn set(
+        &self,
+        marker: MainThreadMarker,
+        ptr: Option<NonNull<c_void>>,
+        pattern_index: Option<usize>,
+    );
 
     /// Returns `true` if the `Pointer` has a pointer stored.
     fn is_set(&self, marker: MainThreadMarker) -> bool;
 
     /// Resets the `Pointer` to the empty state.
     fn reset(&self, marker: MainThreadMarker);
+
+    /// Returns the index of the pattern which matched this pointer, if any.
+    fn pattern_index(&self, marker: MainThreadMarker) -> Option<usize>;
 
     /// Returns the pointer's symbol name.
     fn symbol(&self) -> &'static [u8];
@@ -82,16 +93,22 @@ impl<P: Copy> Pointer<P> {
     pub fn get_opt(&self, _marker: MainThreadMarker) -> Option<P> {
         match self.ptr.get() {
             Inner::NotFound => None,
-            Inner::Found { ptr } => Some(ptr),
+            Inner::Found { ptr, .. } => Some(ptr),
         }
     }
 }
 
 impl<P: Copy> PointerTrait for Pointer<P> {
-    unsafe fn set(&self, _marker: MainThreadMarker, ptr: Option<NonNull<c_void>>) {
+    unsafe fn set(
+        &self,
+        _marker: MainThreadMarker,
+        ptr: Option<NonNull<c_void>>,
+        pattern_index: Option<usize>,
+    ) {
         let new_ptr = match ptr {
             Some(ptr) => Inner::Found {
                 ptr: *(&ptr.as_ptr() as *const *mut c_void as *const P),
+                pattern_index,
             },
             None => Inner::NotFound,
         };
@@ -105,7 +122,15 @@ impl<P: Copy> PointerTrait for Pointer<P> {
 
     fn reset(&self, marker: MainThreadMarker) {
         unsafe {
-            self.set(marker, None);
+            self.set(marker, None, None);
+        }
+    }
+
+    fn pattern_index(&self, _marker: MainThreadMarker) -> Option<usize> {
+        if let Inner::Found { pattern_index, .. } = self.ptr.get() {
+            pattern_index
+        } else {
+            None
         }
     }
 
