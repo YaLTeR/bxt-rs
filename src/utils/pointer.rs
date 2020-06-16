@@ -2,12 +2,15 @@
 
 use std::{cell::Cell, ffi::c_void, ptr::NonNull};
 
+use bxt_patterns::Patterns;
+
 use crate::utils::*;
 
 /// Main thread pointer.
 pub struct Pointer<P> {
     ptr: Cell<Inner<P>>,
     symbol: &'static [u8],
+    patterns: Patterns,
 }
 
 /// Enum representing a found or not found pointer.
@@ -37,6 +40,9 @@ pub trait PointerTrait: Sync {
     /// Returns the pointer's symbol name.
     fn symbol(&self) -> &'static [u8];
 
+    /// Returns the pointer's patterns.
+    fn patterns(&self) -> Patterns;
+
     /// Logs pointer name and value.
     fn log(&self, marker: MainThreadMarker);
 }
@@ -47,9 +53,17 @@ unsafe impl<P> Sync for Pointer<P> {}
 impl<P> Pointer<P> {
     /// Creates an empty `Pointer` with the given symbol name.
     pub const fn empty(symbol: &'static [u8]) -> Self {
+        // https://github.com/rust-lang/rust/issues/64992
+        const EMPTY_SLICE: &[&[Option<u8>]] = &[];
+        Self::empty_patterns(symbol, Patterns(EMPTY_SLICE))
+    }
+
+    /// Creates an empty `Pointer` with the given symbol name and patterns.
+    pub const fn empty_patterns(symbol: &'static [u8], patterns: Patterns) -> Self {
         Self {
             ptr: Cell::new(Inner::NotFound),
             symbol,
+            patterns,
         }
     }
 }
@@ -97,6 +111,10 @@ impl<P: Copy> PointerTrait for Pointer<P> {
 
     fn symbol(&self) -> &'static [u8] {
         self.symbol
+    }
+
+    fn patterns(&self) -> Patterns {
+        self.patterns
     }
 
     fn log(&self, marker: MainThreadMarker) {
