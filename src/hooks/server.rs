@@ -18,7 +18,11 @@ pub static PM_MOVE: Pointer<unsafe extern "C" fn(*mut playermove_s, c_int)> =
 ///
 /// This function must only be called right after `LoadEntityDLLs()` is called.
 pub unsafe fn hook_entity_interface(marker: MainThreadMarker) {
-    let functions = engine::GENTITYINTERFACE.get(marker).as_mut().unwrap();
+    let functions = engine::GENTITYINTERFACE.get_opt(marker);
+    if functions.is_none() {
+        return;
+    }
+    let functions = functions.unwrap().as_mut().unwrap();
 
     if let Some(pm_move) = &mut functions.pm_move {
         PM_MOVE.set(marker, Some(NonNull::new_unchecked(*pm_move as _)));
@@ -35,7 +39,11 @@ pub unsafe fn hook_entity_interface(marker: MainThreadMarker) {
 ///
 /// This function must only be called right before `ReleaseEntityDlls()` is called.
 pub unsafe fn reset_entity_interface(marker: MainThreadMarker) {
-    let functions = engine::GENTITYINTERFACE.get(marker).as_mut().unwrap();
+    let functions = engine::GENTITYINTERFACE.get_opt(marker);
+    if functions.is_none() {
+        return;
+    }
+    let functions = functions.unwrap().as_mut().unwrap();
 
     if let Some(pm_move) = &mut functions.pm_move {
         *pm_move = PM_MOVE.get(marker);
