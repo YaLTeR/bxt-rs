@@ -11,8 +11,17 @@ use crate::{
     utils::*,
 };
 
-pub static BUILD_NUMBER: Pointer<unsafe extern "C" fn() -> c_int> =
-    Pointer::empty(b"build_number\0");
+pub static BUILD_NUMBER: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
+    b"build_number\0",
+    // To find, search for "Half-Life %i/%s (hw build %d)". This function is
+    // Draw_ConsoleBackground(), and a call to build_number() is right above the snprintf() using
+    // this string.
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 83 EC 08 A1 ?? ?? ?? ?? 56 33 F6 85 C0),
+    ]),
+    null_mut(),
+);
 pub static CLS: Pointer<*mut c_void> = Pointer::empty(b"cls\0");
 pub static CMD_ADDMALLOCCOMMAND: Pointer<
     unsafe extern "C" fn(*const c_char, unsafe extern "C" fn(), c_int),
@@ -44,12 +53,37 @@ pub static CON_PRINTF: Pointer<unsafe extern "C" fn(*const c_char, ...)> = Point
 );
 pub static COM_GAMEDIR: Pointer<*mut [c_char; 260]> = Pointer::empty(b"com_gamedir\0");
 pub static CVAR_REGISTERVARIABLE: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
-    Pointer::empty(b"Cvar_RegisterVariable\0");
+    Pointer::empty_patterns(
+        b"Cvar_RegisterVariable\0",
+        // To find, search for "Can't register variable %s, already defined".
+        Patterns(&[
+            // 6153
+            pattern!(55 8B EC 83 EC 14 53 56 8B 75 ?? 57 8B 06),
+        ]),
+        null_mut(),
+    );
 pub static CVAR_VARS: Pointer<*mut *mut cvar_s> = Pointer::empty(b"cvar_vars\0");
 pub static GENTITYINTERFACE: Pointer<*mut DllFunctions> = Pointer::empty(b"gEntityInterface\0");
-pub static LOADENTITYDLLS: Pointer<unsafe extern "C" fn(*const c_char)> =
-    Pointer::empty(b"LoadEntityDLLs\0");
+pub static LOADENTITYDLLS: Pointer<unsafe extern "C" fn(*const c_char)> = Pointer::empty_patterns(
+    b"LoadEntityDLLs\0",
+    // To find, search for "GetNewDLLFunctions".
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC B8 90 23 00 00),
+    ]),
+    LoadEntityDLLs as _,
+);
 pub static HOST_FRAMETIME: Pointer<*mut c_double> = Pointer::empty(b"host_frametime\0");
+pub static HOST_INITIALIZEGAMEDLL: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"Host_InitializeGameDLL\0",
+    // To find, search for "Sys_InitializeGameDLL called twice, skipping second call".
+    // Alternatively, find LoadEntityDLLs() and go to the parent function.
+    Patterns(&[
+        // 6153
+        pattern!(E8 ?? ?? ?? ?? 8B 0D ?? ?? ?? ?? 33 C0),
+    ]),
+    null_mut(),
+);
 pub static HOST_SHUTDOWN: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"Host_Shutdown\0",
     // To find, search for "recursive shutdown".
@@ -65,6 +99,15 @@ pub static HOST_TELL_F: Pointer<unsafe extern "C" fn()> = Pointer::empty_pattern
     Patterns(&[
         // 6153
         pattern!(55 8B EC 83 EC 40 A1 ?? ?? ?? ?? 56),
+    ]),
+    null_mut(),
+);
+pub static HOST_VALIDSAVE: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
+    b"Host_ValidSave\0",
+    // To find, search for "Not playing a local game.".
+    Patterns(&[
+        // 6153
+        pattern!(A1 ?? ?? ?? ?? B9 01 00 00 00 3B C1 0F 85),
     ]),
     null_mut(),
 );
@@ -89,12 +132,47 @@ pub static MEM_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty
     ]),
     null_mut(),
 );
-pub static RELEASEENTITYDLLS: Pointer<unsafe extern "C" fn()> =
-    Pointer::empty(b"ReleaseEntityDlls\0");
+pub static RELEASEENTITYDLLS: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"ReleaseEntityDlls\0",
+    // Find Host_Shutdown(). It has a Mem_Free() if. The 3-rd function above that if is
+    // ReleaseEntityDlls().
+    Patterns(&[
+        // 6153
+        pattern!(A1 ?? ?? ?? ?? 56 57 BE ?? ?? ?? ?? 8D 04),
+    ]),
+    ReleaseEntityDlls as _,
+);
 pub static SV: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
-pub static SV_FRAME: Pointer<unsafe extern "C" fn()> = Pointer::empty(b"SV_Frame\0");
-pub static V_FADEALPHA: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty(b"V_FadeAlpha\0");
-pub static Z_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty(b"Z_Free\0");
+pub static SV_FRAME: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"SV_Frame\0",
+    // To find, search for "%s timed out". It is used in SV_CheckTimeouts(), which is called by
+    // SV_Frame().
+    Patterns(&[
+        // 6153
+        pattern!(A1 ?? ?? ?? ?? 85 C0 74 ?? DD 05 ?? ?? ?? ?? A1),
+    ]),
+    SV_Frame as _,
+);
+pub static V_FADEALPHA: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
+    b"V_FadeAlpha\0",
+    // To find, search for "%3ifps %3i ms  %4i wpoly %4i epoly". This will lead to either
+    // R_RenderView() or its usually-inlined part, and the string will be used within an if. Right
+    // above the if is S_ExtraUpdate(), and right above that (maybe in another if) is
+    // R_PolyBlend(). Inside R_PolyBlend(), the first call is V_FadeAlpha().
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 83 EC 08 D9 05 ?? ?? ?? ?? DC 1D),
+    ]),
+    V_FadeAlpha as _,
+);
+pub static Z_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_patterns(
+    b"Z_Free\0",
+    // To find, search for "Z_Free: NULL pointer".
+    Patterns(&[
+        pattern!(55 8B EC 56 8B 75 ?? 85 F6 57 75 ?? 68 ?? ?? ?? ?? E8 ?? ?? ?? ?? 83 C4 04 8B 46),
+    ]),
+    null_mut(),
+);
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &BUILD_NUMBER,
@@ -110,8 +188,10 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &GENTITYINTERFACE,
     &LOADENTITYDLLS,
     &HOST_FRAMETIME,
+    &HOST_INITIALIZEGAMEDLL,
     &HOST_SHUTDOWN,
     &HOST_TELL_F,
+    &HOST_VALIDSAVE,
     &MEMORY_INIT,
     &MEM_FREE,
     &RELEASEENTITYDLLS,
@@ -223,11 +303,66 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         _ => (),
     }
 
+    match CVAR_REGISTERVARIABLE.pattern_index(marker) {
+        // 6153
+        Some(0) => CVAR_VARS.set(marker, CVAR_REGISTERVARIABLE.by_offset(marker, 124)),
+        _ => (),
+    }
+
+    match HOST_INITIALIZEGAMEDLL.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            // SVS.set(marker, HOST_INITIALIZEGAMEDLL.by_relative_call(marker, 26));
+            if !LOADENTITYDLLS.is_set(marker) {
+                LOADENTITYDLLS.set(marker, HOST_INITIALIZEGAMEDLL.by_relative_call(marker, 69));
+            }
+            GENTITYINTERFACE.set(marker, HOST_INITIALIZEGAMEDLL.by_offset(marker, 75));
+        }
+        _ => (),
+    }
+
     match HOST_TELL_F.pattern_index(marker) {
         // 6153
         Some(0) => {
             CMD_ARGC.set(marker, HOST_TELL_F.by_relative_call(marker, 28));
             CMD_ARGV.set(marker, HOST_TELL_F.by_relative_call(marker, 145));
+        }
+        _ => (),
+    }
+
+    match HOST_VALIDSAVE.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            SV.set(marker, HOST_VALIDSAVE.by_offset(marker, 19));
+            CLS.set(marker, HOST_VALIDSAVE.by_offset(marker, 69));
+            if !CON_PRINTF.is_set(marker) {
+                CON_PRINTF.set(marker, HOST_VALIDSAVE.by_relative_call(marker, 33));
+            }
+        }
+        _ => (),
+    }
+
+    match LOADENTITYDLLS.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            COM_GAMEDIR.set(marker, LOADENTITYDLLS.by_offset(marker, 51));
+        }
+        _ => (),
+    }
+
+    match RELEASEENTITYDLLS.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            // SVS.set(marker, RELEASEENTITYDLLS.by_offset(marker, 23));
+        }
+        _ => (),
+    }
+
+    match SV_FRAME.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            SV.set(marker, SV_FRAME.by_offset(marker, 1));
+            HOST_FRAMETIME.set(marker, SV_FRAME.by_offset(marker, 11));
         }
         _ => (),
     }
