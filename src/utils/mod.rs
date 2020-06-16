@@ -39,5 +39,7 @@ pub fn c_str_to_os_string(c_str: &CStr) -> OsString {
 /// Converts a `CStr` into an `OsString`.
 #[cfg(windows)]
 pub fn c_str_to_os_string(c_str: &CStr) -> OsString {
-    todo!("{:?}", c_str)
+    // TODO: this will fail for invalid UTF-8. Can cvars contain invalid UTF-8? What to do in this
+    // case?
+    c_str.to_str().unwrap().into()
 }
