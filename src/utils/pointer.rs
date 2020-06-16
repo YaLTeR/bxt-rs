@@ -53,8 +53,8 @@ impl<P: Copy> Pointer<P> {
     /// # Panics
     ///
     /// Panics if the `Pointer` is empty.
-    pub fn get(&self, _marker: MainThreadMarker) -> P {
-        self.ptr.get().unwrap()
+    pub fn get(&self, marker: MainThreadMarker) -> P {
+        self.get_opt(marker).unwrap()
     }
 
     /// Retrieves the stored pointer if it's present.
@@ -69,12 +69,14 @@ impl<P: Copy> PointerTrait for Pointer<P> {
             .set(ptr.map(|x| *(&x.as_ptr() as *const *mut c_void as *const P)));
     }
 
-    fn is_set(&self, _marker: MainThreadMarker) -> bool {
-        self.ptr.get().is_some()
+    fn is_set(&self, marker: MainThreadMarker) -> bool {
+        self.get_opt(marker).is_some()
     }
 
-    fn reset(&self, _marker: MainThreadMarker) {
-        self.ptr.set(None);
+    fn reset(&self, marker: MainThreadMarker) {
+        unsafe {
+            self.set(marker, None);
+        }
     }
 
     fn symbol(&self) -> &'static [u8] {
