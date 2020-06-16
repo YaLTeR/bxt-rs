@@ -12,9 +12,6 @@ pub use marker::MainThreadMarker;
 pub mod pointer;
 pub use pointer::Pointer;
 
-pub mod variable;
-pub use variable::Variable;
-
 pub mod main_thread_ref_cell;
 pub use main_thread_ref_cell::MainThreadRefCell;
 
