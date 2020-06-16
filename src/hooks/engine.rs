@@ -131,6 +131,14 @@ fn find_pointers(marker: MainThreadMarker) {
     }
 }
 
+/// # Safety
+///
+/// The memory starting at `base` with size `size` must be valid to read and not modified over the
+/// duration of this call. If any pointers are found in memory, then the memory must be valid until
+/// the pointers are reset (according to the safety section of `PointerTrait::set`).
+#[cfg(windows)]
+pub unsafe fn find_pointers(_marker: MainThreadMarker, _base: *mut c_void, _size: usize) {}
+
 fn reset_pointers(marker: MainThreadMarker) {
     for pointer in POINTERS {
         pointer.reset(marker);
