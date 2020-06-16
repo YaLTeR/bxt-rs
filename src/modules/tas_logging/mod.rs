@@ -93,7 +93,7 @@ fn taslog(engine: &Engine, enabled: i32) {
     // modified at engine start and while setting the HD models or the addon folder.
     let game_dir = engine::COM_GAMEDIR
         .get_opt(marker)
-        .map(|dir| unsafe { CStr::from_ptr(dir.as_ptr().cast()).to_string_lossy() });
+        .map(|dir| unsafe { CStr::from_ptr(dir.cast()).to_string_lossy() });
 
     match TASLog::new(&filename, "bxt-rs 0.1", build_number, game_dir.as_deref()) {
         Ok(tas_log_new) => {
@@ -117,11 +117,9 @@ pub unsafe fn on_sv_frame_start(engine: &Engine) {
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         let frame_time = engine::HOST_FRAMETIME
             .get_opt(marker)
-            .map(|frame_time| *frame_time.as_ptr());
-        let client_state = engine::CLS.get_opt(marker).map(|cls| *cls.as_ptr().cast());
-        let is_paused = engine::SV
-            .get_opt(marker)
-            .map(|sv| *sv.as_ptr().offset(4).cast());
+            .map(|frame_time| *frame_time);
+        let client_state = engine::CLS.get_opt(marker).map(|cls| *cls.cast());
+        let is_paused = engine::SV.get_opt(marker).map(|sv| *sv.offset(4).cast());
 
         // TODO: command_buffer
         if let Err(err) = tas_log.begin_physics_frame(frame_time, client_state, is_paused, None) {

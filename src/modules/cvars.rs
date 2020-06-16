@@ -142,7 +142,7 @@ unsafe fn deregister(marker: MainThreadMarker, cvar: &CVar) {
     // variable). On each iteration, check if the pointer points to `cvar`, and if not, follow it.
     // `cvar_vars` can't be null because there's at least one registered variable (the one we're
     // de-registering).
-    let mut prev_ptr = engine::CVAR_VARS.get(marker).as_ptr();
+    let mut prev_ptr = engine::CVAR_VARS.get(marker);
 
     while *prev_ptr != cvar.raw.get() {
         // The next pointer can't be null because we still haven't found our (registered) variable.

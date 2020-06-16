@@ -50,7 +50,7 @@ unsafe fn deregister(marker: MainThreadMarker, command: &Command) {
     // registered command). On each iteration, check if the pointer points to a command with the
     // name we're searching for, and if not, follow it. `cmd_functions` can't be null because
     // there's at least one registered command (the one we're de-registering).
-    let mut prev_ptr = engine::CMD_FUNCTIONS.get(marker).as_ptr();
+    let mut prev_ptr = engine::CMD_FUNCTIONS.get(marker);
     assert!(!prev_ptr.is_null());
 
     while CStr::from_ptr((**prev_ptr).name) != name {

@@ -30,13 +30,13 @@ impl<F> Variable<F> {
     /// # Panics
     ///
     /// Panics if the `Variable` is empty.
-    pub fn get(&self, _marker: MainThreadMarker) -> NonNull<F> {
-        self.ptr.get().unwrap()
+    pub fn get(&self, _marker: MainThreadMarker) -> *mut F {
+        self.ptr.get().unwrap().as_ptr()
     }
 
     /// Retrieves the stored pointer if it's present.
-    pub fn get_opt(&self, _marker: MainThreadMarker) -> Option<NonNull<F>> {
-        self.ptr.get()
+    pub fn get_opt(&self, _marker: MainThreadMarker) -> Option<*mut F> {
+        self.ptr.get().map(NonNull::as_ptr)
     }
 
     /// Sets the pointer.
