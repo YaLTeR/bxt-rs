@@ -43,8 +43,9 @@ impl Module for TASLogging {
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         commands::Commands.is_enabled(marker)
             && engine::SV_FRAME.is_set(marker)
-            && server::CMD_START.is_set(marker)
-            && server::PM_MOVE.is_set(marker)
+            // CmdStart starts a JSON object which PM_Move ends. Therefore for valid JSON they
+            // should either both be found, or both not found.
+            && (server::CMD_START.is_set(marker) == server::PM_MOVE.is_set(marker))
     }
 }
 
