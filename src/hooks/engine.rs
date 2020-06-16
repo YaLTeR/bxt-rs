@@ -118,6 +118,7 @@ impl Engine {
     }
 }
 
+#[cfg(unix)]
 fn find_pointers(marker: MainThreadMarker) {
     let handle = dl::open("hw.so").unwrap();
 
@@ -144,6 +145,7 @@ pub unsafe extern "C" fn Memory_Init(buf: *mut c_void, size: c_int) -> c_int {
 
         let _ = env_logger::try_init();
 
+        #[cfg(unix)]
         find_pointers(marker);
 
         let rv = MEMORY_INIT.get(marker)(buf, size);
