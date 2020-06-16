@@ -10,7 +10,10 @@ use super::Module;
 use crate::{
     ffi::{edict, playermove::playermove_s, usercmd::usercmd_s},
     handler,
-    hooks::engine::{self, Engine},
+    hooks::{
+        engine::{self, Engine},
+        server,
+    },
     modules::{
         commands::{self, Command},
         cvars::{self, CVar},
@@ -39,6 +42,9 @@ impl Module for TASLogging {
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         commands::Commands.is_enabled(marker)
+            && engine::SV_FRAME.is_set(marker)
+            && server::CMD_START.is_set(marker)
+            && server::PM_MOVE.is_set(marker)
     }
 }
 
