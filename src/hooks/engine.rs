@@ -1,6 +1,8 @@
 //! `hw`, `sw`, `hl`.
 
-use std::{ffi::CString, os::raw::*};
+use std::{ffi::CString, os::raw::*, ptr::null_mut};
+
+use bxt_patterns::Patterns;
 
 use crate::{
     ffi::{command::cmd_function_s, cvar::cvar_s, playermove::playermove_s, usercmd::usercmd_s},
@@ -14,13 +16,32 @@ pub static BUILD_NUMBER: Pointer<unsafe extern "C" fn() -> c_int> =
 pub static CLS: Pointer<*mut c_void> = Pointer::empty(b"cls\0");
 pub static CMD_ADDMALLOCCOMMAND: Pointer<
     unsafe extern "C" fn(*const c_char, unsafe extern "C" fn(), c_int),
-> = Pointer::empty(b"Cmd_AddMallocCommand\0");
+> = Pointer::empty_patterns(
+    b"Cmd_AddMallocCommand\0",
+    // To find, search for "Cmd_AddCommand: %s already defined as a var". It will give two results,
+    // one of them for Cmd_AddCommandWithFlags, another for Cmd_AddMallocCommand.
+    // Cmd_AddMallocCommand is slightly smaller, and the allocation call in the middle that takes
+    // 0x10 as a parameter calls malloc internally. This allocation call is Mem_ZeroMalloc.
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 56 57 8B 7D ?? 57 E8 ?? ?? ?? ?? 8A 08),
+    ]),
+    null_mut(),
+);
 pub static CMD_ARGC: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty(b"Cmd_Argc\0");
 pub static CMD_ARGV: Pointer<unsafe extern "C" fn(c_int) -> *const c_char> =
     Pointer::empty(b"Cmd_Argv\0");
 pub static CMD_FUNCTIONS: Pointer<*mut *mut cmd_function_s> = Pointer::empty(b"cmd_functions\0");
-pub static CON_PRINTF: Pointer<unsafe extern "C" fn(*const c_char, ...)> =
-    Pointer::empty(b"Con_Printf\0");
+pub static CON_PRINTF: Pointer<unsafe extern "C" fn(*const c_char, ...)> = Pointer::empty_patterns(
+    b"Con_Printf\0",
+    // To find, search for "qconsole.log". One of the three usages is Con_Printf (the one that
+    // isn't just many function calls or OutputDebugStringA).
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC B8 00 10 00 00 E8 ?? ?? ?? ?? 8B 4D),
+    ]),
+    null_mut(),
+);
 pub static COM_GAMEDIR: Pointer<*mut [c_char; 260]> = Pointer::empty(b"com_gamedir\0");
 pub static CVAR_REGISTERVARIABLE: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
     Pointer::empty(b"Cvar_RegisterVariable\0");
@@ -29,10 +50,45 @@ pub static GENTITYINTERFACE: Pointer<*mut DllFunctions> = Pointer::empty(b"gEnti
 pub static LOADENTITYDLLS: Pointer<unsafe extern "C" fn(*const c_char)> =
     Pointer::empty(b"LoadEntityDLLs\0");
 pub static HOST_FRAMETIME: Pointer<*mut c_double> = Pointer::empty(b"host_frametime\0");
-pub static HOST_SHUTDOWN: Pointer<unsafe extern "C" fn()> = Pointer::empty(b"Host_Shutdown\0");
+pub static HOST_SHUTDOWN: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"Host_Shutdown\0",
+    // To find, search for "recursive shutdown".
+    Patterns(&[
+        // 6153
+        pattern!(A1 ?? ?? ?? ?? 53 33 DB 3B C3 74 ?? 68),
+    ]),
+    Host_Shutdown as _,
+);
+pub static HOST_TELL_F: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"Host_Tell_f\0",
+    // To find, search for "%s TELL: ".
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 83 EC 40 A1 ?? ?? ?? ?? 56),
+    ]),
+    null_mut(),
+);
 pub static MEMORY_INIT: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
-    Pointer::empty(b"Memory_Init\0");
-pub static MEM_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty(b"Mem_Free\0");
+    Pointer::empty_patterns(
+        b"Memory_Init\0",
+        // To find, search for "Memory_Init".
+        Patterns(&[
+            // 6153
+            pattern!(55 8B EC 8B 45 ?? 8B 4D ?? 56 BE 00 00 20 00),
+        ]),
+        Memory_Init as _,
+    );
+pub static MEM_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_patterns(
+    b"Mem_Free\0",
+    // Mem_Free is called once in Host_Shutdown to free a pointer after checking that it's != 0. On
+    // Windows, it dispatches directly to an underlying function, and the pattern is for the
+    // underlying function.
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 6A FF 68 ?? ?? ?? ?? 68 ?? ?? ?? ?? 64 A1 ?? ?? ?? ?? 50 64 89 25 ?? ?? ?? ?? 83 EC 18 53 56 57 8B 75 ?? 85 F6),
+    ]),
+    null_mut(),
+);
 pub static RELEASEENTITYDLLS: Pointer<unsafe extern "C" fn()> =
     Pointer::empty(b"ReleaseEntityDlls\0");
 pub static SV: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
@@ -55,6 +111,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &LOADENTITYDLLS,
     &HOST_FRAMETIME,
     &HOST_SHUTDOWN,
+    &HOST_TELL_F,
     &MEMORY_INIT,
     &MEM_FREE,
     &RELEASEENTITYDLLS,
@@ -141,10 +198,7 @@ fn find_pointers(marker: MainThreadMarker) {
 /// the pointers are reset (according to the safety section of `PointerTrait::set`).
 #[cfg(windows)]
 pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: usize) {
-    use std::{
-        ptr::{null_mut, NonNull},
-        slice,
-    };
+    use std::{ptr::NonNull, slice};
 
     use minhook_sys::*;
 
@@ -156,6 +210,22 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
                 pointer.set(marker, NonNull::new(base.add(offset)), Some(index));
             }
         }
+    }
+
+    // Find all offset-based pointers.
+    match CMD_ADDMALLOCCOMMAND.pattern_index(marker) {
+        // 6153
+        Some(0) => CMD_FUNCTIONS.set(marker, CMD_ADDMALLOCCOMMAND.by_offset(marker, 43), None),
+        _ => (),
+    }
+
+    match HOST_TELL_F.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            CMD_ARGC.set(marker, HOST_TELL_F.by_relative_call(marker, 28), None);
+            CMD_ARGV.set(marker, HOST_TELL_F.by_relative_call(marker, 145), None);
+        }
+        _ => (),
     }
 
     // Hook all found pointers.
