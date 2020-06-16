@@ -9,30 +9,36 @@ use crate::{
     utils::*,
 };
 
-pub static BUILD_NUMBER: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty();
-pub static CLS: Pointer<*mut c_void> = Pointer::empty();
+pub static BUILD_NUMBER: Pointer<unsafe extern "C" fn() -> c_int> =
+    Pointer::empty(b"build_number\0");
+pub static CLS: Pointer<*mut c_void> = Pointer::empty(b"cls\0");
 pub static CMD_ADDMALLOCCOMMAND: Pointer<
     unsafe extern "C" fn(*const c_char, unsafe extern "C" fn(), c_int),
-> = Pointer::empty();
-pub static CMD_ARGC: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty();
-pub static CMD_ARGV: Pointer<unsafe extern "C" fn(c_int) -> *const c_char> = Pointer::empty();
-pub static CMD_FUNCTIONS: Pointer<*mut *mut cmd_function_s> = Pointer::empty();
-pub static CON_PRINTF: Pointer<unsafe extern "C" fn(*const c_char, ...)> = Pointer::empty();
-pub static COM_GAMEDIR: Pointer<*mut [c_char; 260]> = Pointer::empty();
-pub static CVAR_REGISTERVARIABLE: Pointer<unsafe extern "C" fn(*mut cvar_s)> = Pointer::empty();
-pub static CVAR_VARS: Pointer<*mut *mut cvar_s> = Pointer::empty();
-pub static GENTITYINTERFACE: Pointer<*mut DllFunctions> = Pointer::empty();
-pub static LOADENTITYDLLS: Pointer<unsafe extern "C" fn(*const c_char)> = Pointer::empty();
-pub static HOST_FRAMETIME: Pointer<*mut c_double> = Pointer::empty();
-pub static HOST_SHUTDOWN: Pointer<unsafe extern "C" fn()> = Pointer::empty();
+> = Pointer::empty(b"Cmd_AddMallocCommand\0");
+pub static CMD_ARGC: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty(b"Cmd_Argc\0");
+pub static CMD_ARGV: Pointer<unsafe extern "C" fn(c_int) -> *const c_char> =
+    Pointer::empty(b"Cmd_Argv\0");
+pub static CMD_FUNCTIONS: Pointer<*mut *mut cmd_function_s> = Pointer::empty(b"cmd_functions\0");
+pub static CON_PRINTF: Pointer<unsafe extern "C" fn(*const c_char, ...)> =
+    Pointer::empty(b"Con_Printf\0");
+pub static COM_GAMEDIR: Pointer<*mut [c_char; 260]> = Pointer::empty(b"com_gamedir\0");
+pub static CVAR_REGISTERVARIABLE: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
+    Pointer::empty(b"Cvar_RegisterVariable\0");
+pub static CVAR_VARS: Pointer<*mut *mut cvar_s> = Pointer::empty(b"cvar_vars\0");
+pub static GENTITYINTERFACE: Pointer<*mut DllFunctions> = Pointer::empty(b"gEntityInterface\0");
+pub static LOADENTITYDLLS: Pointer<unsafe extern "C" fn(*const c_char)> =
+    Pointer::empty(b"LoadEntityDLLs\0");
+pub static HOST_FRAMETIME: Pointer<*mut c_double> = Pointer::empty(b"host_frametime\0");
+pub static HOST_SHUTDOWN: Pointer<unsafe extern "C" fn()> = Pointer::empty(b"Host_Shutdown\0");
 pub static MEMORY_INIT: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
-    Pointer::empty();
-pub static MEM_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty();
-pub static RELEASEENTITYDLLS: Pointer<unsafe extern "C" fn()> = Pointer::empty();
-pub static SV: Pointer<*mut c_void> = Pointer::empty();
-pub static SV_FRAME: Pointer<unsafe extern "C" fn()> = Pointer::empty();
-pub static V_FADEALPHA: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty();
-pub static Z_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty();
+    Pointer::empty(b"Memory_Init\0");
+pub static MEM_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty(b"Mem_Free\0");
+pub static RELEASEENTITYDLLS: Pointer<unsafe extern "C" fn()> =
+    Pointer::empty(b"ReleaseEntityDlls\0");
+pub static SV: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
+pub static SV_FRAME: Pointer<unsafe extern "C" fn()> = Pointer::empty(b"SV_Frame\0");
+pub static V_FADEALPHA: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty(b"V_FadeAlpha\0");
+pub static Z_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty(b"Z_Free\0");
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &BUILD_NUMBER,
@@ -115,28 +121,10 @@ impl Engine {
 fn find_pointers(marker: MainThreadMarker) {
     let handle = dl::open("hw.so").unwrap();
 
-    unsafe {
-        BUILD_NUMBER.set(marker, handle.sym(b"build_number\0").ok());
-        CLS.set(marker, handle.sym(b"cls\0").ok());
-        CMD_ADDMALLOCCOMMAND.set(marker, handle.sym(b"Cmd_AddMallocCommand\0").ok());
-        CMD_ARGC.set(marker, handle.sym(b"Cmd_Argc\0").ok());
-        CMD_ARGV.set(marker, handle.sym(b"Cmd_Argv\0").ok());
-        CMD_FUNCTIONS.set(marker, handle.sym(b"cmd_functions\0").ok());
-        COM_GAMEDIR.set(marker, handle.sym(b"com_gamedir\0").ok());
-        CON_PRINTF.set(marker, handle.sym(b"Con_Printf\0").ok());
-        CVAR_REGISTERVARIABLE.set(marker, handle.sym(b"Cvar_RegisterVariable\0").ok());
-        CVAR_VARS.set(marker, handle.sym(b"cvar_vars\0").ok());
-        GENTITYINTERFACE.set(marker, handle.sym(b"gEntityInterface\0").ok());
-        LOADENTITYDLLS.set(marker, handle.sym(b"LoadEntityDLLs\0").ok());
-        HOST_FRAMETIME.set(marker, handle.sym(b"host_frametime\0").ok());
-        HOST_SHUTDOWN.set(marker, handle.sym(b"Host_Shutdown\0").ok());
-        MEMORY_INIT.set(marker, handle.sym(b"Memory_Init\0").ok());
-        MEM_FREE.set(marker, handle.sym(b"Mem_Free\0").ok());
-        RELEASEENTITYDLLS.set(marker, handle.sym(b"ReleaseEntityDlls\0").ok());
-        SV.set(marker, handle.sym(b"sv\0").ok());
-        SV_FRAME.set(marker, handle.sym(b"SV_Frame\0").ok());
-        V_FADEALPHA.set(marker, handle.sym(b"V_FadeAlpha\0").ok());
-        Z_FREE.set(marker, handle.sym(b"Z_Free\0").ok());
+    for pointer in POINTERS {
+        unsafe {
+            pointer.set(marker, handle.sym(pointer.symbol()).ok());
+        }
     }
 }
 

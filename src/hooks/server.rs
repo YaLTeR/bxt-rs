@@ -10,8 +10,9 @@ use crate::{
 };
 
 pub static CMD_START: Pointer<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)> =
-    Pointer::empty();
-pub static PM_MOVE: Pointer<unsafe extern "C" fn(*mut playermove_s, c_int)> = Pointer::empty();
+    Pointer::empty(b"CmdStart\0");
+pub static PM_MOVE: Pointer<unsafe extern "C" fn(*mut playermove_s, c_int)> =
+    Pointer::empty(b"PM_Move\0");
 
 /// # Safety
 ///

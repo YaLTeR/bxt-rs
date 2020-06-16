@@ -7,6 +7,7 @@ use crate::utils::*;
 /// Main thread pointer.
 pub struct Pointer<P> {
     ptr: Cell<Option<P>>,
+    symbol: &'static [u8],
 }
 
 /// Non-generic `Pointer` methods.
@@ -25,16 +26,20 @@ pub trait PointerTrait: Sync {
 
     /// Resets the `Pointer` to the empty state.
     fn reset(&self, marker: MainThreadMarker);
+
+    /// Returns the pointer's symbol name.
+    fn symbol(&self) -> &'static [u8];
 }
 
 // Safety: all methods are guarded with MainThreadMarker.
 unsafe impl<P> Sync for Pointer<P> {}
 
 impl<P> Pointer<P> {
-    /// Creates an empty `Pointer`.
-    pub const fn empty() -> Self {
+    /// Creates an empty `Pointer` with the given symbol name.
+    pub const fn empty(symbol: &'static [u8]) -> Self {
         Self {
             ptr: Cell::new(None),
+            symbol,
         }
     }
 }
@@ -67,5 +72,9 @@ impl<P: Copy> PointerTrait for Pointer<P> {
 
     fn reset(&self, _marker: MainThreadMarker) {
         self.ptr.set(None);
+    }
+
+    fn symbol(&self) -> &'static [u8] {
+        self.symbol
     }
 }
