@@ -1,18 +1,18 @@
-//! A main thread function pointer.
+//! A main thread pointer.
 
 use std::{cell::Cell, ffi::c_void, ptr::NonNull};
 
 use crate::utils::MainThreadMarker;
 
 /// Main thread pointer.
-pub struct Pointer<F> {
-    ptr: Cell<Option<F>>,
+pub struct Pointer<P> {
+    ptr: Cell<Option<P>>,
 }
 
 // Safety: all methods are guarded with MainThreadMarker.
-unsafe impl<F> Sync for Pointer<F> {}
+unsafe impl<P> Sync for Pointer<P> {}
 
-impl<F> Pointer<F> {
+impl<P> Pointer<P> {
     /// Creates an empty `Pointer`.
     pub const fn empty() -> Self {
         Self {
@@ -26,18 +26,18 @@ impl<F> Pointer<F> {
     }
 }
 
-impl<F: Copy> Pointer<F> {
+impl<P: Copy> Pointer<P> {
     /// Retrieves the stored pointer.
     ///
     /// # Panics
     ///
     /// Panics if the `Pointer` is empty.
-    pub fn get(&self, _marker: MainThreadMarker) -> F {
+    pub fn get(&self, _marker: MainThreadMarker) -> P {
         self.ptr.get().unwrap()
     }
 
     /// Retrieves the stored pointer if it's present.
-    pub fn get_opt(&self, _marker: MainThreadMarker) -> Option<F> {
+    pub fn get_opt(&self, _marker: MainThreadMarker) -> Option<P> {
         self.ptr.get()
     }
 
@@ -45,10 +45,10 @@ impl<F: Copy> Pointer<F> {
     ///
     /// # Safety
     ///
-    /// `ptr` must be a valid pointer of type `F` at least until the `Pointer` is reset.
+    /// `ptr` must be a valid pointer of type `P` at least until the `Pointer` is reset.
     pub unsafe fn set(&self, _marker: MainThreadMarker, ptr: Option<NonNull<c_void>>) {
         self.ptr
-            .set(ptr.map(|x| *(&x.as_ptr() as *const *mut c_void as *const F)));
+            .set(ptr.map(|x| *(&x.as_ptr() as *const *mut c_void as *const P)));
     }
 
     /// Returns `true` if the `Pointer` has a pointer stored.
