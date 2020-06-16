@@ -184,7 +184,7 @@ fn find_pointers(marker: MainThreadMarker) {
 
     for pointer in POINTERS {
         unsafe {
-            pointer.set(marker, handle.sym(pointer.symbol()).ok(), None);
+            pointer.set(marker, handle.sym(pointer.symbol()).ok());
         }
 
         pointer.log(marker);
@@ -207,7 +207,11 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         let memory = slice::from_raw_parts(base.cast(), size);
         for pointer in POINTERS {
             if let Some((offset, index)) = pointer.patterns().find(memory) {
-                pointer.set(marker, NonNull::new(base.add(offset)), Some(index));
+                pointer.set_with_index(
+                    marker,
+                    NonNull::new_unchecked(base.add(offset)),
+                    Some(index),
+                );
             }
         }
     }
@@ -215,15 +219,15 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
     // Find all offset-based pointers.
     match CMD_ADDMALLOCCOMMAND.pattern_index(marker) {
         // 6153
-        Some(0) => CMD_FUNCTIONS.set(marker, CMD_ADDMALLOCCOMMAND.by_offset(marker, 43), None),
+        Some(0) => CMD_FUNCTIONS.set(marker, CMD_ADDMALLOCCOMMAND.by_offset(marker, 43)),
         _ => (),
     }
 
     match HOST_TELL_F.pattern_index(marker) {
         // 6153
         Some(0) => {
-            CMD_ARGC.set(marker, HOST_TELL_F.by_relative_call(marker, 28), None);
-            CMD_ARGV.set(marker, HOST_TELL_F.by_relative_call(marker, 145), None);
+            CMD_ARGC.set(marker, HOST_TELL_F.by_relative_call(marker, 28));
+            CMD_ARGV.set(marker, HOST_TELL_F.by_relative_call(marker, 145));
         }
         _ => (),
     }
@@ -251,9 +255,9 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
             .push(original.as_ptr());
 
         // Store the trampoline pointer which is used to call the original function.
-        pointer.set(
+        pointer.set_with_index(
             marker,
-            NonNull::new(trampoline),
+            NonNull::new_unchecked(trampoline),
             pointer.pattern_index(marker),
         );
 

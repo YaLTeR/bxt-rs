@@ -21,12 +21,12 @@ pub unsafe fn hook_entity_interface(marker: MainThreadMarker) {
     let functions = engine::GENTITYINTERFACE.get(marker).as_mut().unwrap();
 
     if let Some(pm_move) = &mut functions.pm_move {
-        PM_MOVE.set(marker, Some(NonNull::new_unchecked(*pm_move as _)), None);
+        PM_MOVE.set(marker, Some(NonNull::new_unchecked(*pm_move as _)));
         *pm_move = PM_Move;
     }
 
     if let Some(cmd_start) = &mut functions.cmd_start {
-        CMD_START.set(marker, Some(NonNull::new_unchecked(*cmd_start as _)), None);
+        CMD_START.set(marker, Some(NonNull::new_unchecked(*cmd_start as _)));
         *cmd_start = CmdStart;
     }
 }

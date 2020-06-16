@@ -37,10 +37,17 @@ pub trait PointerTrait: Sync {
     /// # Safety
     ///
     /// `ptr` must be a valid pointer of type `P` at least until the `Pointer` is reset.
-    unsafe fn set(
+    unsafe fn set(&self, marker: MainThreadMarker, ptr: Option<NonNull<c_void>>);
+
+    /// Sets the pointer with a pattern index.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must be a valid pointer of type `P` at least until the `Pointer` is reset.
+    unsafe fn set_with_index(
         &self,
         marker: MainThreadMarker,
-        ptr: Option<NonNull<c_void>>,
+        ptr: NonNull<c_void>,
         pattern_index: Option<usize>,
     );
 
@@ -155,18 +162,27 @@ impl<P: Copy> Pointer<P> {
 }
 
 impl<P: Copy> PointerTrait for Pointer<P> {
-    unsafe fn set(
-        &self,
-        _marker: MainThreadMarker,
-        ptr: Option<NonNull<c_void>>,
-        pattern_index: Option<usize>,
-    ) {
+    unsafe fn set(&self, _marker: MainThreadMarker, ptr: Option<NonNull<c_void>>) {
         let new_ptr = match ptr {
             Some(ptr) => Inner::Found {
                 ptr: *(&ptr.as_ptr() as *const *mut c_void as *const P),
-                pattern_index,
+                pattern_index: None,
             },
             None => Inner::NotFound,
+        };
+
+        self.ptr.set(new_ptr);
+    }
+
+    unsafe fn set_with_index(
+        &self,
+        _marker: MainThreadMarker,
+        ptr: NonNull<c_void>,
+        pattern_index: Option<usize>,
+    ) {
+        let new_ptr = Inner::Found {
+            ptr: *(&ptr.as_ptr() as *const *mut c_void as *const P),
+            pattern_index,
         };
 
         self.ptr.set(new_ptr);
@@ -178,7 +194,7 @@ impl<P: Copy> PointerTrait for Pointer<P> {
 
     fn reset(&self, marker: MainThreadMarker) {
         unsafe {
-            self.set(marker, None, None);
+            self.set(marker, None);
         }
     }
 
