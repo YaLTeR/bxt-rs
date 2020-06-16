@@ -15,3 +15,7 @@ log = "0.4.8"
 serde_json = "1.0.53"
 serde = "1.0.110"
 env_logger = { version = "0.7.1", default-features = false, features = ["termcolor", "atty"] }
+
+[target."cfg(windows)".dependencies.winapi]
+version = "0.3.8"
+features = ["libloaderapi", "psapi", "winuser", "synchapi", "handleapi", "processthreadsapi"]

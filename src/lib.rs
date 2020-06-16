@@ -9,6 +9,9 @@ mod hooks;
 mod modules;
 mod utils;
 
+#[cfg(windows)]
+mod windows;
+
 // Export all functions we want to hook via LD_PRELOAD on Linux.
 #[cfg(unix)]
 pub use hooks::engine::{
