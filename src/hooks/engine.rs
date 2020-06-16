@@ -276,6 +276,7 @@ fn find_pointers(marker: MainThreadMarker) {
 /// The memory starting at `base` with size `size` must be valid to read and not modified over the
 /// duration of this call. If any pointers are found in memory, then the memory must be valid until
 /// the pointers are reset (according to the safety section of `PointerTrait::set`).
+#[allow(clippy::single_match)]
 #[cfg(windows)]
 pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: usize) {
     use std::{ptr::NonNull, slice};
