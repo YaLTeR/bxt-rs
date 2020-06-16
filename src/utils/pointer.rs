@@ -6,8 +6,15 @@ use crate::utils::*;
 
 /// Main thread pointer.
 pub struct Pointer<P> {
-    ptr: Cell<Option<P>>,
+    ptr: Cell<Inner<P>>,
     symbol: &'static [u8],
+}
+
+/// Enum representing a found or not found pointer.
+#[derive(Clone, Copy)]
+enum Inner<P> {
+    NotFound,
+    Found { ptr: P },
 }
 
 /// Non-generic `Pointer` methods.
@@ -41,7 +48,7 @@ impl<P> Pointer<P> {
     /// Creates an empty `Pointer` with the given symbol name.
     pub const fn empty(symbol: &'static [u8]) -> Self {
         Self {
-            ptr: Cell::new(None),
+            ptr: Cell::new(Inner::NotFound),
             symbol,
         }
     }
@@ -59,14 +66,23 @@ impl<P: Copy> Pointer<P> {
 
     /// Retrieves the stored pointer if it's present.
     pub fn get_opt(&self, _marker: MainThreadMarker) -> Option<P> {
-        self.ptr.get()
+        match self.ptr.get() {
+            Inner::NotFound => None,
+            Inner::Found { ptr } => Some(ptr),
+        }
     }
 }
 
 impl<P: Copy> PointerTrait for Pointer<P> {
     unsafe fn set(&self, _marker: MainThreadMarker, ptr: Option<NonNull<c_void>>) {
-        self.ptr
-            .set(ptr.map(|x| *(&x.as_ptr() as *const *mut c_void as *const P)));
+        let new_ptr = match ptr {
+            Some(ptr) => Inner::Found {
+                ptr: *(&ptr.as_ptr() as *const *mut c_void as *const P),
+            },
+            None => Inner::NotFound,
+        };
+
+        self.ptr.set(new_ptr);
     }
 
     fn is_set(&self, marker: MainThreadMarker) -> bool {
