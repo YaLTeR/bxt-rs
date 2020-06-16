@@ -313,7 +313,7 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
     match HOST_INITIALIZEGAMEDLL.pattern_index(marker) {
         // 6153
         Some(0) => {
-            // SVS.set(marker, HOST_INITIALIZEGAMEDLL.by_relative_call(marker, 26));
+            // SVS.set(marker, HOST_INITIALIZEGAMEDLL.by_offset(marker, 26));
             if !LOADENTITYDLLS.is_set(marker) {
                 LOADENTITYDLLS.set(marker, HOST_INITIALIZEGAMEDLL.by_relative_call(marker, 69));
             }
