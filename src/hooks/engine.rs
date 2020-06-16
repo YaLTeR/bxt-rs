@@ -64,6 +64,9 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Z_FREE,
 ];
 
+#[cfg(windows)]
+static ORIGINAL_FUNCTIONS: MainThreadRefCell<Vec<*mut c_void>> = MainThreadRefCell::new(Vec::new());
+
 #[repr(C)]
 pub struct DllFunctions {
     _padding_1: [u8; 136],
@@ -138,7 +141,12 @@ fn find_pointers(marker: MainThreadMarker) {
 /// the pointers are reset (according to the safety section of `PointerTrait::set`).
 #[cfg(windows)]
 pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: usize) {
-    use std::{ptr::NonNull, slice};
+    use std::{
+        ptr::{null_mut, NonNull},
+        slice,
+    };
+
+    use minhook_sys::*;
 
     // Find all pattern-based pointers.
     {
@@ -149,11 +157,53 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
             }
         }
     }
+
+    // Hook all found pointers.
+    for pointer in POINTERS {
+        pointer.log(marker);
+
+        if !pointer.is_set(marker) {
+            continue;
+        }
+
+        let hook_fn = pointer.hook_fn();
+        if hook_fn.is_null() {
+            continue;
+        }
+
+        let original = pointer.get_raw(marker);
+        let mut trampoline = null_mut();
+        assert!(MH_CreateHook(original.as_ptr(), hook_fn, &mut trampoline,) == MH_OK);
+
+        // Store the original pointer to be able to remove the hook later.
+        ORIGINAL_FUNCTIONS
+            .borrow_mut(marker)
+            .push(original.as_ptr());
+
+        // Store the trampoline pointer which is used to call the original function.
+        pointer.set(
+            marker,
+            NonNull::new(trampoline),
+            pointer.pattern_index(marker),
+        );
+
+        assert!(MH_EnableHook(original.as_ptr()) == MH_OK);
+    }
 }
 
 fn reset_pointers(marker: MainThreadMarker) {
     for pointer in POINTERS {
         pointer.reset(marker);
+    }
+
+    // Remove all hooks.
+    #[cfg(windows)]
+    {
+        use minhook_sys::*;
+
+        for function in ORIGINAL_FUNCTIONS.borrow_mut(marker).drain(..) {
+            assert!(unsafe { MH_RemoveHook(function) } == MH_OK);
+        }
     }
 }
 
