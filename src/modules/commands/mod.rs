@@ -3,7 +3,7 @@
 use std::ffi::CStr;
 
 use super::{Module, MODULES};
-use crate::{hooks::engine, utils::MainThreadMarker};
+use crate::{hooks::engine, utils::*};
 
 mod args;
 pub use args::Args;

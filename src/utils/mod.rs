@@ -7,13 +7,13 @@ use std::{
 };
 
 pub mod marker;
-pub use marker::MainThreadMarker;
+pub use marker::*;
 
 pub mod pointer;
-pub use pointer::Pointer;
+pub use pointer::*;
 
 pub mod main_thread_ref_cell;
-pub use main_thread_ref_cell::MainThreadRefCell;
+pub use main_thread_ref_cell::*;
 
 pub mod dl;
 

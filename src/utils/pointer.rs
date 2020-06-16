@@ -2,7 +2,7 @@
 
 use std::{cell::Cell, ffi::c_void, ptr::NonNull};
 
-use crate::utils::MainThreadMarker;
+use crate::utils::*;
 
 /// Main thread pointer.
 pub struct Pointer<P> {

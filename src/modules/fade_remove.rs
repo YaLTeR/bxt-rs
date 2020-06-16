@@ -4,7 +4,7 @@ use super::Module;
 use crate::{
     hooks::engine,
     modules::cvars::{self, CVar},
-    utils::MainThreadMarker,
+    utils::*,
 };
 
 pub struct FadeRemove;

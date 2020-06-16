@@ -7,11 +7,7 @@ use std::{
 };
 
 use super::{Module, MODULES};
-use crate::{
-    ffi::cvar as ffi,
-    hooks::engine,
-    utils::{c_str_to_os_string, MainThreadMarker},
-};
+use crate::{ffi::cvar as ffi, hooks::engine, utils::*};
 
 /// Console variable.
 #[derive(Debug)]

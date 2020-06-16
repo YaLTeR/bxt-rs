@@ -2,7 +2,7 @@
 
 use std::cell::{Ref, RefCell, RefMut};
 
-use crate::utils::MainThreadMarker;
+use crate::utils::*;
 
 /// `RefCell` accessible only from the main thread.
 pub struct MainThreadRefCell<T>(RefCell<T>);

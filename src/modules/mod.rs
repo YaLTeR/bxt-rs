@@ -1,6 +1,6 @@
 //! Modules providing the actual functionality.
 
-use crate::utils::MainThreadMarker;
+use crate::utils::*;
 
 pub mod commands;
 use commands::Command;
