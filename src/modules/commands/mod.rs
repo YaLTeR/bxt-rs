@@ -1,6 +1,6 @@
 //! Console commands.
 
-use std::ffi::CStr;
+use std::{cell::Cell, ffi::CStr};
 
 use super::{Module, MODULES};
 use crate::{hooks::engine, utils::*};
@@ -23,12 +23,27 @@ pub struct Command {
 
     /// Handler function.
     function: HandlerFunction,
+
+    /// Whether the command is currently registered in the engine.
+    is_registered: Cell<bool>,
 }
+
+// Safety: all methods accessing `command` require a `MainThreadMarker`.
+unsafe impl Sync for Command {}
 
 impl Command {
     /// Creates a new command.
     pub const fn new(name: &'static [u8], function: HandlerFunction) -> Self {
-        Self { name, function }
+        Self {
+            name,
+            function,
+            is_registered: Cell::new(false),
+        }
+    }
+
+    /// Returns whether the command is currently registered in the engine.
+    pub fn is_registered(&self, _marker: MainThreadMarker) -> bool {
+        self.is_registered.get()
     }
 }
 
@@ -38,10 +53,14 @@ impl Command {
 ///
 /// This function must only be called when it's safe to register console commands.
 unsafe fn register(marker: MainThreadMarker, command: &Command) {
+    assert!(!command.is_registered(marker));
+
     // Make sure the provided name is a valid C string.
     assert!(CStr::from_bytes_with_nul(command.name).is_ok());
 
     engine::CMD_ADDMALLOCCOMMAND.get(marker)(command.name.as_ptr().cast(), command.function.0, 0);
+
+    command.is_registered.set(true);
 }
 
 /// De-registers the command.
@@ -55,6 +74,8 @@ unsafe fn register(marker: MainThreadMarker, command: &Command) {
 ///
 /// Panics if the command is not registered.
 unsafe fn deregister(marker: MainThreadMarker, command: &Command) {
+    assert!(command.is_registered(marker));
+
     let name = CStr::from_bytes_with_nul(command.name).unwrap();
 
     // Find a pointer to the command. Start from `cmd_functions` (which points to the first
@@ -71,14 +92,16 @@ unsafe fn deregister(marker: MainThreadMarker, command: &Command) {
         prev_ptr = &mut (**prev_ptr).next;
     }
 
-    let command = *prev_ptr;
+    let command_ptr = *prev_ptr;
 
     // Make it point to the next command. If there are no commands left, it will be set to null as
     // it should be.
     *prev_ptr = (**prev_ptr).next;
 
     // Free the engine-allocated command.
-    engine::MEM_FREE.get(marker)(command.cast());
+    engine::MEM_FREE.get(marker)(command_ptr.cast());
+
+    command.is_registered.set(false);
 }
 
 /// # Safety
