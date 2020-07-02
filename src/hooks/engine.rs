@@ -317,9 +317,7 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 6153
         Some(0) => {
             // SVS.set(marker, ptr.by_offset(marker, 26));
-            if !LOADENTITYDLLS.is_set(marker) {
-                LOADENTITYDLLS.set(marker, ptr.by_relative_call(marker, 69));
-            }
+            LOADENTITYDLLS.set_if_empty(marker, ptr.by_relative_call(marker, 69));
             GENTITYINTERFACE.set(marker, ptr.by_offset(marker, 75));
         }
         _ => (),
@@ -341,9 +339,7 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(0) => {
             SV.set(marker, ptr.by_offset(marker, 19));
             CLS.set(marker, ptr.by_offset(marker, 69));
-            if !CON_PRINTF.is_set(marker) {
-                CON_PRINTF.set(marker, ptr.by_relative_call(marker, 33));
-            }
+            CON_PRINTF.set_if_empty(marker, ptr.by_relative_call(marker, 33));
         }
         _ => (),
     }
