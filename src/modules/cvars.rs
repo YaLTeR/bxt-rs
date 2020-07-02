@@ -188,8 +188,8 @@ pub unsafe fn mark_all_cvars_as_not_registered(marker: MainThreadMarker) {
 
     for module in MODULES {
         for cvar in module.cvars() {
-            // Safety: at this point the engine has no references into the variables and the memory for
-            // the variable values is about to be freed.
+            // Safety: at this point the engine has no references into the variables and the memory
+            // for the variable values is about to be freed.
             mark_as_not_registered(marker, cvar);
         }
     }
