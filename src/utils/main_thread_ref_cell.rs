@@ -27,11 +27,4 @@ impl<T> MainThreadRefCell<T> {
     pub fn borrow_mut(&self, _marker: MainThreadMarker) -> RefMut<T> {
         self.0.borrow_mut()
     }
-
-    /// Replaces the wrapped value with a new one, returning the old value, without deinitializing
-    /// either one.
-    #[allow(unused)]
-    pub fn replace(&self, t: T) -> T {
-        self.0.replace(t)
-    }
 }
