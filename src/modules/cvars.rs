@@ -166,13 +166,6 @@ pub unsafe fn register_all_cvars(marker: MainThreadMarker) {
 
     for module in MODULES {
         for cvar in module.cvars() {
-            trace!(
-                "registering {}",
-                CStr::from_bytes_with_nul(cvar.name)
-                    .unwrap()
-                    .to_string_lossy()
-            );
-
             register(marker, cvar);
         }
     }
@@ -212,13 +205,6 @@ pub unsafe fn deregister_disabled_module_cvars(marker: MainThreadMarker) {
             if !cvar.is_registered(marker) {
                 continue;
             }
-
-            trace!(
-                "de-registering {}",
-                CStr::from_bytes_with_nul(cvar.name)
-                    .unwrap()
-                    .to_string_lossy()
-            );
 
             deregister(marker, cvar);
         }

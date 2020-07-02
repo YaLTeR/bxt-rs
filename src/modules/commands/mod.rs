@@ -114,13 +114,6 @@ pub unsafe fn register_all_commands(marker: MainThreadMarker) {
 
     for module in MODULES {
         for command in module.commands() {
-            trace!(
-                "registering {}",
-                CStr::from_bytes_with_nul(command.name)
-                    .unwrap()
-                    .to_string_lossy()
-            );
-
             register(marker, command);
         }
     }
@@ -145,13 +138,6 @@ pub unsafe fn deregister_all_commands(marker: MainThreadMarker) {
                 continue;
             }
 
-            trace!(
-                "de-registering {}",
-                CStr::from_bytes_with_nul(command.name)
-                    .unwrap()
-                    .to_string_lossy()
-            );
-
             deregister(marker, command);
         }
     }
@@ -174,13 +160,6 @@ pub unsafe fn deregister_disabled_module_commands(marker: MainThreadMarker) {
             if !command.is_registered(marker) {
                 continue;
             }
-
-            trace!(
-                "de-registering {}",
-                CStr::from_bytes_with_nul(command.name)
-                    .unwrap()
-                    .to_string_lossy()
-            );
 
             deregister(marker, command);
         }
