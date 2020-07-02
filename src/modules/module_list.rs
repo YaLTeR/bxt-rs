@@ -24,14 +24,14 @@ impl Module for ModuleList {
     }
 }
 
-static BXT_MODULES_LIST: Command = Command {
-    name: b"bxt_modules_list\0",
-    function: handler!(
+static BXT_MODULES_LIST: Command = Command::new(
+    b"bxt_modules_list\0",
+    handler!(
         "Usage: bxt_module_list\n \
           Shows the list of modules and their status.\n",
         modules_list as fn(_)
     ),
-};
+);
 
 fn modules_list(engine: &Engine) {
     if !ModuleList.is_enabled(engine.marker()) {

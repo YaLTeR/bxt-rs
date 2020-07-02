@@ -49,14 +49,14 @@ impl Module for TASLogging {
     }
 }
 
-static BXT_TASLOG: Command = Command {
-    name: b"bxt_taslog\0",
-    function: handler!(
+static BXT_TASLOG: Command = Command::new(
+    b"bxt_taslog\0",
+    handler!(
         "Usage: bxt_taslog <0|1>\n \
           Enables or disables TAS logging into the file at bxt_taslog_filename.\n",
         taslog as fn(_, _)
     ),
-};
+);
 
 static BXT_TASLOG_FILENAME: CVar = CVar::new(b"bxt_taslog_filename\0", b"taslogger.log\0");
 

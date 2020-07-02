@@ -19,10 +19,17 @@ pub struct HandlerFunction(pub unsafe extern "C" fn());
 /// Console command.
 pub struct Command {
     /// Name of the command.
-    pub name: &'static [u8],
+    name: &'static [u8],
 
     /// Handler function.
-    pub function: HandlerFunction,
+    function: HandlerFunction,
+}
+
+impl Command {
+    /// Creates a new command.
+    pub const fn new(name: &'static [u8], function: HandlerFunction) -> Self {
+        Self { name, function }
+    }
 }
 
 /// Registers the command.
