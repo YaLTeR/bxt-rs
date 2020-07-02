@@ -298,72 +298,80 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
     }
 
     // Find all offset-based pointers.
-    match CMD_ADDMALLOCCOMMAND.pattern_index(marker) {
+    let ptr = &CMD_ADDMALLOCCOMMAND;
+    match ptr.pattern_index(marker) {
         // 6153
-        Some(0) => CMD_FUNCTIONS.set(marker, CMD_ADDMALLOCCOMMAND.by_offset(marker, 43)),
+        Some(0) => CMD_FUNCTIONS.set(marker, ptr.by_offset(marker, 43)),
         _ => (),
     }
 
-    match CVAR_REGISTERVARIABLE.pattern_index(marker) {
+    let ptr = &CVAR_REGISTERVARIABLE;
+    match ptr.pattern_index(marker) {
         // 6153
-        Some(0) => CVAR_VARS.set(marker, CVAR_REGISTERVARIABLE.by_offset(marker, 124)),
+        Some(0) => CVAR_VARS.set(marker, ptr.by_offset(marker, 124)),
         _ => (),
     }
 
-    match HOST_INITIALIZEGAMEDLL.pattern_index(marker) {
+    let ptr = &HOST_INITIALIZEGAMEDLL;
+    match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            // SVS.set(marker, HOST_INITIALIZEGAMEDLL.by_offset(marker, 26));
+            // SVS.set(marker, ptr.by_offset(marker, 26));
             if !LOADENTITYDLLS.is_set(marker) {
-                LOADENTITYDLLS.set(marker, HOST_INITIALIZEGAMEDLL.by_relative_call(marker, 69));
+                LOADENTITYDLLS.set(marker, ptr.by_relative_call(marker, 69));
             }
-            GENTITYINTERFACE.set(marker, HOST_INITIALIZEGAMEDLL.by_offset(marker, 75));
+            GENTITYINTERFACE.set(marker, ptr.by_offset(marker, 75));
         }
         _ => (),
     }
 
-    match HOST_TELL_F.pattern_index(marker) {
+    let ptr = &HOST_TELL_F;
+    match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            CMD_ARGC.set(marker, HOST_TELL_F.by_relative_call(marker, 28));
-            CMD_ARGV.set(marker, HOST_TELL_F.by_relative_call(marker, 145));
+            CMD_ARGC.set(marker, ptr.by_relative_call(marker, 28));
+            CMD_ARGV.set(marker, ptr.by_relative_call(marker, 145));
         }
         _ => (),
     }
 
-    match HOST_VALIDSAVE.pattern_index(marker) {
+    let ptr = &HOST_VALIDSAVE;
+    match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            SV.set(marker, HOST_VALIDSAVE.by_offset(marker, 19));
-            CLS.set(marker, HOST_VALIDSAVE.by_offset(marker, 69));
+            SV.set(marker, ptr.by_offset(marker, 19));
+            CLS.set(marker, ptr.by_offset(marker, 69));
             if !CON_PRINTF.is_set(marker) {
-                CON_PRINTF.set(marker, HOST_VALIDSAVE.by_relative_call(marker, 33));
+                CON_PRINTF.set(marker, ptr.by_relative_call(marker, 33));
             }
         }
         _ => (),
     }
 
-    match LOADENTITYDLLS.pattern_index(marker) {
+    let ptr = &LOADENTITYDLLS;
+    match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            COM_GAMEDIR.set(marker, LOADENTITYDLLS.by_offset(marker, 51));
+            COM_GAMEDIR.set(marker, ptr.by_offset(marker, 51));
         }
         _ => (),
     }
 
-    match RELEASEENTITYDLLS.pattern_index(marker) {
+    let ptr = &RELEASEENTITYDLLS;
+    match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            // SVS.set(marker, RELEASEENTITYDLLS.by_offset(marker, 23));
+            // SVS.set(marker, ptr.by_offset(marker, 23));
         }
         _ => (),
     }
 
-    match SV_FRAME.pattern_index(marker) {
+    let ptr = &SV_FRAME;
+    match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            SV.set(marker, SV_FRAME.by_offset(marker, 1));
-            HOST_FRAMETIME.set(marker, SV_FRAME.by_offset(marker, 11));
+            SV.set(marker, ptr.by_offset(marker, 1));
+            HOST_FRAMETIME.set(marker, ptr.by_offset(marker, 11));
         }
         _ => (),
     }
