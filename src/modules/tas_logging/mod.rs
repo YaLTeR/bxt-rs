@@ -41,11 +41,7 @@ impl Module for TASLogging {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        commands::Commands.is_enabled(marker)
-            && engine::SV_FRAME.is_set(marker)
-            // CmdStart starts a JSON object which PM_Move ends. Therefore for valid JSON they
-            // should either both be found, or both not found.
-            && (server::CMD_START.is_set(marker) == server::PM_MOVE.is_set(marker))
+        commands::Commands.is_enabled(marker) && engine::SV_FRAME.is_set(marker)
     }
 }
 
@@ -148,6 +144,11 @@ pub fn end_physics_frame(engine: &Engine) {
 pub fn begin_cmd_frame(engine: &Engine, cmd: usercmd_s, random_seed: u32) {
     let marker = engine.marker();
 
+    // PM_Move is required because it ends the cmd frame JSON object.
+    if !server::PM_MOVE.is_set(marker) {
+        return;
+    }
+
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.begin_cmd_frame(None, None, &cmd, random_seed) {
             engine.print(&format!("Error writing to the TAS log: {}", err));
@@ -160,6 +161,11 @@ pub fn begin_cmd_frame(engine: &Engine, cmd: usercmd_s, random_seed: u32) {
 /// `ppmove` must be valid to read from.
 pub unsafe fn write_pre_pm_state(engine: &Engine, ppmove: *const playermove_s) {
     let marker = engine.marker();
+
+    // CmdStart is required because it starts the cmd frame JSON object.
+    if !server::CMD_START.is_set(marker) {
+        return;
+    }
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.write_pre_pm_state(&*ppmove) {
@@ -174,6 +180,11 @@ pub unsafe fn write_pre_pm_state(engine: &Engine, ppmove: *const playermove_s) {
 pub unsafe fn write_post_pm_state(engine: &Engine, ppmove: *const playermove_s) {
     let marker = engine.marker();
 
+    // CmdStart is required because it starts the cmd frame JSON object.
+    if !server::CMD_START.is_set(marker) {
+        return;
+    }
+
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.write_post_pm_state(&*ppmove) {
             engine.print(&format!("Error writing to the TAS log: {}", err));
@@ -183,6 +194,11 @@ pub unsafe fn write_post_pm_state(engine: &Engine, ppmove: *const playermove_s) 
 
 pub fn end_cmd_frame(engine: &Engine) {
     let marker = engine.marker();
+
+    // CmdStart is required because it starts the cmd frame JSON object.
+    if !server::CMD_START.is_set(marker) {
+        return;
+    }
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.end_cmd_frame() {
