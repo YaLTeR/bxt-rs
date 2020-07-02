@@ -26,17 +26,25 @@ All global variables are accessed through a `MainThreadMarker` which is a dummy 
 
 Found function and variable pointers are stored in global `Cell`s which means it's not possible to misuse references to them. For larger or non-`Copy` global state, main-thread-accessible `RefCell` will ensure that references are not misused (no multiple exclusive references to the global state at once).
 
+The `Pointer` struct represents a function or variable pointer to be found by name, by pattern or by offset from another pointer. All relevant information (symbol name, patterns, hook function) is stored directly in the `Pointer` and initialized all at once. `Pointer` also stores the index of the pattern which the pointer was found with, if any, and provides helper methods to derive other pointers by offset or by relative call instruction (from function pointers).
+
 The `CVars` module provides a safe zero-cost console variable abstraction. Only variables stored as globals can be registered in the engine to ensure their address doesn't change (as the engine stores a pointer to each registered variable). This allows to skip any allocations that would otherwise be necessary to keep the address stable.
 
 The `Commands` module provides safe console command helpers. A console command handler function can be wrapped with a `handler!` macro to have console command arguments automatically parsed and passed into the function with a usage string printed on argument count mismatch or parsing failure.
 
 ## Building and Usage
 
-At the moment only Linux is supported.
+### Linux
 
 1. Install stable Rust (for example, via [rustup](https://rustup.rs/)) with the `i686-unknown-linux-gnu` target.
-2. `cargo build --target=i686-unknown-linux-gnu`
-3. Load it into HL like you would load regular BXT.
+1. `cargo build --target=i686-unknown-linux-gnu`
+1. Load it into HL like you would load regular BXT.
+
+### Windows (cross-compiling from Linux)
+
+1. Install stable Rust (for example, via [rustup](https://rustup.rs/)) with the `i686-pc-windows-gnu` target.
+1. `cargo build --target=i686-pc-windows-gnu`
+1. Load it into HL like you would load regular BXT.
 
 ## License
 
