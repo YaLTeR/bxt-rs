@@ -51,6 +51,13 @@ pub trait PointerTrait: Sync {
         pattern_index: Option<usize>,
     );
 
+    /// Sets the pointer if it is currently empty.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must be a valid pointer of type `P` at least until the `Pointer` is reset.
+    unsafe fn set_if_empty(&self, marker: MainThreadMarker, ptr: Option<NonNull<c_void>>);
+
     /// Returns `true` if the `Pointer` has a pointer stored.
     fn is_set(&self, marker: MainThreadMarker) -> bool;
 
@@ -186,6 +193,12 @@ impl<P: Copy> PointerTrait for Pointer<P> {
         };
 
         self.ptr.set(new_ptr);
+    }
+
+    unsafe fn set_if_empty(&self, marker: MainThreadMarker, ptr: Option<NonNull<c_void>>) {
+        if !self.is_set(marker) {
+            self.set(marker, ptr);
+        }
     }
 
     fn is_set(&self, marker: MainThreadMarker) -> bool {
