@@ -84,6 +84,6 @@ macro_rules! handler {
             })
         }
 
-        handler
+        $crate::modules::commands::HandlerFunction(handler)
     }};
 }

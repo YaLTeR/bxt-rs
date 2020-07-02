@@ -11,14 +11,18 @@ pub use args::Args;
 mod handler;
 pub use handler::CommandHandler;
 
+/// Pointer to a command handler function.
+// Required until https://github.com/rust-lang/rust/issues/63997 is stabilized.
+#[repr(transparent)]
+pub struct HandlerFunction(pub unsafe extern "C" fn());
+
 /// Console command.
-#[derive(Debug)]
 pub struct Command {
     /// Name of the command.
     pub name: &'static [u8],
 
     /// Handler function.
-    pub function: unsafe extern "C" fn(),
+    pub function: HandlerFunction,
 }
 
 /// Registers the command.
@@ -30,7 +34,7 @@ unsafe fn register(marker: MainThreadMarker, command: &Command) {
     // Make sure the provided name is a valid C string.
     assert!(CStr::from_bytes_with_nul(command.name).is_ok());
 
-    engine::CMD_ADDMALLOCCOMMAND.get(marker)(command.name.as_ptr().cast(), command.function, 0);
+    engine::CMD_ADDMALLOCCOMMAND.get(marker)(command.name.as_ptr().cast(), command.function.0, 0);
 }
 
 /// De-registers the command.
