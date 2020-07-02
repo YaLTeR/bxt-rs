@@ -9,7 +9,7 @@ use crate::{
     utils::*,
 };
 
-pub static CMD_START: Pointer<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)> =
+pub static CMDSTART: Pointer<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)> =
     Pointer::empty(b"CmdStart\0");
 pub static PM_MOVE: Pointer<unsafe extern "C" fn(*mut playermove_s, c_int)> =
     Pointer::empty(b"PM_Move\0");
@@ -30,7 +30,7 @@ pub unsafe fn hook_entity_interface(marker: MainThreadMarker) {
     }
 
     if let Some(cmd_start) = &mut functions.cmd_start {
-        CMD_START.set(marker, Some(NonNull::new_unchecked(*cmd_start as _)));
+        CMDSTART.set(marker, Some(NonNull::new_unchecked(*cmd_start as _)));
         *cmd_start = CmdStart;
     }
 }
@@ -51,8 +51,8 @@ pub unsafe fn reset_entity_interface(marker: MainThreadMarker) {
     }
 
     if let Some(cmd_start) = &mut functions.cmd_start {
-        *cmd_start = CMD_START.get(marker);
-        CMD_START.reset(marker);
+        *cmd_start = CMDSTART.get(marker);
+        CMDSTART.reset(marker);
     }
 }
 
@@ -64,7 +64,7 @@ pub unsafe extern "C" fn CmdStart(player: *mut c_void, cmd: *mut usercmd_s, rand
 
         tas_logging::begin_cmd_frame(&engine, *cmd, random_seed);
 
-        CMD_START.get(marker)(player, cmd, random_seed);
+        CMDSTART.get(marker)(player, cmd, random_seed);
     })
 }
 

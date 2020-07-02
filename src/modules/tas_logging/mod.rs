@@ -163,7 +163,7 @@ pub unsafe fn write_pre_pm_state(engine: &Engine, ppmove: *const playermove_s) {
     let marker = engine.marker();
 
     // CmdStart is required because it starts the cmd frame JSON object.
-    if !server::CMD_START.is_set(marker) {
+    if !server::CMDSTART.is_set(marker) {
         return;
     }
 
@@ -181,7 +181,7 @@ pub unsafe fn write_post_pm_state(engine: &Engine, ppmove: *const playermove_s) 
     let marker = engine.marker();
 
     // CmdStart is required because it starts the cmd frame JSON object.
-    if !server::CMD_START.is_set(marker) {
+    if !server::CMDSTART.is_set(marker) {
         return;
     }
 
@@ -196,7 +196,7 @@ pub fn end_cmd_frame(engine: &Engine) {
     let marker = engine.marker();
 
     // CmdStart is required because it starts the cmd frame JSON object.
-    if !server::CMD_START.is_set(marker) {
+    if !server::CMDSTART.is_set(marker) {
         return;
     }
 
