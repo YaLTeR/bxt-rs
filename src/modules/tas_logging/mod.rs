@@ -117,8 +117,8 @@ fn taslog(engine: &Engine, enabled: i32) {
 
 /// # Safety
 ///
-/// This function must only be called right before `SV_Frame()`.
-pub unsafe fn on_sv_frame_start(engine: &Engine) {
+/// `host_frametime`, `cls` and `sv` must be valid to read from.
+pub unsafe fn begin_physics_frame(engine: &Engine) {
     let marker = engine.marker();
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
@@ -135,10 +135,7 @@ pub unsafe fn on_sv_frame_start(engine: &Engine) {
     }
 }
 
-/// # Safety
-///
-/// This function must only be called right after `SV_Frame()`.
-pub unsafe fn on_sv_frame_end(engine: &Engine) {
+pub fn end_physics_frame(engine: &Engine) {
     let marker = engine.marker();
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
@@ -148,10 +145,7 @@ pub unsafe fn on_sv_frame_end(engine: &Engine) {
     }
 }
 
-/// # Safety
-///
-/// This function must only be called right before `CmdStart()`.
-pub unsafe fn on_cmd_start(engine: &Engine, cmd: usercmd_s, random_seed: u32) {
+pub fn begin_cmd_frame(engine: &Engine, cmd: usercmd_s, random_seed: u32) {
     let marker = engine.marker();
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
@@ -163,8 +157,8 @@ pub unsafe fn on_cmd_start(engine: &Engine, cmd: usercmd_s, random_seed: u32) {
 
 /// # Safety
 ///
-/// This function must only be called right before serverside `PM_Move()`.
-pub unsafe fn on_pm_move_start(engine: &Engine, ppmove: *const playermove_s) {
+/// `ppmove` must be valid to read from.
+pub unsafe fn write_pre_pm_state(engine: &Engine, ppmove: *const playermove_s) {
     let marker = engine.marker();
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
@@ -176,14 +170,21 @@ pub unsafe fn on_pm_move_start(engine: &Engine, ppmove: *const playermove_s) {
 
 /// # Safety
 ///
-/// This function must only be called right after serverside `PM_Move()`.
-pub unsafe fn on_pm_move_end(engine: &Engine, ppmove: *const playermove_s) {
+/// `ppmove` must be valid to read from.
+pub unsafe fn write_post_pm_state(engine: &Engine, ppmove: *const playermove_s) {
     let marker = engine.marker();
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.write_post_pm_state(&*ppmove) {
             engine.print(&format!("Error writing to the TAS log: {}", err));
         }
+    }
+}
+
+pub fn end_cmd_frame(engine: &Engine) {
+    let marker = engine.marker();
+
+    if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.end_cmd_frame() {
             engine.print(&format!("Error writing to the TAS log: {}", err));
         }

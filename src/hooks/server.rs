@@ -60,7 +60,7 @@ pub unsafe extern "C" fn CmdStart(player: *mut c_void, cmd: *mut usercmd_s, rand
         let marker = MainThreadMarker::new();
         let engine = Engine::new(marker);
 
-        tas_logging::on_cmd_start(&engine, *cmd, random_seed);
+        tas_logging::begin_cmd_frame(&engine, *cmd, random_seed);
 
         CMD_START.get(marker)(player, cmd, random_seed);
     })
@@ -72,10 +72,11 @@ pub unsafe extern "C" fn PM_Move(ppmove: *mut playermove_s, server: c_int) {
         let marker = MainThreadMarker::new();
         let engine = Engine::new(marker);
 
-        tas_logging::on_pm_move_start(&engine, ppmove);
+        tas_logging::write_pre_pm_state(&engine, ppmove);
 
         PM_MOVE.get(marker)(ppmove, server);
 
-        tas_logging::on_pm_move_end(&engine, ppmove);
+        tas_logging::write_post_pm_state(&engine, ppmove);
+        tas_logging::end_cmd_frame(&engine);
     })
 }

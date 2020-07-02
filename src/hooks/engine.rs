@@ -481,11 +481,11 @@ pub unsafe extern "C" fn SV_Frame() {
         let marker = MainThreadMarker::new();
         let engine = Engine::new(marker);
 
-        tas_logging::on_sv_frame_start(&engine);
+        tas_logging::begin_physics_frame(&engine);
 
         SV_FRAME.get(marker)();
 
-        tas_logging::on_sv_frame_end(&engine);
+        tas_logging::end_physics_frame(&engine);
     })
 }
 
