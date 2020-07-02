@@ -497,6 +497,10 @@ pub unsafe extern "C" fn ReleaseEntityDlls() {
 
         server::reset_entity_interface(marker);
 
+        // After updating pointers some modules might have got disabled.
+        cvars::deregister_disabled_module_cvars(marker);
+        commands::deregister_disabled_module_commands(marker);
+
         RELEASEENTITYDLLS.get(marker)();
     })
 }
@@ -510,5 +514,9 @@ pub unsafe extern "C" fn LoadEntityDLLs(base_dir: *const c_char) {
         LOADENTITYDLLS.get(marker)(base_dir);
 
         server::hook_entity_interface(marker);
+
+        // After updating pointers some modules might have got disabled.
+        cvars::deregister_disabled_module_cvars(marker);
+        commands::deregister_disabled_module_commands(marker);
     })
 }
