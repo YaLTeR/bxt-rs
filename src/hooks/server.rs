@@ -47,10 +47,12 @@ pub unsafe fn reset_entity_interface(marker: MainThreadMarker) {
 
     if let Some(pm_move) = &mut functions.pm_move {
         *pm_move = PM_MOVE.get(marker);
+        PM_MOVE.reset(marker);
     }
 
     if let Some(cmd_start) = &mut functions.cmd_start {
         *cmd_start = CMD_START.get(marker);
+        CMD_START.reset(marker);
     }
 }
 
