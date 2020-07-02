@@ -141,6 +141,10 @@ pub unsafe fn deregister_all_commands(marker: MainThreadMarker) {
         }
 
         for command in module.commands() {
+            if !command.is_registered(marker) {
+                continue;
+            }
+
             trace!(
                 "de-registering {}",
                 CStr::from_bytes_with_nul(command.name)
@@ -167,6 +171,10 @@ pub unsafe fn deregister_disabled_module_commands(marker: MainThreadMarker) {
         }
 
         for command in module.commands() {
+            if !command.is_registered(marker) {
+                continue;
+            }
+
             trace!(
                 "de-registering {}",
                 CStr::from_bytes_with_nul(command.name)

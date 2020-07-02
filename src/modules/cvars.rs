@@ -209,6 +209,10 @@ pub unsafe fn deregister_disabled_module_cvars(marker: MainThreadMarker) {
         }
 
         for cvar in module.cvars() {
+            if !cvar.is_registered(marker) {
+                continue;
+            }
+
             trace!(
                 "de-registering {}",
                 CStr::from_bytes_with_nul(cvar.name)
