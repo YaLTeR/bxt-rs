@@ -1,0 +1,5 @@
+error: pattern ends on `??` (probably not what you want)
+ --> $DIR/pattern-ends-on-double-question.rs:4:18
+  |
+4 |     pattern!(00 ??);
+  |                  ^

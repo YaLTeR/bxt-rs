@@ -66,3 +66,9 @@ fn error(span: Span, msg: &str) -> TokenStream {
         })
         .collect()
 }
+
+#[test]
+fn ui() {
+    let t = trybuild::TestCases::new();
+    t.compile_fail("tests/ui/*.rs");
+}

@@ -1,0 +1,5 @@
+error: token must be a hex number
+ --> $DIR/non-hex-character.rs:4:17
+  |
+4 |     pattern!(00 0v);
+  |                 ^^

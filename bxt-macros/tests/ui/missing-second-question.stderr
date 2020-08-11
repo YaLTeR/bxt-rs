@@ -1,0 +1,5 @@
+error: missing second `?`
+ --> $DIR/missing-second-question.rs:4:17
+  |
+4 |     pattern!(00 ? 00);
+  |                 ^
