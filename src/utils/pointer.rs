@@ -236,21 +236,24 @@ impl<P: Copy> PointerTrait for Pointer<P> {
     }
 
     fn log(&self, marker: MainThreadMarker) {
-        if !log_enabled!(log::Level::Debug) {
-            return;
-        }
-
-        let name = CStr::from_bytes_with_nul(self.symbol)
-            .unwrap()
-            .to_str()
-            .unwrap();
         let ptr = self
             .get_opt(marker)
             .map(|ptr| unsafe { *(&ptr as *const P as *const *const c_void) });
 
-        match ptr {
-            Some(ptr) => debug!("{:p}: {}", ptr, name),
-            None => debug!("MISSING: {}", name),
-        }
+        log_pointer(self.symbol, ptr);
+    }
+}
+
+// Extracted out of monomorphized function according to cargo llvm-lines.
+fn log_pointer(name: &'static [u8], ptr: Option<*const c_void>) {
+    if !log_enabled!(log::Level::Debug) {
+        return;
+    }
+
+    let name = CStr::from_bytes_with_nul(name).unwrap().to_str().unwrap();
+
+    match ptr {
+        Some(ptr) => debug!("{:p}: {}", ptr, name),
+        None => debug!("MISSING: {}", name),
     }
 }
