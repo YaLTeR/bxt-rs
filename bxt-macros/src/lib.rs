@@ -4,13 +4,13 @@ extern crate proc_macro;
 use proc_macro::{Span, TokenStream, TokenTree};
 
 /// Converts the item to a byte pattern.
-#[proc_macro_attribute]
-pub fn pattern_const(attr: TokenStream, _item: TokenStream) -> TokenStream {
-    let mut output = String::from("const PATTERN: &[Option<u8>] = &[");
+#[proc_macro]
+pub fn pattern(input: TokenStream) -> TokenStream {
+    let mut output = String::from("&[");
 
     let mut question = None;
     let mut last_token = None;
-    for token in attr {
+    for token in input {
         last_token = Some(token.clone());
 
         match token {
@@ -51,21 +51,18 @@ pub fn pattern_const(attr: TokenStream, _item: TokenStream) -> TokenStream {
         );
     }
 
-    output.push_str("];");
+    output.push_str("]");
     output.parse().unwrap()
 }
 
 fn error(span: Span, msg: &str) -> TokenStream {
-    format!(
-        r#"const PATTERN: &[Option<u8>] = &[]; compile_error!("{}");"#,
-        msg
-    )
-    .parse::<TokenStream>()
-    .unwrap()
-    .into_iter()
-    .map(|mut t| {
-        t.set_span(span);
-        t
-    })
-    .collect()
+    format!(r#"compile_error!("{}")"#, msg)
+        .parse::<TokenStream>()
+        .unwrap()
+        .into_iter()
+        .map(|mut t| {
+            t.set_span(span);
+            t
+        })
+        .collect()
 }

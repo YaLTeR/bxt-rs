@@ -2,6 +2,7 @@
 
 use std::{ffi::CString, os::raw::*, ptr::null_mut};
 
+use bxt_macros::pattern;
 use bxt_patterns::Patterns;
 
 use crate::{
