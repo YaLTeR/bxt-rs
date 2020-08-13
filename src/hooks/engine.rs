@@ -422,102 +422,109 @@ fn reset_pointers(marker: MainThreadMarker) {
     }
 }
 
-#[allow(clippy::missing_safety_doc)]
-#[no_mangle]
-pub unsafe extern "C" fn Memory_Init(buf: *mut c_void, size: c_int) -> c_int {
-    abort_on_panic(move || {
-        let marker = MainThreadMarker::new();
+use exported::*;
 
-        #[cfg(unix)]
-        let _ = env_logger::try_init();
+/// Functions exported for `LD_PRELOAD` hooking.
+pub mod exported {
+    use super::*;
 
-        #[cfg(unix)]
-        find_pointers(marker);
+    #[allow(clippy::missing_safety_doc)]
+    #[no_mangle]
+    pub unsafe extern "C" fn Memory_Init(buf: *mut c_void, size: c_int) -> c_int {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
 
-        let rv = MEMORY_INIT.get(marker)(buf, size);
+            #[cfg(unix)]
+            let _ = env_logger::try_init();
 
-        cvars::register_all_cvars(marker);
-        commands::register_all_commands(marker);
-        cvars::deregister_disabled_module_cvars(marker);
-        commands::deregister_disabled_module_commands(marker);
+            #[cfg(unix)]
+            find_pointers(marker);
 
-        rv
-    })
-}
+            let rv = MEMORY_INIT.get(marker)(buf, size);
 
-#[allow(clippy::missing_safety_doc)]
-#[no_mangle]
-pub unsafe extern "C" fn Host_Shutdown() {
-    abort_on_panic(move || {
-        let marker = MainThreadMarker::new();
+            cvars::register_all_cvars(marker);
+            commands::register_all_commands(marker);
+            cvars::deregister_disabled_module_cvars(marker);
+            commands::deregister_disabled_module_commands(marker);
 
-        commands::deregister_all_commands(marker);
+            rv
+        })
+    }
 
-        HOST_SHUTDOWN.get(marker)();
+    #[allow(clippy::missing_safety_doc)]
+    #[no_mangle]
+    pub unsafe extern "C" fn Host_Shutdown() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
 
-        cvars::mark_all_cvars_as_not_registered(marker);
+            commands::deregister_all_commands(marker);
 
-        reset_pointers(marker);
-    })
-}
+            HOST_SHUTDOWN.get(marker)();
 
-#[allow(clippy::missing_safety_doc)]
-#[no_mangle]
-pub unsafe extern "C" fn V_FadeAlpha() -> c_int {
-    abort_on_panic(move || {
-        let marker = MainThreadMarker::new();
+            cvars::mark_all_cvars_as_not_registered(marker);
 
-        if fade_remove::is_active(marker) {
-            0
-        } else {
-            V_FADEALPHA.get(marker)()
-        }
-    })
-}
+            reset_pointers(marker);
+        })
+    }
 
-#[allow(clippy::missing_safety_doc)]
-#[no_mangle]
-pub unsafe extern "C" fn SV_Frame() {
-    abort_on_panic(move || {
-        let marker = MainThreadMarker::new();
-        let engine = Engine::new(marker);
+    #[allow(clippy::missing_safety_doc)]
+    #[no_mangle]
+    pub unsafe extern "C" fn V_FadeAlpha() -> c_int {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
 
-        tas_logging::begin_physics_frame(&engine);
+            if fade_remove::is_active(marker) {
+                0
+            } else {
+                V_FADEALPHA.get(marker)()
+            }
+        })
+    }
 
-        SV_FRAME.get(marker)();
+    #[allow(clippy::missing_safety_doc)]
+    #[no_mangle]
+    pub unsafe extern "C" fn SV_Frame() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+            let engine = Engine::new(marker);
 
-        tas_logging::end_physics_frame(&engine);
-    })
-}
+            tas_logging::begin_physics_frame(&engine);
 
-#[allow(clippy::missing_safety_doc)]
-#[no_mangle]
-pub unsafe extern "C" fn ReleaseEntityDlls() {
-    abort_on_panic(move || {
-        let marker = MainThreadMarker::new();
+            SV_FRAME.get(marker)();
 
-        server::reset_entity_interface(marker);
+            tas_logging::end_physics_frame(&engine);
+        })
+    }
 
-        // After updating pointers some modules might have got disabled.
-        cvars::deregister_disabled_module_cvars(marker);
-        commands::deregister_disabled_module_commands(marker);
+    #[allow(clippy::missing_safety_doc)]
+    #[no_mangle]
+    pub unsafe extern "C" fn ReleaseEntityDlls() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
 
-        RELEASEENTITYDLLS.get(marker)();
-    })
-}
+            server::reset_entity_interface(marker);
 
-#[allow(clippy::missing_safety_doc)]
-#[no_mangle]
-pub unsafe extern "C" fn LoadEntityDLLs(base_dir: *const c_char) {
-    abort_on_panic(move || {
-        let marker = MainThreadMarker::new();
+            // After updating pointers some modules might have got disabled.
+            cvars::deregister_disabled_module_cvars(marker);
+            commands::deregister_disabled_module_commands(marker);
 
-        LOADENTITYDLLS.get(marker)(base_dir);
+            RELEASEENTITYDLLS.get(marker)();
+        })
+    }
 
-        server::hook_entity_interface(marker);
+    #[allow(clippy::missing_safety_doc)]
+    #[no_mangle]
+    pub unsafe extern "C" fn LoadEntityDLLs(base_dir: *const c_char) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
 
-        // After updating pointers some modules might have got disabled.
-        cvars::deregister_disabled_module_cvars(marker);
-        commands::deregister_disabled_module_commands(marker);
-    })
+            LOADENTITYDLLS.get(marker)(base_dir);
+
+            server::hook_entity_interface(marker);
+
+            // After updating pointers some modules might have got disabled.
+            cvars::deregister_disabled_module_cvars(marker);
+            commands::deregister_disabled_module_commands(marker);
+        })
+    }
 }

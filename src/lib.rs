@@ -14,6 +14,4 @@ mod windows;
 
 // Export all functions we want to hook via LD_PRELOAD on Linux.
 #[cfg(unix)]
-pub use hooks::engine::{
-    Host_Shutdown, LoadEntityDLLs, Memory_Init, ReleaseEntityDlls, SV_Frame, V_FadeAlpha,
-};
+pub use hooks::engine::exported::*;
