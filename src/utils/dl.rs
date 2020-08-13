@@ -40,7 +40,7 @@ impl Handle {
             None => {
                 let error = unsafe { dlerror() };
                 assert!(!error.is_null());
-                Err(dbg!(unsafe { CStr::from_ptr(error).to_owned() }))
+                Err(unsafe { CStr::from_ptr(error).to_owned() })
             }
         }
     }
@@ -57,7 +57,7 @@ pub fn open(filename: &str) -> Result<Handle, CString> {
         None => {
             let error = unsafe { dlerror() };
             assert!(!error.is_null());
-            Err(dbg!(unsafe { CStr::from_ptr(error).to_owned() }))
+            Err(unsafe { CStr::from_ptr(error).to_owned() })
         }
     }
 }
