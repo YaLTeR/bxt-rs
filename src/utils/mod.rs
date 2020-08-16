@@ -1,7 +1,7 @@
 //! Utility objects.
 
 use std::{
-    ffi::{CStr, OsString},
+    ffi::{CStr, CString, OsString},
     panic::{catch_unwind, UnwindSafe},
     process::abort,
 };
@@ -42,4 +42,36 @@ pub fn c_str_to_os_string(c_str: &CStr) -> OsString {
     // TODO: this will fail for invalid UTF-8. Can cvars contain invalid UTF-8? What to do in this
     // case?
     c_str.to_str().unwrap().into()
+}
+
+/// Converts a `&str` to a `CString`, changing null-bytes into `"\x00"`.
+pub fn to_cstring_lossy(s: &str) -> CString {
+    if let Ok(s) = CString::new(s) {
+        return s;
+    }
+
+    CString::new(s.replace("\x00", "\\x00")).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_cstring_lossy_normal() {
+        let c_string = to_cstring_lossy("hello");
+        assert_eq!(c_string.to_str(), Ok("hello"));
+    }
+
+    #[test]
+    fn to_cstring_lossy_null_byte() {
+        let c_string = to_cstring_lossy("hel\x00lo");
+        assert_eq!(c_string.to_str(), Ok("hel\\x00lo"));
+    }
+
+    #[test]
+    fn to_cstring_lossy_null_byte_end() {
+        let c_string = to_cstring_lossy("hello\x00");
+        assert_eq!(c_string.to_str(), Ok("hello\\x00"));
+    }
 }

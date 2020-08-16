@@ -1,6 +1,6 @@
 //! `hw`, `sw`, `hl`.
 
-use std::{ffi::CString, os::raw::*, ptr::null_mut};
+use std::{os::raw::*, ptr::null_mut};
 
 use bxt_macros::pattern;
 use bxt_patterns::Patterns;
@@ -217,15 +217,13 @@ pub struct DllFunctions {
 ///
 /// If `Con_Printf` was not found, does nothing.
 ///
-/// # Panics
-///
-/// Panics if the string cannot be converted to a `CString`.
+/// Any null-bytes are replaced with a literal `"\x00"`.
 pub fn con_print(marker: MainThreadMarker, s: &str) {
     if !CON_PRINTF.is_set(marker) {
         return;
     }
 
-    let s = CString::new(s).unwrap();
+    let s = to_cstring_lossy(s);
 
     // Safety: Con_Printf() uses global buffers which are always valid, and external calls are
     // guarded with other global variables being non-zero, so they cannot be incorrectly called
