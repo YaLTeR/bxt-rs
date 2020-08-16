@@ -1,7 +1,8 @@
 use std::{ffi::CStr, str::FromStr};
 
 use super::Args;
-use crate::hooks::engine::Engine;
+
+use crate::utils::MainThreadMarker;
 
 /// Parses a value of type `T` from the argument string.
 fn parse_arg<T: FromStr>(arg: &CStr) -> Option<T> {
@@ -9,13 +10,13 @@ fn parse_arg<T: FromStr>(arg: &CStr) -> Option<T> {
 }
 
 /// Trait defining a console command handler.
-pub trait CommandHandler<'a> {
+pub trait CommandHandler {
     /// Handles the console command.
     ///
     /// # Safety
     ///
     /// This method must only be called from a console command handler callback.
-    unsafe fn handle(self, engine: &'a Engine) -> bool;
+    unsafe fn handle(self, marker: MainThreadMarker) -> bool;
 }
 
 // Can't implement for Fn traits due to https://github.com/rust-lang/rust/issues/25041
@@ -26,23 +27,23 @@ pub trait CommandHandler<'a> {
 // And if the lifetime is not explicit, then "as fn(_, _)" doesn't work because it wants "for<'r>
 // fn(&'r _, _)" or something.
 
-impl<'a> CommandHandler<'a> for fn(&'a Engine) {
-    unsafe fn handle(self, engine: &'a Engine) -> bool {
-        let args = Args::new(engine.marker()).skip(1);
+impl CommandHandler for fn(MainThreadMarker) {
+    unsafe fn handle(self, marker: MainThreadMarker) -> bool {
+        let args = Args::new(marker).skip(1);
         if args.len() != 0 {
             return false;
         }
 
         drop(args);
-        self(engine);
+        self(marker);
 
         true
     }
 }
 
-impl<'a, A1: FromStr> CommandHandler<'a> for fn(&'a Engine, A1) {
-    unsafe fn handle(self, engine: &'a Engine) -> bool {
-        let mut args = Args::new(engine.marker()).skip(1);
+impl<A1: FromStr> CommandHandler for fn(MainThreadMarker, A1) {
+    unsafe fn handle(self, marker: MainThreadMarker) -> bool {
+        let mut args = Args::new(marker).skip(1);
         if args.len() != 1 {
             return false;
         }
@@ -54,7 +55,7 @@ impl<'a, A1: FromStr> CommandHandler<'a> for fn(&'a Engine, A1) {
         };
 
         drop(args);
-        self(engine, a1);
+        self(marker, a1);
 
         true
     }
@@ -75,11 +76,10 @@ macro_rules! handler {
         unsafe extern "C" fn handler() {
             $crate::utils::abort_on_panic(move || {
                 let marker = $crate::utils::MainThreadMarker::new();
-                let engine = $crate::hooks::engine::Engine::new(marker);
 
-                let success = $crate::modules::commands::CommandHandler::handle($fn, &engine);
+                let success = $crate::modules::commands::CommandHandler::handle($fn, marker);
                 if !success {
-                    engine.print($usage);
+                    $crate::hooks::engine::con_print(marker, $usage);
                 }
             })
         }

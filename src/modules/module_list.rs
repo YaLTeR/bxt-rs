@@ -3,7 +3,7 @@
 use super::{Module, MODULES};
 use crate::{
     handler,
-    hooks::engine::{self, Engine},
+    hooks::engine::{self, con_print},
     modules::commands::{self, Command},
     utils::*,
 };
@@ -33,8 +33,8 @@ static BXT_MODULES_LIST: Command = Command::new(
     ),
 );
 
-fn modules_list(engine: &Engine) {
-    if !ModuleList.is_enabled(engine.marker()) {
+fn modules_list(marker: MainThreadMarker) {
+    if !ModuleList.is_enabled(marker) {
         return;
     }
 
@@ -42,7 +42,7 @@ fn modules_list(engine: &Engine) {
     for module in MODULES {
         output.push_str(&format!(
             "- {}{}\n",
-            if module.is_enabled(engine.marker()) {
+            if module.is_enabled(marker) {
                 ""
             } else {
                 "[DISABLED] "
@@ -51,5 +51,5 @@ fn modules_list(engine: &Engine) {
         ));
     }
 
-    engine.print(&output);
+    con_print(marker, &output);
 }

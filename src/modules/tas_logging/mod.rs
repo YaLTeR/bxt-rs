@@ -11,7 +11,7 @@ use crate::{
     ffi::{edict, playermove::playermove_s, usercmd::usercmd_s},
     handler,
     hooks::{
-        engine::{self, Engine},
+        engine::{self, con_print},
         server,
     },
     modules::{
@@ -58,9 +58,7 @@ static BXT_TASLOG_FILENAME: CVar = CVar::new(b"bxt_taslog_filename\0", b"taslogg
 
 static TAS_LOG: MainThreadRefCell<Option<TASLog>> = MainThreadRefCell::new(None);
 
-fn taslog(engine: &Engine, enabled: i32) {
-    let marker = engine.marker();
-
+fn taslog(marker: MainThreadMarker, enabled: i32) {
     if !TASLogging.is_enabled(marker) {
         return;
     }
@@ -70,9 +68,12 @@ fn taslog(engine: &Engine, enabled: i32) {
     if enabled == 0 {
         if let Some(tas_log) = tas_log.take() {
             if let Err(err) = tas_log.close() {
-                engine.print(&format!("TAS logging stopped with an error: {}\n", err));
+                con_print(
+                    marker,
+                    &format!("TAS logging stopped with an error: {}\n", err),
+                );
             } else {
-                engine.print("TAS logging stopped.\n");
+                con_print(marker, "TAS logging stopped.\n");
             }
         }
 
@@ -100,23 +101,21 @@ fn taslog(engine: &Engine, enabled: i32) {
 
     match TASLog::new(&filename, "bxt-rs 0.1", build_number, game_dir.as_deref()) {
         Ok(tas_log_new) => {
-            engine.print(&format!(
-                "Started TAS logging into {}\n",
-                filename.to_string_lossy()
-            ));
+            con_print(
+                marker,
+                &format!("Started TAS logging into {}\n", filename.to_string_lossy()),
+            );
 
             *tas_log = Some(tas_log_new)
         }
-        Err(err) => engine.print(&format!("Unable to start TAS logging: {}\n", err)),
+        Err(err) => con_print(marker, &format!("Unable to start TAS logging: {}\n", err)),
     }
 }
 
 /// # Safety
 ///
 /// `host_frametime`, `cls` and `sv` must be valid to read from.
-pub unsafe fn begin_physics_frame(engine: &Engine) {
-    let marker = engine.marker();
-
+pub unsafe fn begin_physics_frame(marker: MainThreadMarker) {
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         let frame_time = engine::HOST_FRAMETIME
             .get_opt(marker)
@@ -126,24 +125,20 @@ pub unsafe fn begin_physics_frame(engine: &Engine) {
 
         // TODO: command_buffer
         if let Err(err) = tas_log.begin_physics_frame(frame_time, client_state, is_paused, None) {
-            engine.print(&format!("Error writing to the TAS log: {}", err));
+            con_print(marker, &format!("Error writing to the TAS log: {}", err));
         }
     }
 }
 
-pub fn end_physics_frame(engine: &Engine) {
-    let marker = engine.marker();
-
+pub fn end_physics_frame(marker: MainThreadMarker) {
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.end_physics_frame() {
-            engine.print(&format!("Error writing to the TAS log: {}", err));
+            con_print(marker, &format!("Error writing to the TAS log: {}", err));
         }
     }
 }
 
-pub fn begin_cmd_frame(engine: &Engine, cmd: usercmd_s, random_seed: u32) {
-    let marker = engine.marker();
-
+pub fn begin_cmd_frame(marker: MainThreadMarker, cmd: usercmd_s, random_seed: u32) {
     // PM_Move is required because it ends the cmd frame JSON object.
     if !server::PM_MOVE.is_set(marker) {
         return;
@@ -151,7 +146,7 @@ pub fn begin_cmd_frame(engine: &Engine, cmd: usercmd_s, random_seed: u32) {
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.begin_cmd_frame(None, None, &cmd, random_seed) {
-            engine.print(&format!("Error writing to the TAS log: {}", err));
+            con_print(marker, &format!("Error writing to the TAS log: {}", err));
         }
     }
 }
@@ -159,9 +154,7 @@ pub fn begin_cmd_frame(engine: &Engine, cmd: usercmd_s, random_seed: u32) {
 /// # Safety
 ///
 /// `ppmove` must be valid to read from.
-pub unsafe fn write_pre_pm_state(engine: &Engine, ppmove: *const playermove_s) {
-    let marker = engine.marker();
-
+pub unsafe fn write_pre_pm_state(marker: MainThreadMarker, ppmove: *const playermove_s) {
     // CmdStart is required because it starts the cmd frame JSON object.
     if !server::CMDSTART.is_set(marker) {
         return;
@@ -169,7 +162,7 @@ pub unsafe fn write_pre_pm_state(engine: &Engine, ppmove: *const playermove_s) {
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.write_pre_pm_state(&*ppmove) {
-            engine.print(&format!("Error writing to the TAS log: {}", err));
+            con_print(marker, &format!("Error writing to the TAS log: {}", err));
         }
     }
 }
@@ -177,9 +170,7 @@ pub unsafe fn write_pre_pm_state(engine: &Engine, ppmove: *const playermove_s) {
 /// # Safety
 ///
 /// `ppmove` must be valid to read from.
-pub unsafe fn write_post_pm_state(engine: &Engine, ppmove: *const playermove_s) {
-    let marker = engine.marker();
-
+pub unsafe fn write_post_pm_state(marker: MainThreadMarker, ppmove: *const playermove_s) {
     // CmdStart is required because it starts the cmd frame JSON object.
     if !server::CMDSTART.is_set(marker) {
         return;
@@ -187,14 +178,12 @@ pub unsafe fn write_post_pm_state(engine: &Engine, ppmove: *const playermove_s) 
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.write_post_pm_state(&*ppmove) {
-            engine.print(&format!("Error writing to the TAS log: {}", err));
+            con_print(marker, &format!("Error writing to the TAS log: {}", err));
         }
     }
 }
 
-pub fn end_cmd_frame(engine: &Engine) {
-    let marker = engine.marker();
-
+pub fn end_cmd_frame(marker: MainThreadMarker) {
     // CmdStart is required because it starts the cmd frame JSON object.
     if !server::CMDSTART.is_set(marker) {
         return;
@@ -202,7 +191,7 @@ pub fn end_cmd_frame(engine: &Engine) {
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.end_cmd_frame() {
-            engine.print(&format!("Error writing to the TAS log: {}", err));
+            con_print(marker, &format!("Error writing to the TAS log: {}", err));
         }
     }
 }

@@ -4,7 +4,7 @@ use std::{os::raw::*, ptr::NonNull};
 
 use crate::{
     ffi::{playermove::playermove_s, usercmd::usercmd_s},
-    hooks::engine::{self, Engine},
+    hooks::engine,
     modules::tas_logging,
     utils::*,
 };
@@ -60,9 +60,8 @@ pub unsafe fn reset_entity_interface(marker: MainThreadMarker) {
 pub unsafe extern "C" fn CmdStart(player: *mut c_void, cmd: *mut usercmd_s, random_seed: c_uint) {
     abort_on_panic(move || {
         let marker = MainThreadMarker::new();
-        let engine = Engine::new(marker);
 
-        tas_logging::begin_cmd_frame(&engine, *cmd, random_seed);
+        tas_logging::begin_cmd_frame(marker, *cmd, random_seed);
 
         CMDSTART.get(marker)(player, cmd, random_seed);
     })
@@ -72,13 +71,12 @@ pub unsafe extern "C" fn CmdStart(player: *mut c_void, cmd: *mut usercmd_s, rand
 pub unsafe extern "C" fn PM_Move(ppmove: *mut playermove_s, server: c_int) {
     abort_on_panic(move || {
         let marker = MainThreadMarker::new();
-        let engine = Engine::new(marker);
 
-        tas_logging::write_pre_pm_state(&engine, ppmove);
+        tas_logging::write_pre_pm_state(marker, ppmove);
 
         PM_MOVE.get(marker)(ppmove, server);
 
-        tas_logging::write_post_pm_state(&engine, ppmove);
-        tas_logging::end_cmd_frame(&engine);
+        tas_logging::write_post_pm_state(marker, ppmove);
+        tas_logging::end_cmd_frame(marker);
     })
 }

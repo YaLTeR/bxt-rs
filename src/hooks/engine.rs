@@ -213,49 +213,25 @@ pub struct DllFunctions {
     pub cmd_start: Option<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)>,
 }
 
-/// Wrapper providing safe access to some engine functions.
+/// Prints the string to the console.
 ///
-/// This can be seen as a slightly stronger variant of `MainThreadMarker`. While `MainThreadMarker`
-/// merely guarantees being on the main thread, `Engine` also guarantees the ability to call
-/// certain engine functions.
-// No Clone or Copy ensures that if an Engine is given by reference to some function, the function
-// cannot store the Engine in a global variable and access it later when it's unsafe to do so.
-pub struct Engine {
-    marker: MainThreadMarker,
-}
-
-impl Engine {
-    /// Creates a new `Engine`.
-    ///
-    /// # Safety
-    ///
-    /// All `Engine` methods must be safe to call over the whole lifespan of the `Engine` returned
-    /// by this function.
-    pub unsafe fn new(marker: MainThreadMarker) -> Self {
-        Self { marker }
+/// If `Con_Printf` was not found, does nothing.
+///
+/// # Panics
+///
+/// Panics if the string cannot be converted to a `CString`.
+pub fn con_print(marker: MainThreadMarker, s: &str) {
+    if !CON_PRINTF.is_set(marker) {
+        return;
     }
 
-    /// Returns a `MainThreadMarker`.
-    pub fn marker(&self) -> MainThreadMarker {
-        self.marker
-    }
+    let s = CString::new(s).unwrap();
 
-    /// Prints the string to the console.
-    ///
-    /// If `Con_Printf` was not found, does nothing.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the string cannot be converted to a `CString`.
-    pub fn print(&self, s: &str) {
-        if !CON_PRINTF.is_set(self.marker) {
-            return;
-        }
-
-        let s = CString::new(s).unwrap();
-        unsafe {
-            CON_PRINTF.get(self.marker)(b"%s\0".as_ptr().cast(), s.as_ptr());
-        }
+    // Safety: Con_Printf() uses global buffers which are always valid, and external calls are
+    // guarded with other global variables being non-zero, so they cannot be incorrectly called
+    // either.
+    unsafe {
+        CON_PRINTF.get(marker)(b"%s\0".as_ptr().cast(), s.as_ptr());
     }
 }
 
@@ -486,13 +462,12 @@ pub mod exported {
     pub unsafe extern "C" fn SV_Frame() {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
-            let engine = Engine::new(marker);
 
-            tas_logging::begin_physics_frame(&engine);
+            tas_logging::begin_physics_frame(marker);
 
             SV_FRAME.get(marker)();
 
-            tas_logging::end_physics_frame(&engine);
+            tas_logging::end_physics_frame(marker);
         })
     }
 
