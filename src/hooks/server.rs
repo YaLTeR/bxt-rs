@@ -1,5 +1,7 @@
 //! `hl`, `opfor`, `bshift`.
 
+#![allow(non_snake_case)]
+
 use std::{os::raw::*, ptr::NonNull};
 
 use crate::{
@@ -26,12 +28,12 @@ pub unsafe fn hook_entity_interface(marker: MainThreadMarker) {
 
     if let Some(pm_move) = &mut functions.pm_move {
         PM_MOVE.set(marker, Some(NonNull::new_unchecked(*pm_move as _)));
-        *pm_move = PM_Move;
+        *pm_move = my_PM_Move;
     }
 
     if let Some(cmd_start) = &mut functions.cmd_start {
         CMDSTART.set(marker, Some(NonNull::new_unchecked(*cmd_start as _)));
-        *cmd_start = CmdStart;
+        *cmd_start = my_CmdStart;
     }
 }
 
@@ -56,8 +58,12 @@ pub unsafe fn reset_entity_interface(marker: MainThreadMarker) {
     }
 }
 
-#[allow(non_snake_case, clippy::missing_safety_doc)]
-pub unsafe extern "C" fn CmdStart(player: *mut c_void, cmd: *mut usercmd_s, random_seed: c_uint) {
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn my_CmdStart(
+    player: *mut c_void,
+    cmd: *mut usercmd_s,
+    random_seed: c_uint,
+) {
     abort_on_panic(move || {
         let marker = MainThreadMarker::new();
 
@@ -67,8 +73,8 @@ pub unsafe extern "C" fn CmdStart(player: *mut c_void, cmd: *mut usercmd_s, rand
     })
 }
 
-#[allow(non_snake_case, clippy::missing_safety_doc)]
-pub unsafe extern "C" fn PM_Move(ppmove: *mut playermove_s, server: c_int) {
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn my_PM_Move(ppmove: *mut playermove_s, server: c_int) {
     abort_on_panic(move || {
         let marker = MainThreadMarker::new();
 

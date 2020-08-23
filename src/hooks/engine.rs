@@ -1,5 +1,7 @@
 //! `hw`, `sw`, `hl`.
 
+#![allow(non_snake_case)]
+
 use std::{os::raw::*, ptr::null_mut};
 
 use bxt_macros::pattern;
@@ -72,7 +74,7 @@ pub static LOADENTITYDLLS: Pointer<unsafe extern "C" fn(*const c_char)> = Pointe
         // 6153
         pattern!(55 8B EC B8 90 23 00 00),
     ]),
-    LoadEntityDLLs as _,
+    my_LoadEntityDLLs as _,
 );
 pub static HOST_FRAMETIME: Pointer<*mut c_double> = Pointer::empty(b"host_frametime\0");
 pub static HOST_INITIALIZEGAMEDLL: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
@@ -92,7 +94,7 @@ pub static HOST_SHUTDOWN: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
         // 6153
         pattern!(A1 ?? ?? ?? ?? 53 33 DB 3B C3 74 ?? 68),
     ]),
-    Host_Shutdown as _,
+    my_Host_Shutdown as _,
 );
 pub static HOST_TELL_F: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"Host_Tell_f\0",
@@ -120,7 +122,7 @@ pub static MEMORY_INIT: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_in
             // 6153
             pattern!(55 8B EC 8B 45 ?? 8B 4D ?? 56 BE 00 00 20 00),
         ]),
-        Memory_Init as _,
+        my_Memory_Init as _,
     );
 pub static MEM_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_patterns(
     b"Mem_Free\0",
@@ -141,7 +143,7 @@ pub static RELEASEENTITYDLLS: Pointer<unsafe extern "C" fn()> = Pointer::empty_p
         // 6153
         pattern!(A1 ?? ?? ?? ?? 56 57 BE ?? ?? ?? ?? 8D 04),
     ]),
-    ReleaseEntityDlls as _,
+    my_ReleaseEntityDlls as _,
 );
 pub static SV: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
 pub static SV_FRAME: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
@@ -152,7 +154,7 @@ pub static SV_FRAME: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
         // 6153
         pattern!(A1 ?? ?? ?? ?? 85 C0 74 ?? DD 05 ?? ?? ?? ?? A1),
     ]),
-    SV_Frame as _,
+    my_SV_Frame as _,
 );
 pub static V_FADEALPHA: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
     b"V_FadeAlpha\0",
@@ -164,7 +166,7 @@ pub static V_FADEALPHA: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empt
         // 6153
         pattern!(55 8B EC 83 EC 08 D9 05 ?? ?? ?? ?? DC 1D),
     ]),
-    V_FadeAlpha as _,
+    my_V_FadeAlpha as _,
 );
 pub static Z_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_patterns(
     b"Z_Free\0",
@@ -400,11 +402,12 @@ use exported::*;
 
 /// Functions exported for `LD_PRELOAD` hooking.
 pub mod exported {
+    #![allow(clippy::missing_safety_doc)]
+
     use super::*;
 
-    #[allow(clippy::missing_safety_doc)]
-    #[no_mangle]
-    pub unsafe extern "C" fn Memory_Init(buf: *mut c_void, size: c_int) -> c_int {
+    #[export_name = "Memory_Init"]
+    pub unsafe extern "C" fn my_Memory_Init(buf: *mut c_void, size: c_int) -> c_int {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
@@ -425,9 +428,8 @@ pub mod exported {
         })
     }
 
-    #[allow(clippy::missing_safety_doc)]
-    #[no_mangle]
-    pub unsafe extern "C" fn Host_Shutdown() {
+    #[export_name = "Host_Shutdown"]
+    pub unsafe extern "C" fn my_Host_Shutdown() {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
@@ -441,9 +443,8 @@ pub mod exported {
         })
     }
 
-    #[allow(clippy::missing_safety_doc)]
-    #[no_mangle]
-    pub unsafe extern "C" fn V_FadeAlpha() -> c_int {
+    #[export_name = "V_FadeAlpha"]
+    pub unsafe extern "C" fn my_V_FadeAlpha() -> c_int {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
@@ -455,9 +456,8 @@ pub mod exported {
         })
     }
 
-    #[allow(clippy::missing_safety_doc)]
-    #[no_mangle]
-    pub unsafe extern "C" fn SV_Frame() {
+    #[export_name = "SV_Frame"]
+    pub unsafe extern "C" fn my_SV_Frame() {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
@@ -469,9 +469,8 @@ pub mod exported {
         })
     }
 
-    #[allow(clippy::missing_safety_doc)]
-    #[no_mangle]
-    pub unsafe extern "C" fn ReleaseEntityDlls() {
+    #[export_name = "ReleaseEntityDlls"]
+    pub unsafe extern "C" fn my_ReleaseEntityDlls() {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
@@ -485,9 +484,8 @@ pub mod exported {
         })
     }
 
-    #[allow(clippy::missing_safety_doc)]
-    #[no_mangle]
-    pub unsafe extern "C" fn LoadEntityDLLs(base_dir: *const c_char) {
+    #[export_name = "LoadEntityDLLs"]
+    pub unsafe extern "C" fn my_LoadEntityDLLs(base_dir: *const c_char) {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 

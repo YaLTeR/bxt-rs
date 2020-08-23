@@ -1,5 +1,7 @@
 //! Windows API.
 
+#![allow(non_snake_case)]
+
 use std::{
     ffi::CStr,
     mem::{size_of_val, zeroed},
@@ -18,8 +20,7 @@ use crate::{
 
 pub static LOADLIBRARYA: OnceCell<unsafe extern "system" fn(LPCSTR) -> HMODULE> = OnceCell::new();
 
-#[allow(non_snake_case)]
-pub unsafe extern "system" fn LoadLibraryA(file_name: LPCSTR) -> HMODULE {
+pub unsafe extern "system" fn my_LoadLibraryA(file_name: LPCSTR) -> HMODULE {
     abort_on_panic(move || {
         let rv = LOADLIBRARYA.get().unwrap()(file_name);
 
