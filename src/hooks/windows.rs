@@ -18,11 +18,11 @@ use crate::{
     utils::{abort_on_panic, MainThreadMarker},
 };
 
-pub static LOADLIBRARYA: OnceCell<unsafe extern "system" fn(LPCSTR) -> HMODULE> = OnceCell::new();
+pub static LoadLibraryA: OnceCell<unsafe extern "system" fn(LPCSTR) -> HMODULE> = OnceCell::new();
 
 pub unsafe extern "system" fn my_LoadLibraryA(file_name: LPCSTR) -> HMODULE {
     abort_on_panic(move || {
-        let rv = LOADLIBRARYA.get().unwrap()(file_name);
+        let rv = LoadLibraryA.get().unwrap()(file_name);
 
         if file_name.is_null() || rv.is_null() {
             return rv;

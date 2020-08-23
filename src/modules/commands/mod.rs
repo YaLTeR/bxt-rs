@@ -58,7 +58,7 @@ unsafe fn register(marker: MainThreadMarker, command: &Command) {
     // Make sure the provided name is a valid C string.
     assert!(CStr::from_bytes_with_nul(command.name).is_ok());
 
-    engine::CMD_ADDMALLOCCOMMAND.get(marker)(command.name.as_ptr().cast(), command.function.0, 0);
+    engine::Cmd_AddMallocCommand.get(marker)(command.name.as_ptr().cast(), command.function.0, 0);
 
     command.is_registered.set(true);
 }
@@ -82,7 +82,7 @@ unsafe fn deregister(marker: MainThreadMarker, command: &Command) {
     // registered command). On each iteration, check if the pointer points to a command with the
     // name we're searching for, and if not, follow it. `cmd_functions` can't be null because
     // there's at least one registered command (the one we're de-registering).
-    let mut prev_ptr = engine::CMD_FUNCTIONS.get(marker);
+    let mut prev_ptr = engine::cmd_functions.get(marker);
     assert!(!prev_ptr.is_null());
 
     while CStr::from_ptr((**prev_ptr).name) != name {
@@ -99,7 +99,7 @@ unsafe fn deregister(marker: MainThreadMarker, command: &Command) {
     *prev_ptr = (**prev_ptr).next;
 
     // Free the engine-allocated command.
-    engine::MEM_FREE.get(marker)(command_ptr.cast());
+    engine::Mem_Free.get(marker)(command_ptr.cast());
 
     command.is_registered.set(false);
 }
@@ -173,13 +173,13 @@ impl Module for Commands {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        engine::MEMORY_INIT.is_set(marker)
-            && engine::HOST_SHUTDOWN.is_set(marker)
-            && engine::CMD_ADDMALLOCCOMMAND.is_set(marker)
-            && engine::MEM_FREE.is_set(marker)
-            && engine::CMD_FUNCTIONS.is_set(marker)
-            && engine::CMD_ARGC.is_set(marker)
-            && engine::CMD_ARGV.is_set(marker)
+        engine::Memory_Init.is_set(marker)
+            && engine::Host_Shutdown.is_set(marker)
+            && engine::Cmd_AddMallocCommand.is_set(marker)
+            && engine::Mem_Free.is_set(marker)
+            && engine::cmd_functions.is_set(marker)
+            && engine::Cmd_Argc.is_set(marker)
+            && engine::Cmd_Argv.is_set(marker)
     }
 }
 

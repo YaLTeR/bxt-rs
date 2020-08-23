@@ -59,7 +59,7 @@ unsafe fn init() {
         ) == MH_OK
     );
 
-    hooks::windows::LOADLIBRARYA
+    hooks::windows::LoadLibraryA
         .set(orig.unwrap())
         .ok()
         .unwrap();

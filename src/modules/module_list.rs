@@ -20,7 +20,7 @@ impl Module for ModuleList {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        commands::Commands.is_enabled(marker) && engine::CON_PRINTF.is_set(marker)
+        commands::Commands.is_enabled(marker) && engine::Con_Printf.is_set(marker)
     }
 }
 

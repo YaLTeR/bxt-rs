@@ -1,6 +1,6 @@
 //! `hw`, `sw`, `hl`.
 
-#![allow(non_snake_case)]
+#![allow(non_snake_case, non_upper_case_globals)]
 
 use std::{os::raw::*, ptr::null_mut};
 
@@ -14,7 +14,7 @@ use crate::{
     utils::*,
 };
 
-pub static BUILD_NUMBER: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
+pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
     b"build_number\0",
     // To find, search for "Half-Life %i/%s (hw build %d)". This function is
     // Draw_ConsoleBackground(), and a call to build_number() is right above the snprintf() using
@@ -25,8 +25,8 @@ pub static BUILD_NUMBER: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::emp
     ]),
     null_mut(),
 );
-pub static CLS: Pointer<*mut c_void> = Pointer::empty(b"cls\0");
-pub static CMD_ADDMALLOCCOMMAND: Pointer<
+pub static cls: Pointer<*mut c_void> = Pointer::empty(b"cls\0");
+pub static Cmd_AddMallocCommand: Pointer<
     unsafe extern "C" fn(*const c_char, unsafe extern "C" fn(), c_int),
 > = Pointer::empty_patterns(
     b"Cmd_AddMallocCommand\0",
@@ -40,11 +40,11 @@ pub static CMD_ADDMALLOCCOMMAND: Pointer<
     ]),
     null_mut(),
 );
-pub static CMD_ARGC: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty(b"Cmd_Argc\0");
-pub static CMD_ARGV: Pointer<unsafe extern "C" fn(c_int) -> *const c_char> =
+pub static Cmd_Argc: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty(b"Cmd_Argc\0");
+pub static Cmd_Argv: Pointer<unsafe extern "C" fn(c_int) -> *const c_char> =
     Pointer::empty(b"Cmd_Argv\0");
-pub static CMD_FUNCTIONS: Pointer<*mut *mut cmd_function_s> = Pointer::empty(b"cmd_functions\0");
-pub static CON_PRINTF: Pointer<unsafe extern "C" fn(*const c_char, ...)> = Pointer::empty_patterns(
+pub static cmd_functions: Pointer<*mut *mut cmd_function_s> = Pointer::empty(b"cmd_functions\0");
+pub static Con_Printf: Pointer<unsafe extern "C" fn(*const c_char, ...)> = Pointer::empty_patterns(
     b"Con_Printf\0",
     // To find, search for "qconsole.log". One of the three usages is Con_Printf (the one that
     // isn't just many function calls or OutputDebugStringA).
@@ -54,8 +54,8 @@ pub static CON_PRINTF: Pointer<unsafe extern "C" fn(*const c_char, ...)> = Point
     ]),
     null_mut(),
 );
-pub static COM_GAMEDIR: Pointer<*mut [c_char; 260]> = Pointer::empty(b"com_gamedir\0");
-pub static CVAR_REGISTERVARIABLE: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
+pub static com_gamedir: Pointer<*mut [c_char; 260]> = Pointer::empty(b"com_gamedir\0");
+pub static Cvar_RegisterVariable: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
     Pointer::empty_patterns(
         b"Cvar_RegisterVariable\0",
         // To find, search for "Can't register variable %s, already defined".
@@ -65,9 +65,9 @@ pub static CVAR_REGISTERVARIABLE: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
         ]),
         null_mut(),
     );
-pub static CVAR_VARS: Pointer<*mut *mut cvar_s> = Pointer::empty(b"cvar_vars\0");
-pub static GENTITYINTERFACE: Pointer<*mut DllFunctions> = Pointer::empty(b"gEntityInterface\0");
-pub static LOADENTITYDLLS: Pointer<unsafe extern "C" fn(*const c_char)> = Pointer::empty_patterns(
+pub static cvar_vars: Pointer<*mut *mut cvar_s> = Pointer::empty(b"cvar_vars\0");
+pub static gEntityInterface: Pointer<*mut DllFunctions> = Pointer::empty(b"gEntityInterface\0");
+pub static LoadEntityDLLs: Pointer<unsafe extern "C" fn(*const c_char)> = Pointer::empty_patterns(
     b"LoadEntityDLLs\0",
     // To find, search for "GetNewDLLFunctions".
     Patterns(&[
@@ -76,8 +76,8 @@ pub static LOADENTITYDLLS: Pointer<unsafe extern "C" fn(*const c_char)> = Pointe
     ]),
     my_LoadEntityDLLs as _,
 );
-pub static HOST_FRAMETIME: Pointer<*mut c_double> = Pointer::empty(b"host_frametime\0");
-pub static HOST_INITIALIZEGAMEDLL: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+pub static host_frametime: Pointer<*mut c_double> = Pointer::empty(b"host_frametime\0");
+pub static Host_InitializeGameDLL: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"Host_InitializeGameDLL\0",
     // To find, search for "Sys_InitializeGameDLL called twice, skipping second call".
     // Alternatively, find LoadEntityDLLs() and go to the parent function.
@@ -87,7 +87,7 @@ pub static HOST_INITIALIZEGAMEDLL: Pointer<unsafe extern "C" fn()> = Pointer::em
     ]),
     null_mut(),
 );
-pub static HOST_SHUTDOWN: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+pub static Host_Shutdown: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"Host_Shutdown\0",
     // To find, search for "recursive shutdown".
     Patterns(&[
@@ -96,7 +96,7 @@ pub static HOST_SHUTDOWN: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
     ]),
     my_Host_Shutdown as _,
 );
-pub static HOST_TELL_F: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+pub static Host_Tell_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"Host_Tell_f\0",
     // To find, search for "%s TELL: ".
     Patterns(&[
@@ -105,7 +105,7 @@ pub static HOST_TELL_F: Pointer<unsafe extern "C" fn()> = Pointer::empty_pattern
     ]),
     null_mut(),
 );
-pub static HOST_VALIDSAVE: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
+pub static Host_ValidSave: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
     b"Host_ValidSave\0",
     // To find, search for "Not playing a local game.".
     Patterns(&[
@@ -114,7 +114,7 @@ pub static HOST_VALIDSAVE: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::e
     ]),
     null_mut(),
 );
-pub static MEMORY_INIT: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
+pub static Memory_Init: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
     Pointer::empty_patterns(
         b"Memory_Init\0",
         // To find, search for "Memory_Init".
@@ -124,7 +124,7 @@ pub static MEMORY_INIT: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_in
         ]),
         my_Memory_Init as _,
     );
-pub static MEM_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_patterns(
+pub static Mem_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_patterns(
     b"Mem_Free\0",
     // Mem_Free is called once in Host_Shutdown to free a pointer after checking that it's != 0. On
     // Windows, it dispatches directly to an underlying function, and the pattern is for the
@@ -135,7 +135,7 @@ pub static MEM_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty
     ]),
     null_mut(),
 );
-pub static RELEASEENTITYDLLS: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+pub static ReleaseEntityDlls: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"ReleaseEntityDlls\0",
     // Find Host_Shutdown(). It has a Mem_Free() if. The 3-rd function above that if is
     // ReleaseEntityDlls().
@@ -145,8 +145,8 @@ pub static RELEASEENTITYDLLS: Pointer<unsafe extern "C" fn()> = Pointer::empty_p
     ]),
     my_ReleaseEntityDlls as _,
 );
-pub static SV: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
-pub static SV_FRAME: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+pub static sv: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
+pub static SV_Frame: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"SV_Frame\0",
     // To find, search for "%s timed out". It is used in SV_CheckTimeouts(), which is called by
     // SV_Frame().
@@ -156,7 +156,7 @@ pub static SV_FRAME: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     ]),
     my_SV_Frame as _,
 );
-pub static V_FADEALPHA: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
+pub static V_FadeAlpha: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
     b"V_FadeAlpha\0",
     // To find, search for "%3ifps %3i ms  %4i wpoly %4i epoly". This will lead to either
     // R_RenderView() or its usually-inlined part, and the string will be used within an if. Right
@@ -168,7 +168,7 @@ pub static V_FADEALPHA: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empt
     ]),
     my_V_FadeAlpha as _,
 );
-pub static Z_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_patterns(
+pub static Z_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_patterns(
     b"Z_Free\0",
     // To find, search for "Z_Free: NULL pointer".
     Patterns(&[
@@ -178,30 +178,30 @@ pub static Z_FREE: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_p
 );
 
 static POINTERS: &[&dyn PointerTrait] = &[
-    &BUILD_NUMBER,
-    &CLS,
-    &CMD_ADDMALLOCCOMMAND,
-    &CMD_ARGC,
-    &CMD_ARGV,
-    &CMD_FUNCTIONS,
-    &CON_PRINTF,
-    &COM_GAMEDIR,
-    &CVAR_REGISTERVARIABLE,
-    &CVAR_VARS,
-    &GENTITYINTERFACE,
-    &LOADENTITYDLLS,
-    &HOST_FRAMETIME,
-    &HOST_INITIALIZEGAMEDLL,
-    &HOST_SHUTDOWN,
-    &HOST_TELL_F,
-    &HOST_VALIDSAVE,
-    &MEMORY_INIT,
-    &MEM_FREE,
-    &RELEASEENTITYDLLS,
-    &SV,
-    &SV_FRAME,
-    &V_FADEALPHA,
-    &Z_FREE,
+    &build_number,
+    &cls,
+    &Cmd_AddMallocCommand,
+    &Cmd_Argc,
+    &Cmd_Argv,
+    &cmd_functions,
+    &Con_Printf,
+    &com_gamedir,
+    &Cvar_RegisterVariable,
+    &cvar_vars,
+    &gEntityInterface,
+    &LoadEntityDLLs,
+    &host_frametime,
+    &Host_InitializeGameDLL,
+    &Host_Shutdown,
+    &Host_Tell_f,
+    &Host_ValidSave,
+    &Memory_Init,
+    &Mem_Free,
+    &ReleaseEntityDlls,
+    &sv,
+    &SV_Frame,
+    &V_FadeAlpha,
+    &Z_Free,
 ];
 
 #[cfg(windows)]
@@ -221,7 +221,7 @@ pub struct DllFunctions {
 ///
 /// Any null-bytes are replaced with a literal `"\x00"`.
 pub fn con_print(marker: MainThreadMarker, s: &str) {
-    if !CON_PRINTF.is_set(marker) {
+    if !Con_Printf.is_set(marker) {
         return;
     }
 
@@ -231,7 +231,7 @@ pub fn con_print(marker: MainThreadMarker, s: &str) {
     // guarded with other global variables being non-zero, so they cannot be incorrectly called
     // either.
     unsafe {
-        CON_PRINTF.get(marker)(b"%s\0".as_ptr().cast(), s.as_ptr());
+        Con_Printf.get(marker)(b"%s\0".as_ptr().cast(), s.as_ptr());
     }
 }
 
@@ -275,76 +275,76 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
     }
 
     // Find all offset-based pointers.
-    let ptr = &CMD_ADDMALLOCCOMMAND;
+    let ptr = &Cmd_AddMallocCommand;
     match ptr.pattern_index(marker) {
         // 6153
-        Some(0) => CMD_FUNCTIONS.set(marker, ptr.by_offset(marker, 43)),
+        Some(0) => cmd_functions.set(marker, ptr.by_offset(marker, 43)),
         _ => (),
     }
 
-    let ptr = &CVAR_REGISTERVARIABLE;
+    let ptr = &Cvar_RegisterVariable;
     match ptr.pattern_index(marker) {
         // 6153
-        Some(0) => CVAR_VARS.set(marker, ptr.by_offset(marker, 124)),
+        Some(0) => cvar_vars.set(marker, ptr.by_offset(marker, 124)),
         _ => (),
     }
 
-    let ptr = &HOST_INITIALIZEGAMEDLL;
+    let ptr = &Host_InitializeGameDLL;
     match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            // SVS.set(marker, ptr.by_offset(marker, 26));
-            LOADENTITYDLLS.set_if_empty(marker, ptr.by_relative_call(marker, 69));
-            GENTITYINTERFACE.set(marker, ptr.by_offset(marker, 75));
+            // svs.set(marker, ptr.by_offset(marker, 26));
+            LoadEntityDLLs.set_if_empty(marker, ptr.by_relative_call(marker, 69));
+            gEntityInterface.set(marker, ptr.by_offset(marker, 75));
         }
         _ => (),
     }
 
-    let ptr = &HOST_TELL_F;
+    let ptr = &Host_Tell_f;
     match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            CMD_ARGC.set(marker, ptr.by_relative_call(marker, 28));
-            CMD_ARGV.set(marker, ptr.by_relative_call(marker, 145));
+            Cmd_Argc.set(marker, ptr.by_relative_call(marker, 28));
+            Cmd_Argv.set(marker, ptr.by_relative_call(marker, 145));
         }
         _ => (),
     }
 
-    let ptr = &HOST_VALIDSAVE;
+    let ptr = &Host_ValidSave;
     match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            SV.set(marker, ptr.by_offset(marker, 19));
-            CLS.set(marker, ptr.by_offset(marker, 69));
-            CON_PRINTF.set_if_empty(marker, ptr.by_relative_call(marker, 33));
+            sv.set(marker, ptr.by_offset(marker, 19));
+            cls.set(marker, ptr.by_offset(marker, 69));
+            Con_Printf.set_if_empty(marker, ptr.by_relative_call(marker, 33));
         }
         _ => (),
     }
 
-    let ptr = &LOADENTITYDLLS;
+    let ptr = &LoadEntityDLLs;
     match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            COM_GAMEDIR.set(marker, ptr.by_offset(marker, 51));
+            com_gamedir.set(marker, ptr.by_offset(marker, 51));
         }
         _ => (),
     }
 
-    let ptr = &RELEASEENTITYDLLS;
+    let ptr = &ReleaseEntityDlls;
     match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            // SVS.set(marker, ptr.by_offset(marker, 23));
+            // svs.set(marker, ptr.by_offset(marker, 23));
         }
         _ => (),
     }
 
-    let ptr = &SV_FRAME;
+    let ptr = &SV_Frame;
     match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            SV.set(marker, ptr.by_offset(marker, 1));
-            HOST_FRAMETIME.set(marker, ptr.by_offset(marker, 11));
+            sv.set(marker, ptr.by_offset(marker, 1));
+            host_frametime.set(marker, ptr.by_offset(marker, 11));
         }
         _ => (),
     }
@@ -417,7 +417,7 @@ pub mod exported {
             #[cfg(unix)]
             find_pointers(marker);
 
-            let rv = MEMORY_INIT.get(marker)(buf, size);
+            let rv = Memory_Init.get(marker)(buf, size);
 
             cvars::register_all_cvars(marker);
             commands::register_all_commands(marker);
@@ -435,7 +435,7 @@ pub mod exported {
 
             commands::deregister_all_commands(marker);
 
-            HOST_SHUTDOWN.get(marker)();
+            Host_Shutdown.get(marker)();
 
             cvars::mark_all_cvars_as_not_registered(marker);
 
@@ -451,7 +451,7 @@ pub mod exported {
             if fade_remove::is_active(marker) {
                 0
             } else {
-                V_FADEALPHA.get(marker)()
+                V_FadeAlpha.get(marker)()
             }
         })
     }
@@ -463,7 +463,7 @@ pub mod exported {
 
             tas_logging::begin_physics_frame(marker);
 
-            SV_FRAME.get(marker)();
+            SV_Frame.get(marker)();
 
             tas_logging::end_physics_frame(marker);
         })
@@ -480,7 +480,7 @@ pub mod exported {
             cvars::deregister_disabled_module_cvars(marker);
             commands::deregister_disabled_module_commands(marker);
 
-            RELEASEENTITYDLLS.get(marker)();
+            ReleaseEntityDlls.get(marker)();
         })
     }
 
@@ -489,7 +489,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            LOADENTITYDLLS.get(marker)(base_dir);
+            LoadEntityDLLs.get(marker)(base_dir);
 
             server::hook_entity_interface(marker);
 

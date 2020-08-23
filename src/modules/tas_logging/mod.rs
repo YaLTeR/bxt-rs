@@ -41,7 +41,7 @@ impl Module for TASLogging {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        commands::Commands.is_enabled(marker) && engine::SV_FRAME.is_set(marker)
+        commands::Commands.is_enabled(marker) && engine::SV_Frame.is_set(marker)
     }
 }
 
@@ -91,11 +91,11 @@ fn taslog(marker: MainThreadMarker, enabled: i32) {
         OsString::from("taslogger.log")
     };
 
-    let build_number = engine::BUILD_NUMBER.get_opt(marker).map(|f| unsafe { f() });
+    let build_number = engine::build_number.get_opt(marker).map(|f| unsafe { f() });
 
     // Safety: the reference does not outlive this command handler, and com_gamedir can only be
     // modified at engine start and while setting the HD models or the addon folder.
-    let game_dir = engine::COM_GAMEDIR
+    let game_dir = engine::com_gamedir
         .get_opt(marker)
         .map(|dir| unsafe { CStr::from_ptr(dir.cast()).to_string_lossy() });
 
@@ -117,11 +117,11 @@ fn taslog(marker: MainThreadMarker, enabled: i32) {
 /// `host_frametime`, `cls` and `sv` must be valid to read from.
 pub unsafe fn begin_physics_frame(marker: MainThreadMarker) {
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
-        let frame_time = engine::HOST_FRAMETIME
+        let frame_time = engine::host_frametime
             .get_opt(marker)
             .map(|frame_time| *frame_time);
-        let client_state = engine::CLS.get_opt(marker).map(|cls| *cls.cast());
-        let is_paused = engine::SV.get_opt(marker).map(|sv| *sv.offset(4).cast());
+        let client_state = engine::cls.get_opt(marker).map(|cls| *cls.cast());
+        let is_paused = engine::sv.get_opt(marker).map(|sv| *sv.offset(4).cast());
 
         // TODO: command_buffer
         if let Err(err) = tas_log.begin_physics_frame(frame_time, client_state, is_paused, None) {
@@ -140,7 +140,7 @@ pub fn end_physics_frame(marker: MainThreadMarker) {
 
 pub fn begin_cmd_frame(marker: MainThreadMarker, cmd: usercmd_s, random_seed: u32) {
     // PM_Move is required because it ends the cmd frame JSON object.
-    if !server::PM_MOVE.is_set(marker) {
+    if !server::PM_Move.is_set(marker) {
         return;
     }
 
@@ -156,7 +156,7 @@ pub fn begin_cmd_frame(marker: MainThreadMarker, cmd: usercmd_s, random_seed: u3
 /// `ppmove` must be valid to read from.
 pub unsafe fn write_pre_pm_state(marker: MainThreadMarker, ppmove: *const playermove_s) {
     // CmdStart is required because it starts the cmd frame JSON object.
-    if !server::CMDSTART.is_set(marker) {
+    if !server::CmdStart.is_set(marker) {
         return;
     }
 
@@ -172,7 +172,7 @@ pub unsafe fn write_pre_pm_state(marker: MainThreadMarker, ppmove: *const player
 /// `ppmove` must be valid to read from.
 pub unsafe fn write_post_pm_state(marker: MainThreadMarker, ppmove: *const playermove_s) {
     // CmdStart is required because it starts the cmd frame JSON object.
-    if !server::CMDSTART.is_set(marker) {
+    if !server::CmdStart.is_set(marker) {
         return;
     }
 
@@ -185,7 +185,7 @@ pub unsafe fn write_post_pm_state(marker: MainThreadMarker, ppmove: *const playe
 
 pub fn end_cmd_frame(marker: MainThreadMarker) {
     // CmdStart is required because it starts the cmd frame JSON object.
-    if !server::CMDSTART.is_set(marker) {
+    if !server::CmdStart.is_set(marker) {
         return;
     }
 

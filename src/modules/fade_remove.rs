@@ -19,7 +19,7 @@ impl Module for FadeRemove {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        engine::V_FADEALPHA.is_set(marker) && cvars::CVars.is_enabled(marker)
+        engine::V_FadeAlpha.is_set(marker) && cvars::CVars.is_enabled(marker)
     }
 }
 

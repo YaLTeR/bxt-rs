@@ -106,7 +106,7 @@ unsafe fn register(marker: MainThreadMarker, cvar: &'static CVar) {
     assert!(CStr::from_bytes_with_nul(cvar.name).is_ok());
     assert!(CStr::from_bytes_with_nul(cvar.default_value).is_ok());
 
-    engine::CVAR_REGISTERVARIABLE.get(marker)(cvar.raw.get());
+    engine::Cvar_RegisterVariable.get(marker)(cvar.raw.get());
 }
 
 /// Marks this variable as not registered.
@@ -138,7 +138,7 @@ unsafe fn deregister(marker: MainThreadMarker, cvar: &CVar) {
     // variable). On each iteration, check if the pointer points to `cvar`, and if not, follow it.
     // `cvar_vars` can't be null because there's at least one registered variable (the one we're
     // de-registering).
-    let mut prev_ptr = engine::CVAR_VARS.get(marker);
+    let mut prev_ptr = engine::cvar_vars.get(marker);
 
     while *prev_ptr != cvar.raw.get() {
         // The next pointer can't be null because we still haven't found our (registered) variable.
@@ -152,7 +152,7 @@ unsafe fn deregister(marker: MainThreadMarker, cvar: &CVar) {
     *prev_ptr = (**prev_ptr).next;
 
     // Free the engine-allocated string and mark the variable as not registered.
-    engine::Z_FREE.get(marker)((*cvar.raw.get()).string as *mut c_void);
+    engine::Z_Free.get(marker)((*cvar.raw.get()).string as *mut c_void);
     mark_as_not_registered(marker, cvar);
 }
 
@@ -218,11 +218,11 @@ impl Module for CVars {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        engine::MEMORY_INIT.is_set(marker)
-            && engine::HOST_SHUTDOWN.is_set(marker)
-            && engine::CVAR_REGISTERVARIABLE.is_set(marker)
-            && engine::Z_FREE.is_set(marker)
-            && engine::CVAR_VARS.is_set(marker)
+        engine::Memory_Init.is_set(marker)
+            && engine::Host_Shutdown.is_set(marker)
+            && engine::Cvar_RegisterVariable.is_set(marker)
+            && engine::Z_Free.is_set(marker)
+            && engine::cvar_vars.is_set(marker)
     }
 }
 

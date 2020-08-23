@@ -24,7 +24,7 @@ impl<'a> Args<'a> {
     pub unsafe fn new(marker: MainThreadMarker) -> Self {
         Self {
             index: 0,
-            count: engine::CMD_ARGC.get(marker)() as usize,
+            count: engine::Cmd_Argc.get(marker)() as usize,
             marker,
             _variance: PhantomData,
         }
@@ -39,7 +39,7 @@ impl<'a> Iterator for Args<'a> {
             return None;
         }
 
-        let arg = unsafe { engine::CMD_ARGV.get(self.marker)(self.index as i32) };
+        let arg = unsafe { engine::Cmd_Argv.get(self.marker)(self.index as i32) };
         self.index += 1;
 
         Some(unsafe { CStr::from_ptr(arg) })
