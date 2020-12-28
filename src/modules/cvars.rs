@@ -54,18 +54,36 @@ impl CVar {
         raw.string != self.default_value.as_ptr().cast()
     }
 
+    /// Returns the `f32` value of the variable.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the variable is not registered.
+    pub fn as_f32(&self, marker: MainThreadMarker) -> f32 {
+        assert!(self.is_registered(marker));
+
+        // Safety: we're not calling any engine methods while the reference is active.
+        let raw = unsafe { &*self.raw.get() };
+
+        raw.value
+    }
+
     /// Returns the `bool` value of the variable.
     ///
     /// # Panics
     ///
     /// Panics if the variable is not registered.
     pub fn as_bool(&self, marker: MainThreadMarker) -> bool {
-        assert!(self.is_registered(marker));
+        self.as_f32(marker) != 0.
+    }
 
-        // Safety: we're not calling any engine methods while the reference is active.
-        let raw = unsafe { &*self.raw.get() };
-
-        raw.value != 0.
+    /// Returns the `u64` value of the variable.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the variable is not registered.
+    pub fn as_u64(&self, marker: MainThreadMarker) -> u64 {
+        self.as_f32(marker) as u64
     }
 
     /// Returns the value of the variable as an `OsString`.
