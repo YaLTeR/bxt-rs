@@ -25,7 +25,7 @@ pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::emp
     ]),
     null_mut(),
 );
-pub static cls: Pointer<*mut c_void> = Pointer::empty(b"cls\0");
+pub static cls: Pointer<*mut client_static_s> = Pointer::empty(b"cls\0");
 pub static Cmd_AddMallocCommand: Pointer<
     unsafe extern "C" fn(*const c_char, unsafe extern "C" fn(), c_int),
 > = Pointer::empty_patterns(
@@ -213,6 +213,11 @@ pub struct DllFunctions {
     pub pm_move: Option<unsafe extern "C" fn(*mut playermove_s, c_int)>,
     _padding_2: [u8; 32],
     pub cmd_start: Option<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)>,
+}
+
+#[repr(C)]
+pub struct client_static_s {
+    pub state: c_int,
 }
 
 /// Prints the string to the console.

@@ -120,7 +120,7 @@ pub unsafe fn begin_physics_frame(marker: MainThreadMarker) {
         let frame_time = engine::host_frametime
             .get_opt(marker)
             .map(|frame_time| *frame_time);
-        let client_state = engine::cls.get_opt(marker).map(|cls| *cls.cast());
+        let client_state = engine::cls.get_opt(marker).map(|cls| (*cls).state);
         let is_paused = engine::sv.get_opt(marker).map(|sv| *sv.offset(4).cast());
 
         // TODO: command_buffer
