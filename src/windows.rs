@@ -54,7 +54,7 @@ unsafe fn init() {
     assert!(
         MH_CreateHook(
             load_library_a.cast(),
-            hooks::windows::LoadLibraryA as _,
+            hooks::windows::my_LoadLibraryA as _,
             &mut orig as *mut _ as _
         ) == MH_OK
     );
