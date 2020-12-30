@@ -15,9 +15,6 @@ pub use pointer::*;
 pub mod main_thread_ref_cell;
 pub use main_thread_ref_cell::*;
 
-#[cfg(unix)]
-pub mod dl;
-
 /// Runs the given function and aborts the process if it panics.
 ///
 /// It's necessary to wrap the code of each hook in this function until Rust finally does this

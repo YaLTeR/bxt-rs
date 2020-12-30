@@ -2,7 +2,10 @@
 
 #![allow(non_snake_case, non_upper_case_globals)]
 
-use std::{os::raw::*, ptr::null_mut};
+use std::{
+    os::raw::*,
+    ptr::{null_mut, NonNull},
+};
 
 use bxt_macros::pattern;
 use bxt_patterns::Patterns;
@@ -240,15 +243,22 @@ pub fn con_print(marker: MainThreadMarker, s: &str) {
     }
 }
 
+/// # Safety
+///
+/// [`reset_pointers()`] must be called before hw is unloaded so the pointers don't go stale.
 #[cfg(unix)]
-fn find_pointers(marker: MainThreadMarker) {
-    let handle = dl::open("hw.so").unwrap();
+unsafe fn find_pointers(marker: MainThreadMarker) {
+    use libc::{RTLD_NOLOAD, RTLD_NOW};
+    use libloading::os::unix::Library;
+
+    let library = Library::open(Some("hw.so"), RTLD_NOW | RTLD_NOLOAD).unwrap();
 
     for pointer in POINTERS {
-        unsafe {
-            pointer.set(marker, handle.sym(pointer.symbol()).ok());
-        }
-
+        let ptr = library
+            .get(pointer.symbol())
+            .ok()
+            .and_then(|sym| NonNull::new(*sym));
+        pointer.set(marker, ptr);
         pointer.log(marker);
     }
 }
@@ -261,7 +271,7 @@ fn find_pointers(marker: MainThreadMarker) {
 #[allow(clippy::single_match)]
 #[cfg(windows)]
 pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: usize) {
-    use std::{ptr::NonNull, slice};
+    use std::slice;
 
     use minhook_sys::*;
 
