@@ -12,7 +12,7 @@ use bxt_patterns::Patterns;
 
 use crate::{
     ffi::{command::cmd_function_s, cvar::cvar_s, playermove::playermove_s, usercmd::usercmd_s},
-    hooks::server,
+    hooks::{sdl, server},
     modules::{commands, cvars, fade_remove, tas_logging},
     utils::*,
 };
@@ -432,6 +432,9 @@ pub mod exported {
             #[cfg(unix)]
             find_pointers(marker);
 
+            // hw depends on SDL so it must be loaded by now.
+            sdl::find_pointers(marker);
+
             let rv = Memory_Init.get(marker)(buf, size);
 
             cvars::register_all_cvars(marker);
@@ -454,6 +457,7 @@ pub mod exported {
 
             cvars::mark_all_cvars_as_not_registered(marker);
 
+            sdl::reset_pointers(marker);
             reset_pointers(marker);
         })
     }
