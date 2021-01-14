@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 [dependencies]
 bitflags = "1.2.1"
 libc = "0.2.70"
-libloading = "0.6.6"
+libloading = "0.6.7"
 log = "0.4.8"
 serde_json = "1.0.53"
 serde = "1.0.110"

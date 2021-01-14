@@ -25,18 +25,9 @@ fn open_library() -> Option<libloading::Library> {
 
 #[cfg(windows)]
 fn open_library() -> Option<libloading::Library> {
-    use std::mem::MaybeUninit;
-    use winapi::um::libloaderapi::GetModuleHandleExA;
-
-    unsafe {
-        let mut handle = MaybeUninit::uninit();
-        if GetModuleHandleExA(0, b"SDL2.DLL\0".as_ptr().cast(), handle.as_mut_ptr()) == 0 {
-            return None;
-        }
-        let handle = handle.assume_init();
-
-        Some(libloading::os::windows::Library::from_raw(handle).into())
-    }
+    libloading::os::windows::Library::open_already_loaded("SDL2.DLL")
+        .ok()
+        .map(libloading::Library::from)
 }
 
 /// # Safety
