@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 0 1 * *' # Monthly
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        rust: [stable, beta]
+
+        include:
+          - os: ubuntu-latest
+            label: Ubuntu
+            target: i686-unknown-linux-gnu
+
+          - os: windows-latest
+            label: Windows
+            target: i686-pc-windows-msvc
+
+    name: ${{ matrix.rust }} - ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install libc6-dev-i386
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          override: true
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --target ${{ matrix.target }}
+
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --target ${{ matrix.target }}
+
+  clippy:
+    strategy:
+      fail-fast: false
+
+      matrix:
+        include:
+          - label: Ubuntu
+            os: ubuntu-latest
+            target: i686-unknown-linux-gnu
+
+          - label: Windows
+            os: windows-latest
+            target: i686-pc-windows-msvc
+
+    name: clippy - ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          override: true
+          toolchain: stable
+          target: ${{ matrix.target }}
+          components: clippy
+
+      - name: Run clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --target ${{ matrix.target }}
+
+  rustfmt:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          override: true
+          toolchain: nightly
+          components: rustfmt
+
+      - name: Run rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
