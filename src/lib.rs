@@ -5,6 +5,7 @@
 extern crate log;
 
 mod ffi;
+mod gl;
 mod hooks;
 mod modules;
 mod utils;

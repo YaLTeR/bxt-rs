@@ -39,3 +39,7 @@ debug = 1 # For lines in backtraces.
 
 [workspace]
 members = [".", "bxt-macros", "bxt-patterns"]
+
+[build-dependencies]
+gl_generator = "0.14.0"
+

@@ -5,7 +5,7 @@ use std::{
     ptr::NonNull,
 };
 
-use crate::utils::*;
+use crate::{gl, utils::*};
 
 pub static SDL_GL_ExtensionSupported: Pointer<unsafe extern "C" fn(*const c_char) -> c_int> =
     Pointer::empty(b"SDL_GL_ExtensionSupported\0");
@@ -50,9 +50,13 @@ pub unsafe fn find_pointers(marker: MainThreadMarker) {
         pointer.set(marker, ptr);
         pointer.log(marker);
     }
+
+    gl::load_pointers(marker);
 }
 
 pub fn reset_pointers(marker: MainThreadMarker) {
+    gl::reset_pointers(marker);
+
     for pointer in POINTERS {
         pointer.reset(marker);
     }
