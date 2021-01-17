@@ -4,7 +4,7 @@ use std::{
     env,
     ffi::{CStr, CString, OsString},
     fs::OpenOptions,
-    panic::{catch_unwind, UnwindSafe},
+    panic::{self, catch_unwind, UnwindSafe},
     process::abort,
     sync::Once,
 };
@@ -55,6 +55,20 @@ fn setup_logging_hooks() {
         logger.push(WriteLogger::new(LevelFilter::Trace, config, log_file));
     }
     let _ = CombinedLogger::init(logger);
+
+    // Set up panic and error hooks.
+    let builder = color_eyre::config::HookBuilder::new()
+        .capture_span_trace_by_default(false)
+        .theme(color_eyre::config::Theme::new()); // Log files don't do ANSI.
+
+    let (panic_hook, eyre_hook) = builder.into_hooks();
+
+    // Install the panic hook manually since we want to output to error!() rather than stderr.
+    panic::set_hook(Box::new(move |panic_info| {
+        error!("{}", panic_hook.panic_report(panic_info));
+    }));
+
+    eyre_hook.install().unwrap();
 }
 
 /// Ensures logging, panic and error hooks are in place.

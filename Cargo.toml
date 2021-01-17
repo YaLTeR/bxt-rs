@@ -18,6 +18,7 @@ serde = "1.0.110"
 bxt-macros = { path = "bxt-macros" }
 bxt-patterns = { path = "bxt-patterns" }
 simplelog = "0.9.0"
+color-eyre = { version = "0.5.0", default-features = false }
 
 [target."cfg(windows)".dependencies]
 minhook-sys = { git = "https://github.com/YaLTeR/minhook-sys.git" }
@@ -29,6 +30,12 @@ features = ["libloaderapi", "psapi", "winuser", "synchapi", "handleapi", "proces
 
 [profile.dev.package.bxt-patterns]
 opt-level = 3
+
+[profile.dev.package.backtrace]
+opt-level = 3
+
+[profile.release]
+debug = 1 # For lines in backtraces.
 
 [workspace]
 members = [".", "bxt-macros", "bxt-patterns"]
