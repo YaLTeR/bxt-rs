@@ -18,6 +18,9 @@ pub use marker::*;
 pub mod pointer;
 pub use pointer::*;
 
+pub mod main_thread_cell;
+pub use main_thread_cell::*;
+
 pub mod main_thread_ref_cell;
 pub use main_thread_ref_cell::*;
 
