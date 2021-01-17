@@ -9,6 +9,7 @@ use std::{
     sync::Once,
 };
 
+use log::logger;
 use simplelog::{CombinedLogger, LevelFilter, SharedLogger, TermLogger, WriteLogger};
 
 pub mod marker;
@@ -27,7 +28,26 @@ pub use main_thread_ref_cell::*;
 pub fn abort_on_panic<R, F: FnOnce() -> R + UnwindSafe>(f: F) -> R {
     match catch_unwind(f) {
         Ok(rv) => rv,
-        Err(_) => abort(),
+        Err(_) => {
+            logger().flush();
+
+            #[cfg(windows)]
+            {
+                unsafe {
+                    winapi::um::winuser::MessageBoxA(
+                        std::ptr::null_mut(),
+                        b"An internal error has occurred in bxt-rs. The game will close. \
+                          Check bxt-rs.log for diagnostic information.\0"
+                            .as_ptr()
+                            .cast(),
+                        b"bxt-rs\0".as_ptr().cast(),
+                        winapi::um::winuser::MB_ICONERROR,
+                    );
+                }
+            }
+
+            abort()
+        }
     }
 }
 
