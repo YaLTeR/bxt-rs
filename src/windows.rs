@@ -35,11 +35,8 @@ pub unsafe extern "system" fn DllMain(
 ///
 /// This function must only be called once from a thread spawned in `DllMain()`.
 unsafe fn init() {
-    // TODO: logging into stdout/stderr isn't visible, need to log into file and/or into a
-    // dedicated window.
-    // TODO: asserts have the same issue.
     // TODO: assertion fails will result in the launcher hanging forever.
-    env_logger::init();
+    ensure_logging_hooks();
 
     assert!(MH_Initialize() == MH_OK);
 

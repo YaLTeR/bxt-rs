@@ -426,8 +426,8 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            #[cfg(unix)]
-            let _ = env_logger::try_init();
+            // This is the first function called on Linux, so do due initialization.
+            ensure_logging_hooks();
 
             #[cfg(unix)]
             find_pointers(marker);

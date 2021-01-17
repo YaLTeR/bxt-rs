@@ -1,10 +1,15 @@
 //! Utility objects.
 
 use std::{
+    env,
     ffi::{CStr, CString, OsString},
+    fs::OpenOptions,
     panic::{catch_unwind, UnwindSafe},
     process::abort,
+    sync::Once,
 };
+
+use simplelog::{CombinedLogger, LevelFilter, SharedLogger, TermLogger, WriteLogger};
 
 pub mod marker;
 pub use marker::*;
@@ -24,6 +29,38 @@ pub fn abort_on_panic<R, F: FnOnce() -> R + UnwindSafe>(f: F) -> R {
         Ok(rv) => rv,
         Err(_) => abort(),
     }
+}
+
+fn setup_logging_hooks() {
+    env::set_var("RUST_BACKTRACE", "full");
+
+    // Set up logging.
+    let config = simplelog::ConfigBuilder::new()
+        .set_thread_level(LevelFilter::Error)
+        .set_target_level(LevelFilter::Error)
+        .set_location_level(LevelFilter::Off)
+        .set_time_format_str("%F %T%.3f")
+        .set_time_to_local(true)
+        .build();
+    let mut logger: Vec<Box<(dyn SharedLogger + 'static)>> = vec![TermLogger::new(
+        LevelFilter::Trace,
+        config.clone(),
+        simplelog::TerminalMode::Stderr,
+    )];
+    if let Ok(log_file) = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open("bxt-rs.log")
+    {
+        logger.push(WriteLogger::new(LevelFilter::Trace, config, log_file));
+    }
+    let _ = CombinedLogger::init(logger);
+}
+
+/// Ensures logging, panic and error hooks are in place.
+pub fn ensure_logging_hooks() {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(setup_logging_hooks);
 }
 
 /// Converts a `CStr` into an `OsString`.
