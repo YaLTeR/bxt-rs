@@ -32,19 +32,30 @@ The `CVars` module provides a safe zero-cost console variable abstraction. Only 
 
 The `Commands` module provides safe console command helpers. A console command handler function can be wrapped with a `handler!` macro to have console command arguments automatically parsed and passed into the function with a usage string printed on argument count mismatch or parsing failure.
 
-## Building and Usage
+## Building
 
 ### Linux
 
+1. Install 32-bit libc for linking. On Ubuntu that's `libc6-dev-i386`.
 1. Install stable Rust (for example, via [rustup](https://rustup.rs/)) with the `i686-unknown-linux-gnu` target.
 1. `cargo build --target=i686-unknown-linux-gnu`
-1. Load it into HL like you would load regular BXT.
+
+### Windows
+
+1. Install stable Rust (for example, via [rustup](https://rustup.rs/)) with the `i686-pc-windows-msvc` target.
+1. `cargo build --target=i686-pc-windows-msvc`
 
 ### Windows (cross-compiling from Linux)
 
+1. Install MinGW for the 32-bit target. On Ubuntu that's `gcc-mingw-w64-i686`.
 1. Install stable Rust (for example, via [rustup](https://rustup.rs/)) with the `i686-pc-windows-gnu` target.
 1. `cargo build --target=i686-pc-windows-gnu`
-1. Load it into HL like you would load regular BXT.
+
+## Usage
+
+On Linux, load it into HL like you would load regular BXT.
+
+On Windows, rename `bxt-rs.dll` to `BunnymodXT.dll` and start HL using the injector (`Injector.exe path\to\Half-Life\hl.exe`). Running HL on its own and running the injector afterwards is not supported.
 
 ## License
 
