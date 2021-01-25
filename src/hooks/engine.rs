@@ -15,6 +15,7 @@ use crate::{
     hooks::{sdl, server},
     modules::{commands, cvars, fade_remove, tas_logging},
     utils::*,
+    vulkan,
 };
 
 pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
@@ -428,6 +429,7 @@ pub mod exported {
 
             // This is the first function called on Linux, so do due initialization.
             ensure_logging_hooks();
+            vulkan::init();
 
             #[cfg(unix)]
             find_pointers(marker);

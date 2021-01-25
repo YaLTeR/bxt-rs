@@ -9,6 +9,7 @@ mod gl;
 mod hooks;
 mod modules;
 mod utils;
+mod vulkan;
 
 #[cfg(windows)]
 mod windows;
