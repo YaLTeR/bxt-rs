@@ -15,6 +15,30 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         rust: [stable, beta]
         features: ['', vulkan-debug, profiling, 'vulkan-debug,profiling']
+        configuration: [debug, release]
+
+        exclude:
+          - configuration: release
+            rust: beta
+          - configuration: release
+            features: vulkan-debug
+          - configuration: release
+            features: 'vulkan-debug,profiling'
+
+          # We want only a release profile build, but on Windows hawktracer fails to build on release.
+          - configuration: debug
+            features: profiling
+            os: ubuntu-latest
+          - configuration: release
+            features: profiling
+            os: windows-latest
+
+          - rust: beta
+            features: vulkan-debug
+          - rust: beta
+            features: profiling
+          - rust: beta
+            features: 'vulkan-debug,profiling'
 
         include:
           - os: ubuntu-latest
@@ -27,7 +51,10 @@ jobs:
             target: i686-pc-windows-msvc
             filename: bxt_rs.dll
 
-    name: ${{ matrix.rust }} - ${{ matrix.label }} - ${{ matrix.features }}
+          - configuration: release
+            release-flag: '--release'
+
+    name: ${{ matrix.rust }} - ${{ matrix.label }} - ${{ matrix.configuration }} - ${{ matrix.features }}
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -51,19 +78,19 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --target ${{ matrix.target }} --features=${{ matrix.features }}
+          args: --target ${{ matrix.target }} ${{ matrix.release-flag }} --features=${{ matrix.features }}
 
       - name: Test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --target ${{ matrix.target }} --features=${{ matrix.features }}
+          args: --target ${{ matrix.target }} ${{ matrix.release-flag }} --features=${{ matrix.features }}
 
       - uses: actions/upload-artifact@v2
-        if: matrix.rust == 'stable'
+        if: matrix.rust == 'stable' && matrix.features != 'vulkan-debug,profiling'
         with:
           name: bxt-rs-${{ runner.os }}-${{ matrix.configuration }}-${{ matrix.features }}
-          path: target/${{ matrix.target }}/debug/${{ matrix.filename }}
+          path: target/${{ matrix.target }}/${{ matrix.configuration }}/${{ matrix.filename }}
 
   clippy:
     strategy:
