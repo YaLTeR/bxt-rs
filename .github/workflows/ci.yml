@@ -20,10 +20,12 @@ jobs:
           - os: ubuntu-latest
             label: Ubuntu
             target: i686-unknown-linux-gnu
+            filename: libbxt_rs.so
 
           - os: windows-latest
             label: Windows
             target: i686-pc-windows-msvc
+            filename: bxt_rs.dll
 
     name: ${{ matrix.rust }} - ${{ matrix.label }} - ${{ matrix.features }}
     runs-on: ${{ matrix.os }}
@@ -56,6 +58,12 @@ jobs:
         with:
           command: test
           args: --target ${{ matrix.target }} --features=${{ matrix.features }}
+
+      - uses: actions/upload-artifact@v2
+        if: matrix.rust == 'stable'
+        with:
+          name: bxt-rs-${{ runner.os }}-${{ matrix.configuration }}-${{ matrix.features }}
+          path: target/${{ matrix.target }}/debug/${{ matrix.filename }}
 
   clippy:
     strategy:
