@@ -49,3 +49,7 @@ gl_generator = "0.14.0"
 [features]
 vulkan-debug = []
 profiling = ["rust_hawktracer/profiling_enabled"]
+
+# Builds bxt-rs that can be injected alongside the original BXT
+# for capturing TASes.
+bxt-compatibility = []

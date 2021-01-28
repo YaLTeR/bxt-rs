@@ -306,6 +306,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &cvar_vars,
     &GL_BeginRendering,
     &gEntityInterface,
+    #[cfg(not(feature = "bxt-compatibility"))]
     &Key_Event,
     &LoadEntityDLLs,
     &Host_FilterTime,
@@ -324,8 +325,10 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &S_TransferStereo16,
     &shm,
     &sv,
+    #[cfg(not(feature = "bxt-compatibility"))]
     &SV_Frame,
     &Sys_VID_FlipScreen,
+    #[cfg(not(feature = "bxt-compatibility"))]
     &V_FadeAlpha,
     &VideoMode_IsWindowed,
     &VideoMode_GetCurrentVideoMode,
@@ -678,7 +681,7 @@ pub mod exported {
         })
     }
 
-    #[export_name = "V_FadeAlpha"]
+    #[cfg_attr(not(feature = "bxt-compatibility"), export_name = "V_FadeAlpha")]
     pub unsafe extern "C" fn my_V_FadeAlpha() -> c_int {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
@@ -691,7 +694,7 @@ pub mod exported {
         })
     }
 
-    #[export_name = "SV_Frame"]
+    #[cfg_attr(not(feature = "bxt-compatibility"), export_name = "SV_Frame")]
     pub unsafe extern "C" fn my_SV_Frame() {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
@@ -801,7 +804,7 @@ pub mod exported {
         })
     }
 
-    #[export_name = "Key_Event"]
+    #[cfg_attr(not(feature = "bxt-compatibility"), export_name = "Key_Event")]
     pub unsafe extern "C" fn my_Key_Event(key: c_int, down: c_int) {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
