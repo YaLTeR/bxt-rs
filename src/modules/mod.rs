@@ -8,6 +8,7 @@ use commands::Command;
 pub mod cvars;
 use cvars::CVar;
 
+pub mod capture;
 pub mod fade_remove;
 pub mod module_list;
 pub mod tas_logging;
@@ -33,6 +34,7 @@ pub trait Module: Sync {
 
 /// All modules.
 pub static MODULES: &[&dyn Module] = &[
+    &capture::Capture,
     &commands::Commands,
     &cvars::CVars,
     &fade_remove::FadeRemove,

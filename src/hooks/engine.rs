@@ -14,7 +14,7 @@ use rust_hawktracer::*;
 use crate::{
     ffi::{command::cmd_function_s, cvar::cvar_s, playermove::playermove_s, usercmd::usercmd_s},
     hooks::{sdl, server},
-    modules::{commands, cvars, fade_remove, tas_logging},
+    modules::{capture, commands, cvars, fade_remove, tas_logging},
     utils::*,
     vulkan,
 };
@@ -29,6 +29,15 @@ pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::emp
         pattern!(55 8B EC 83 EC 08 A1 ?? ?? ?? ?? 56 33 F6 85 C0),
     ]),
     null_mut(),
+);
+pub static CL_Disconnect: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"CL_Disconnect\0",
+    // To find, search for "ExitGame".
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 83 EC 14 53 56 33 DB),
+    ]),
+    my_CL_Disconnect as _,
 );
 pub static cls: Pointer<*mut client_static_s> = Pointer::empty(b"cls\0");
 pub static Cmd_AddMallocCommand: Pointer<
@@ -59,6 +68,16 @@ pub static Con_Printf: Pointer<unsafe extern "C" fn(*const c_char, ...)> = Point
     ]),
     null_mut(),
 );
+pub static Con_ToggleConsole_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"Con_ToggleConsole_f\0",
+    // To find, search for "toggleconsole". Look for console command registration, the callback will
+    // be Con_ToggleConsole_f().
+    Patterns(&[
+        // 6153
+        pattern!(E8 ?? ?? ?? ?? 85 C0 74 ?? E9 ?? ?? ?? ?? E9),
+    ]),
+    my_Con_ToggleConsole_f as _,
+);
 pub static com_gamedir: Pointer<*mut [c_char; 260]> = Pointer::empty(b"com_gamedir\0");
 pub static Cvar_RegisterVariable: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
     Pointer::empty_patterns(
@@ -71,7 +90,27 @@ pub static Cvar_RegisterVariable: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
         null_mut(),
     );
 pub static cvar_vars: Pointer<*mut *mut cvar_s> = Pointer::empty(b"cvar_vars\0");
+pub static GL_BeginRendering: Pointer<
+    unsafe extern "C" fn(*mut c_int, *mut c_int, *mut c_int, *mut c_int),
+> = Pointer::empty_patterns(
+    b"GL_BeginRendering\0",
+    // To find, take usages of glClear(). The shortest is GL_BeginRendering().
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 8B 45 ?? 8B 4D ?? 56 57),
+    ]),
+    null_mut(),
+);
 pub static gEntityInterface: Pointer<*mut DllFunctions> = Pointer::empty(b"gEntityInterface\0");
+pub static Key_Event: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer::empty_patterns(
+    b"Key_Event\0",
+    // To find, search for "ctrl-alt-del pressed".
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 81 EC 00 04 00 00 8B 45 ?? 56 3D 00 01 00 00),
+    ]),
+    my_Key_Event as _,
+);
 pub static LoadEntityDLLs: Pointer<unsafe extern "C" fn(*const c_char)> = Pointer::empty_patterns(
     b"LoadEntityDLLs\0",
     // To find, search for "GetNewDLLFunctions".
@@ -81,6 +120,16 @@ pub static LoadEntityDLLs: Pointer<unsafe extern "C" fn(*const c_char)> = Pointe
     ]),
     my_LoadEntityDLLs as _,
 );
+pub static Host_FilterTime: Pointer<unsafe extern "C" fn(c_float) -> c_int> =
+    Pointer::empty_patterns(
+        b"Host_FilterTime\0",
+        // To find, search for "-sys_ticrate". The parent will be _Host_Frame().
+        Patterns(&[
+            // 6153
+            pattern!(55 8B EC 83 EC 08 D9 05 ?? ?? ?? ?? D8 1D),
+        ]),
+        my_Host_FilterTime as _,
+    );
 pub static host_frametime: Pointer<*mut c_double> = Pointer::empty(b"host_frametime\0");
 pub static Host_InitializeGameDLL: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"Host_InitializeGameDLL\0",
@@ -140,6 +189,10 @@ pub static Mem_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty
     ]),
     null_mut(),
 );
+pub static paintbuffer: Pointer<*mut [portable_samplepair_t; 1026]> =
+    Pointer::empty(b"paintbuffer\0");
+pub static paintedtime: Pointer<*mut c_int> = Pointer::empty(b"paintedtime\0");
+pub static realtime: Pointer<*mut f64> = Pointer::empty(b"realtime\0");
 pub static ReleaseEntityDlls: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"ReleaseEntityDlls\0",
     // Find Host_Shutdown(). It has a Mem_Free() if. The 3-rd function above that if is
@@ -150,6 +203,28 @@ pub static ReleaseEntityDlls: Pointer<unsafe extern "C" fn()> = Pointer::empty_p
     ]),
     my_ReleaseEntityDlls as _,
 );
+pub static S_PaintChannels: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
+    b"S_PaintChannels\0",
+    // To find, search for "Start profiling 10,000 calls to DSP". This is S_Say(). A call below
+    // which has an argument of something + 0x4e2000 is S_PaintChannels().
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC A1 ?? ?? ?? ?? 53 8B 5D ?? 3B C3 0F 8D),
+    ]),
+    my_S_PaintChannels as _,
+);
+pub static S_TransferStereo16: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
+    b"S_TransferStereo16\0",
+    // To find, find S_PaintChannels(), go into the last call before the while () condition in the
+    // end and this will be the function that that one falls through into. Alternatively, search for
+    // "S_TransferStereo16".
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 83 EC 0C D9 05 ?? ?? ?? ?? D8 0D),
+    ]),
+    my_S_TransferStereo16 as _,
+);
+pub static shm: Pointer<*mut *mut dma_t> = Pointer::empty(b"shm\0");
 pub static sv: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
 pub static SV_Frame: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"SV_Frame\0",
@@ -160,6 +235,17 @@ pub static SV_Frame: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
         pattern!(A1 ?? ?? ?? ?? 85 C0 74 ?? DD 05 ?? ?? ?? ?? A1),
     ]),
     my_SV_Frame as _,
+);
+pub static Sys_VID_FlipScreen: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"_Z18Sys_VID_FlipScreenv\0",
+    // To find, search for "Sys_InitLauncherInterface()". Go into function right after the one that
+    // accepts this string as an argument. The last function pointer assigned is
+    // Sys_VID_FlipScreen(). It checks one pointer for NULL then calls SDL_GL_SwapWindow().
+    Patterns(&[
+        // 6153
+        pattern!(A1 ?? ?? ?? ?? 85 C0 74 ?? 8B 00),
+    ]),
+    my_Sys_VID_FlipScreen as _,
 );
 pub static V_FadeAlpha: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
     b"V_FadeAlpha\0",
@@ -173,6 +259,29 @@ pub static V_FadeAlpha: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empt
     ]),
     my_V_FadeAlpha as _,
 );
+pub static VideoMode_IsWindowed: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
+    b"VideoMode_IsWindowed\0",
+    // To find, take usages of glClear(). The shortest is GL_BeginRendering(). The first check is
+    // for the return value of VideoMode_IsWindowed().
+    Patterns(&[
+        // 6153
+        pattern!(8B 0D ?? ?? ?? ?? 85 C9 74 ?? 8B 01 FF 50 ?? 84 C0),
+    ]),
+    null_mut(),
+);
+pub static VideoMode_GetCurrentVideoMode: Pointer<
+    unsafe extern "C" fn(*mut c_int, *mut c_int, *mut c_int),
+> = Pointer::empty_patterns(
+    b"VideoMode_GetCurrentVideoMode\0",
+    // To find, take usages of glClear(). The shortest is GL_BeginRendering(). The first if calls
+    // VideoMode_GetCurrentVideoMode().
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 8B 0D ?? ?? ?? ?? 8B 01 FF 50 ?? 85 C0),
+    ]),
+    null_mut(),
+);
+pub static window_rect: Pointer<*mut Rect> = Pointer::empty(b"window_rect\0");
 pub static Z_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_patterns(
     b"Z_Free\0",
     // To find, search for "Z_Free: NULL pointer".
@@ -184,17 +293,22 @@ pub static Z_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_p
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &build_number,
+    &CL_Disconnect,
     &cls,
     &Cmd_AddMallocCommand,
     &Cmd_Argc,
     &Cmd_Argv,
     &cmd_functions,
     &Con_Printf,
+    &Con_ToggleConsole_f,
     &com_gamedir,
     &Cvar_RegisterVariable,
     &cvar_vars,
+    &GL_BeginRendering,
     &gEntityInterface,
+    &Key_Event,
     &LoadEntityDLLs,
+    &Host_FilterTime,
     &host_frametime,
     &Host_InitializeGameDLL,
     &Host_Shutdown,
@@ -202,10 +316,20 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Host_ValidSave,
     &Memory_Init,
     &Mem_Free,
+    &paintbuffer,
+    &paintedtime,
+    &realtime,
     &ReleaseEntityDlls,
+    &S_PaintChannels,
+    &S_TransferStereo16,
+    &shm,
     &sv,
     &SV_Frame,
+    &Sys_VID_FlipScreen,
     &V_FadeAlpha,
+    &VideoMode_IsWindowed,
+    &VideoMode_GetCurrentVideoMode,
+    &window_rect,
     &Z_Free,
 ];
 
@@ -220,9 +344,55 @@ pub struct DllFunctions {
     pub cmd_start: Option<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)>,
 }
 
+#[cfg(unix)]
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Rect {
+    pub left: i32,
+    pub right: i32,
+    pub top: i32,
+    pub bottom: i32,
+}
+#[cfg(windows)]
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Rect {
+    pub left: i32,
+    pub top: i32,
+    pub right: i32,
+    pub bottom: i32,
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct portable_samplepair_t {
+    pub left: c_int,
+    pub right: c_int,
+}
+
+#[repr(C)]
+pub struct dma_t {
+    pub gamealive: c_int,
+    pub soundalive: c_int,
+    pub splitbuffer: c_int,
+    pub channels: c_int,
+    pub samples: c_int,
+    pub submission_chunk: c_int,
+    pub samplepos: c_int,
+    pub samplebits: c_int,
+    pub speed: c_int,
+    pub dmaspeed: c_int,
+    pub buffer: *mut c_uchar,
+}
+
 #[repr(C)]
 pub struct client_static_s {
     pub state: c_int,
+    #[cfg(unix)]
+    _padding_1: [u8; 16476],
+    #[cfg(windows)]
+    _padding_1: [u8; 16752],
+    pub demoplayback: c_int,
 }
 
 /// Prints the string to the console.
@@ -319,6 +489,16 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         _ => (),
     }
 
+    let ptr = &Host_FilterTime;
+    match ptr.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            host_frametime.set(marker, ptr.by_offset(marker, 64));
+            realtime.set(marker, ptr.by_offset(marker, 70));
+        }
+        _ => (),
+    }
+
     let ptr = &Host_Tell_f;
     match ptr.pattern_index(marker) {
         // 6153
@@ -340,6 +520,17 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         _ => (),
     }
 
+    let ptr = &GL_BeginRendering;
+    match ptr.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            VideoMode_IsWindowed.set_if_empty(marker, ptr.by_relative_call(marker, 24));
+            VideoMode_GetCurrentVideoMode.set_if_empty(marker, ptr.by_relative_call(marker, 79));
+            window_rect.set(marker, ptr.by_offset(marker, 43));
+        }
+        _ => (),
+    }
+
     let ptr = &LoadEntityDLLs;
     match ptr.pattern_index(marker) {
         // 6153
@@ -354,6 +545,25 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 6153
         Some(0) => {
             // svs.set(marker, ptr.by_offset(marker, 23));
+        }
+        _ => (),
+    }
+
+    let ptr = &S_PaintChannels;
+    match ptr.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            paintedtime.set(marker, ptr.by_offset(marker, 4));
+            paintbuffer.set(marker, ptr.by_offset(marker, 60));
+        }
+        _ => (),
+    }
+
+    let ptr = &S_TransferStereo16;
+    match ptr.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            shm.set(marker, ptr.by_offset(marker, 337));
         }
         _ => (),
     }
@@ -494,6 +704,17 @@ pub mod exported {
         })
     }
 
+    #[export_name = "_Z18Sys_VID_FlipScreenv"]
+    pub unsafe extern "C" fn my_Sys_VID_FlipScreen() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            capture::capture_frame(marker);
+
+            Sys_VID_FlipScreen.get(marker)();
+        })
+    }
+
     #[export_name = "ReleaseEntityDlls"]
     pub unsafe extern "C" fn my_ReleaseEntityDlls() {
         abort_on_panic(move || {
@@ -521,6 +742,86 @@ pub mod exported {
             // After updating pointers some modules might have got disabled.
             cvars::deregister_disabled_module_cvars(marker);
             commands::deregister_disabled_module_commands(marker);
+        })
+    }
+
+    #[export_name = "S_PaintChannels"]
+    pub unsafe extern "C" fn my_S_PaintChannels(end_time: c_int) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if capture::skip_paint_channels(marker) {
+                return;
+            }
+
+            S_PaintChannels.get(marker)(end_time);
+        })
+    }
+
+    #[export_name = "S_TransferStereo16"]
+    pub unsafe extern "C" fn my_S_TransferStereo16(end: c_int) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            capture::on_s_transfer_stereo_16(marker, end);
+
+            S_TransferStereo16.get(marker)(end);
+        })
+    }
+
+    #[export_name = "Host_FilterTime"]
+    pub unsafe extern "C" fn my_Host_FilterTime(time: c_float) -> c_int {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            let skip = capture::on_host_filter_time(marker);
+
+            let rv = if skip {
+                1
+            } else {
+                Host_FilterTime.get(marker)(time)
+            };
+
+            if rv != 0 {
+                capture::time_passed(marker);
+            }
+
+            rv
+        })
+    }
+
+    #[export_name = "CL_Disconnect"]
+    pub unsafe extern "C" fn my_CL_Disconnect() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            capture::on_cl_disconnect(marker);
+
+            CL_Disconnect.get(marker)();
+        })
+    }
+
+    #[export_name = "Key_Event"]
+    pub unsafe extern "C" fn my_Key_Event(key: c_int, down: c_int) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            capture::on_key_event_start(marker);
+
+            Key_Event.get(marker)(key, down);
+
+            capture::on_key_event_end(marker);
+        })
+    }
+
+    #[export_name = "Con_ToggleConsole_f"]
+    pub unsafe extern "C" fn my_Con_ToggleConsole_f() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if !capture::prevent_toggle_console(marker) {
+                Con_ToggleConsole_f.get(marker)();
+            }
         })
     }
 }
