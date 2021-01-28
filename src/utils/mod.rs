@@ -100,6 +100,29 @@ pub fn ensure_logging_hooks() {
     ONCE.call_once(setup_logging_hooks);
 }
 
+#[cfg(feature = "profiling")]
+fn setup_profiling() {
+    use rust_hawktracer::*;
+
+    let instance = HawktracerInstance::new();
+    let listener = instance.create_listener(HawktracerListenerType::ToFile {
+        file_path: "trace.bin".into(),
+        buffer_size: 4096,
+    });
+
+    Box::leak(Box::new(listener));
+    Box::leak(Box::new(instance));
+}
+
+#[cfg(not(feature = "profiling"))]
+fn setup_profiling() {}
+
+/// Ensures profiling is initialized.
+pub fn ensure_profiling() {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(setup_profiling);
+}
+
 /// Converts a `CStr` into an `OsString`.
 #[cfg(unix)]
 pub fn c_str_to_os_string(c_str: &CStr) -> OsString {

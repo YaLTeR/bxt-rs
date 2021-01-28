@@ -9,6 +9,7 @@ use std::{
 
 use bxt_macros::pattern;
 use bxt_patterns::Patterns;
+use rust_hawktracer::*;
 
 use crate::{
     ffi::{command::cmd_function_s, cvar::cvar_s, playermove::playermove_s, usercmd::usercmd_s},
@@ -248,6 +249,7 @@ pub fn con_print(marker: MainThreadMarker, s: &str) {
 ///
 /// [`reset_pointers()`] must be called before hw is unloaded so the pointers don't go stale.
 #[cfg(unix)]
+#[hawktracer(find_pointers)]
 unsafe fn find_pointers(marker: MainThreadMarker) {
     use libc::{RTLD_NOLOAD, RTLD_NOW};
     use libloading::os::unix::Library;
@@ -271,6 +273,7 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
 /// the pointers are reset (according to the safety section of `PointerTrait::set`).
 #[allow(clippy::single_match)]
 #[cfg(windows)]
+#[hawktracer(find_pointers)]
 pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: usize) {
     use std::slice;
 
@@ -429,6 +432,7 @@ pub mod exported {
 
             // This is the first function called on Linux, so do due initialization.
             ensure_logging_hooks();
+            ensure_profiling();
             vulkan::init();
 
             #[cfg(unix)]

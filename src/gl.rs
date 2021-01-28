@@ -1,5 +1,7 @@
 use std::ffi::CString;
 
+use rust_hawktracer::*;
+
 use crate::{hooks::sdl, utils::*};
 
 mod generated {
@@ -14,6 +16,7 @@ pub static GL: MainThreadRefCell<Option<Gl>> = MainThreadRefCell::new(None);
 /// # Safety
 ///
 /// [`reset_pointers()`] must be called before SDL is unloaded so the pointers don't go stale.
+#[hawktracer(gl_load_pointers)]
 pub unsafe fn load_pointers(marker: MainThreadMarker) {
     *GL.borrow_mut(marker) = Some(Gl::load_with(|name| {
         let name = CString::new(name).unwrap();
