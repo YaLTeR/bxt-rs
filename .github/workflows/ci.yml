@@ -59,6 +59,11 @@ jobs:
           - configuration: release
             release-flag: '--release'
 
+          - features: profiling
+            profiling-dep: lib32stdc++-7-dev
+          - features: 'vulkan-debug,profiling'
+            profiling-dep: lib32stdc++-7-dev
+
     name: ${{ matrix.rust }} - ${{ matrix.label }} - ${{ matrix.configuration }} - ${{ matrix.features }}
     runs-on: ${{ matrix.os }}
 
@@ -69,7 +74,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install libc6-dev-i386 lib32stdc++-7-dev
+          sudo apt-get install libc6-dev-i386 ${{ matrix.profiling-dep }}
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
