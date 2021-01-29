@@ -24,4 +24,7 @@ fn main() {
     )
     .write_bindings(StructGenerator, &mut file)
     .unwrap();
+
+    // Don't re-run the build script on bxt-rs changes.
+    println!("cargo:rerun-if-changed=build.rs");
 }
