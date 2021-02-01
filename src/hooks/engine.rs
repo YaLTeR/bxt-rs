@@ -453,14 +453,12 @@ pub fn con_print(marker: MainThreadMarker, s: &str) {
 
 /// Prepends the command to the engine command buffer.
 ///
-/// If `Cbuf_InsertText` was not found, does nothing.
-///
 /// If `command` contains null-bytes, up to the first null-byte will be inserted.
+///
+/// # Panics
+///
+/// Panics if `Cbuf_InsertText` was not found.
 pub fn prepend_command(marker: MainThreadMarker, command: &str) {
-    if !Cbuf_InsertText.is_set(marker) {
-        return;
-    }
-
     let command = match CString::new(command) {
         Ok(command) => command,
         Err(nul_error) => {
