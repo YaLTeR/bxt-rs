@@ -25,6 +25,10 @@ rust_hawktracer = "0.7.0"
 thiserror = "1.0.23"
 byte-slice-cast = "1.0.0"
 
+[target."cfg(windows)".dependencies.simplelog]
+version = "0.9.0"
+default-features = false
+
 [target."cfg(windows)".dependencies]
 minhook-sys = "0.1.0"
 
