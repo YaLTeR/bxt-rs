@@ -23,6 +23,7 @@ once_cell = "1.4.0"
 ash = "0.31.0"
 rust_hawktracer = "0.7.0"
 thiserror = "1.0.23"
+byte-slice-cast = "1.0.0"
 
 [target."cfg(windows)".dependencies]
 minhook-sys = "0.1.0"

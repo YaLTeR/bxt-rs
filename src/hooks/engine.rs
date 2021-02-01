@@ -15,7 +15,7 @@ use rust_hawktracer::*;
 use crate::{
     ffi::{command::cmd_function_s, cvar::cvar_s, playermove::playermove_s, usercmd::usercmd_s},
     hooks::{sdl, server},
-    modules::{capture, commands, cvars, fade_remove, tas_logging},
+    modules::{capture, commands, cvars, demo_playback, fade_remove, tas_logging},
     utils::*,
     vulkan,
 };
@@ -900,6 +900,8 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             Host_NextDemo.get(marker)();
+
+            demo_playback::set_next_demo(marker);
         })
     }
 }
