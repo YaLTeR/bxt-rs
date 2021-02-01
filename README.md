@@ -41,7 +41,7 @@ To run the bxt-compatibility build together with the original Bunnymod XT (e.g. 
 ## Documentation
 
 - [Contributing: how to add patterns and new functionality](CONTRIBUTING.md)
-- [Design notes](design.md)
+- [Design notes](DESIGN.md)
 
 ## License
 
