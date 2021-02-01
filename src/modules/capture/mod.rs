@@ -32,7 +32,7 @@ impl Module for Capture {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        engine::cls.is_set(marker)
+        engine::cls_demos.is_set(marker)
             && engine::Host_FilterTime.is_set(marker)
             && engine::host_frametime.is_set(marker)
             && engine::paintbuffer.is_set(marker)
@@ -519,7 +519,7 @@ pub unsafe fn on_host_filter_time(marker: MainThreadMarker) -> bool {
         _ => return false,
     };
 
-    if (*engine::cls.get(marker)).demoplayback == 0 {
+    if (*engine::cls_demos.get(marker)).demoplayback == 0 {
         return false;
     }
 
@@ -531,8 +531,15 @@ pub unsafe fn on_host_filter_time(marker: MainThreadMarker) -> bool {
 }
 
 pub unsafe fn on_cl_disconnect(marker: MainThreadMarker) {
-    if (*engine::cls.get(marker)).demoplayback == 0 {
-        return;
+    {
+        // Safety: no engine functions are called while the reference is active.
+        let cls_demos = &mut *engine::cls_demos.get(marker);
+
+        // Wasn't playing back a demo.
+        if cls_demos.demoplayback == 0 {
+            return;
+        }
+
     }
 
     if !BXT_CAP_PLAYDEMOSTOP.as_bool(marker) {

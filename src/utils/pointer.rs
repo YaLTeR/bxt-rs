@@ -86,6 +86,22 @@ pub trait PointerTrait: Sync {
     /// Logs pointer name and value.
     fn log(&self, marker: MainThreadMarker);
 
+    /// Returns a pointer offset from this pointer.
+    ///
+    /// # Safety
+    ///
+    /// See pointer [`offset()`](https://doc.rust-lang.org/std/primitive.pointer.html#method.offset)
+    /// Safety section.
+    unsafe fn offset(&self, marker: MainThreadMarker, offset: isize) -> Option<NonNull<c_void>> {
+        if !self.is_set(marker) {
+            return None;
+        }
+
+        let ptr = self.get_raw(marker).as_ptr();
+        let ptr = ptr.offset(offset);
+        NonNull::new(ptr)
+    }
+
     /// Returns a pointer stored at an offset from this pointer.
     ///
     /// # Safety

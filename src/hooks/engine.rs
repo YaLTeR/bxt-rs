@@ -40,6 +40,10 @@ pub static CL_Disconnect: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
     my_CL_Disconnect as _,
 );
 pub static cls: Pointer<*mut client_static_s> = Pointer::empty(b"cls\0");
+pub static cls_demos: Pointer<*mut client_static_s_demos> = Pointer::empty(
+    // Not a real symbol name.
+    b"cls_demos\0",
+);
 pub static Cmd_AddMallocCommand: Pointer<
     unsafe extern "C" fn(*const c_char, unsafe extern "C" fn(), c_int),
 > = Pointer::empty_patterns(
@@ -140,6 +144,15 @@ pub static Host_InitializeGameDLL: Pointer<unsafe extern "C" fn()> = Pointer::em
         pattern!(E8 ?? ?? ?? ?? 8B 0D ?? ?? ?? ?? 33 C0),
     ]),
     null_mut(),
+);
+pub static Host_NextDemo: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"Host_NextDemo\0",
+    // To find, search for "No demos listed with startdemos".
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 81 EC 00 04 00 00 83 3D ?? ?? ?? ?? FF),
+    ]),
+    my_Host_NextDemo as _,
 );
 pub static Host_Shutdown: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"Host_Shutdown\0",
@@ -295,6 +308,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &build_number,
     &CL_Disconnect,
     &cls,
+    &cls_demos,
     &Cmd_AddMallocCommand,
     &Cmd_Argc,
     &Cmd_Argv,
@@ -312,6 +326,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Host_FilterTime,
     &host_frametime,
     &Host_InitializeGameDLL,
+    &Host_NextDemo,
     &Host_Shutdown,
     &Host_Tell_f,
     &Host_ValidSave,
@@ -391,10 +406,13 @@ pub struct dma_t {
 #[repr(C)]
 pub struct client_static_s {
     pub state: c_int,
-    #[cfg(unix)]
-    _padding_1: [u8; 16476],
-    #[cfg(windows)]
-    _padding_1: [u8; 16752],
+}
+
+#[repr(C)]
+pub struct client_static_s_demos {
+    pub demonum: c_int,
+    pub demos: [[c_char; 16]; 32],
+    pub demorecording: c_int,
     pub demoplayback: c_int,
 }
 
@@ -435,6 +453,11 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
             .ok()
             .and_then(|sym| NonNull::new(*sym));
         pointer.set(marker, ptr);
+    }
+
+    cls_demos.set(marker, cls.offset(marker, 15960));
+
+    for pointer in POINTERS {
         pointer.log(marker);
     }
 }
@@ -498,6 +521,15 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(0) => {
             host_frametime.set(marker, ptr.by_offset(marker, 64));
             realtime.set(marker, ptr.by_offset(marker, 70));
+        }
+        _ => (),
+    }
+
+    let ptr = &Host_NextDemo;
+    match ptr.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            cls_demos.set(marker, ptr.by_offset(marker, 11));
         }
         _ => (),
     }
@@ -825,6 +857,15 @@ pub mod exported {
             if !capture::prevent_toggle_console(marker) {
                 Con_ToggleConsole_f.get(marker)();
             }
+        })
+    }
+
+    #[export_name = "Host_NextDemo"]
+    pub unsafe extern "C" fn my_Host_NextDemo() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            Host_NextDemo.get(marker)();
         })
     }
 }
