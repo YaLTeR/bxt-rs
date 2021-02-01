@@ -3,6 +3,7 @@
 #![allow(non_snake_case, non_upper_case_globals)]
 
 use std::{
+    ffi::CString,
     os::raw::*,
     ptr::{null_mut, NonNull},
 };
@@ -30,6 +31,8 @@ pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::emp
     ]),
     null_mut(),
 );
+pub static Cbuf_InsertText: Pointer<unsafe extern "C" fn(*const c_char)> =
+    Pointer::empty(b"Cbuf_InsertText\0");
 pub static CL_Disconnect: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"CL_Disconnect\0",
     // To find, search for "ExitGame".
@@ -306,6 +309,7 @@ pub static Z_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_p
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &build_number,
+    &Cbuf_InsertText,
     &CL_Disconnect,
     &cls,
     &cls_demos,
@@ -436,6 +440,35 @@ pub fn con_print(marker: MainThreadMarker, s: &str) {
     }
 }
 
+/// Prepends the command to the engine command buffer.
+///
+/// If `Cbuf_InsertText` was not found, does nothing.
+///
+/// If `command` contains null-bytes, up to the first null-byte will be inserted.
+pub fn prepend_command(marker: MainThreadMarker, command: &str) {
+    if !Cbuf_InsertText.is_set(marker) {
+        return;
+    }
+
+    let command = match CString::new(command) {
+        Ok(command) => command,
+        Err(nul_error) => {
+            let nul_position = nul_error.nul_position();
+            let mut bytes = nul_error.into_vec();
+            bytes.truncate(nul_position);
+            CString::new(bytes).unwrap()
+        }
+    };
+
+    // Safety: Cbuf_InsertText() uses a global buffer which is zeroed by default. It means that
+    // before it is initialized its max size equals to 0, which will trigger the error condition in
+    // Cbuf_InsertText() early. The error condition calls Con_Printf(), which is also safe (see
+    // safety comment in [`con_print()`]).
+    unsafe {
+        Cbuf_InsertText.get(marker)(command.as_ptr());
+    }
+}
+
 /// # Safety
 ///
 /// [`reset_pointers()`] must be called before hw is unloaded so the pointers don't go stale.
@@ -529,6 +562,7 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
     match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
+            Cbuf_InsertText.set(marker, ptr.by_relative_call(marker, 140));
             cls_demos.set(marker, ptr.by_offset(marker, 11));
         }
         _ => (),
