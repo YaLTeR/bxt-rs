@@ -42,6 +42,15 @@ pub static CL_Disconnect: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
     ]),
     my_CL_Disconnect as _,
 );
+pub static CL_GameDir_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"CL_GameDir_f\0",
+    // To find, search for "gamedir is ".
+    Patterns(&[
+        // 6153
+        pattern!(E8 ?? ?? ?? ?? 83 F8 02 74 ?? 68 ?? ?? ?? ?? 68),
+    ]),
+    null_mut(),
+);
 pub static cls: Pointer<*mut client_static_s> = Pointer::empty(b"cls\0");
 pub static cls_demos: Pointer<*mut client_static_s_demos> = Pointer::empty(
     // Not a real symbol name.
@@ -123,6 +132,7 @@ pub static LoadEntityDLLs: Pointer<unsafe extern "C" fn(*const c_char)> = Pointe
     // To find, search for "GetNewDLLFunctions".
     Patterns(&[
         // 6153
+        // Don't use this for com_gamedir as the pattern matches versions with different offsets.
         pattern!(55 8B EC B8 90 23 00 00),
     ]),
     my_LoadEntityDLLs as _,
@@ -311,6 +321,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &build_number,
     &Cbuf_InsertText,
     &CL_Disconnect,
+    &CL_GameDir_f,
     &cls,
     &cls_demos,
     &Cmd_AddMallocCommand,
@@ -523,6 +534,13 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
     }
 
     // Find all offset-based pointers.
+    let ptr = &CL_GameDir_f;
+    match ptr.pattern_index(marker) {
+        // 6153
+        Some(0) => com_gamedir.set(marker, ptr.by_offset(marker, 11)),
+        _ => (),
+    }
+
     let ptr = &Cmd_AddMallocCommand;
     match ptr.pattern_index(marker) {
         // 6153
@@ -596,15 +614,6 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
             VideoMode_IsWindowed.set_if_empty(marker, ptr.by_relative_call(marker, 24));
             VideoMode_GetCurrentVideoMode.set_if_empty(marker, ptr.by_relative_call(marker, 79));
             window_rect.set(marker, ptr.by_offset(marker, 43));
-        }
-        _ => (),
-    }
-
-    let ptr = &LoadEntityDLLs;
-    match ptr.pattern_index(marker) {
-        // 6153
-        Some(0) => {
-            com_gamedir.set(marker, ptr.by_offset(marker, 51));
         }
         _ => (),
     }
