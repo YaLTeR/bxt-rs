@@ -540,6 +540,10 @@ pub unsafe fn on_cl_disconnect(marker: MainThreadMarker) {
             return;
         }
 
+        // Will play another demo right after.
+        if cls_demos.demonum != -1 {
+            return;
+        }
     }
 
     if !BXT_CAP_PLAYDEMOSTOP.as_bool(marker) {
