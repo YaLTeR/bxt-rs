@@ -1,7 +1,7 @@
 # bxt-rs
 
 A few speedrunning and TAS-related tools for Half-Life and mods. Current features:
-- Video recording (a successor to [hl-capture](https://github.com/YaLTeR/hl-capture).
+- Video recording (a successor to [hl-capture](https://github.com/YaLTeR/hl-capture)).
 - Commands to play many demos at once (`bxt_play_run`).
 - A useful subset of `bxt_taslog` when you can't use the one from the original Bunnymod XT.
 - `bxt_fade_remove`.
