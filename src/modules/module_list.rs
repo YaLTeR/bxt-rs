@@ -1,4 +1,4 @@
-//! `bxt_modules_list`
+//! `bxt_moules_list`
 
 use super::{Module, MODULES};
 use crate::{
@@ -11,11 +11,11 @@ use crate::{
 pub struct ModuleList;
 impl Module for ModuleList {
     fn name(&self) -> &'static str {
-        "bxt_modules_list"
+        "bxt_module_list"
     }
 
     fn commands(&self) -> &'static [&'static Command] {
-        static COMMANDS: &[&Command] = &[&BXT_MODULES_LIST];
+        static COMMANDS: &[&Command] = &[&BXT_MODULE_LIST];
         &COMMANDS
     }
 
@@ -24,16 +24,16 @@ impl Module for ModuleList {
     }
 }
 
-static BXT_MODULES_LIST: Command = Command::new(
-    b"bxt_modules_list\0",
+static BXT_MODULE_LIST: Command = Command::new(
+    b"bxt_module_list\0",
     handler!(
         "Usage: bxt_module_list\n \
           Shows the list of modules and their status.\n",
-        modules_list as fn(_)
+        module_list as fn(_)
     ),
 );
 
-fn modules_list(marker: MainThreadMarker) {
+fn module_list(marker: MainThreadMarker) {
     if !ModuleList.is_enabled(marker) {
         return;
     }
