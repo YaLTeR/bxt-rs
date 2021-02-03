@@ -28,6 +28,8 @@ pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::emp
     Patterns(&[
         // 6153
         pattern!(55 8B EC 83 EC 08 A1 ?? ?? ?? ?? 56 33 F6 85 C0),
+        // 4554
+        pattern!(A1 ?? ?? ?? ?? 83 EC 08 57 33 FF 85 C0 0F 85 A5 00 00 00 53 56 33 DB BE ?? ?? ?? ?? 8B 06 8B 0D),
     ]),
     null_mut(),
 );
@@ -67,6 +69,8 @@ pub static Cmd_AddMallocCommand: Pointer<
     Patterns(&[
         // 6153
         pattern!(55 8B EC 56 57 8B 7D ?? 57 E8 ?? ?? ?? ?? 8A 08),
+        // 4554
+        pattern!(56 57 8B 7C 24 ?? 57 E8 ?? ?? ?? ?? 8A 08),
     ]),
     null_mut(),
 );
@@ -81,6 +85,8 @@ pub static Con_Printf: Pointer<unsafe extern "C" fn(*const c_char, ...)> = Point
     Patterns(&[
         // 6153
         pattern!(55 8B EC B8 00 10 00 00 E8 ?? ?? ?? ?? 8B 4D),
+        // 4554
+        pattern!(B8 00 10 00 00 E8 ?? ?? ?? ?? 8B 8C 24),
     ]),
     null_mut(),
 );
@@ -102,6 +108,8 @@ pub static Cvar_RegisterVariable: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
         Patterns(&[
             // 6153
             pattern!(55 8B EC 83 EC 14 53 56 8B 75 ?? 57 8B 06),
+            // 4554
+            pattern!(83 EC 14 53 56 8B 74 24),
         ]),
         null_mut(),
     );
@@ -124,6 +132,8 @@ pub static Key_Event: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer::emp
     Patterns(&[
         // 6153
         pattern!(55 8B EC 81 EC 00 04 00 00 8B 45 ?? 56 3D 00 01 00 00),
+        // 4554
+        pattern!(81 EC 00 04 00 00 8D 84 24 ?? ?? ?? ?? 8D 8C 24),
     ]),
     my_Key_Event as _,
 );
@@ -134,6 +144,8 @@ pub static LoadEntityDLLs: Pointer<unsafe extern "C" fn(*const c_char)> = Pointe
         // 6153
         // Don't use this for com_gamedir as the pattern matches versions with different offsets.
         pattern!(55 8B EC B8 90 23 00 00),
+        // 4554
+        pattern!(81 EC 94 04 00 00 53 56 E8),
     ]),
     my_LoadEntityDLLs as _,
 );
@@ -144,6 +156,8 @@ pub static Host_FilterTime: Pointer<unsafe extern "C" fn(c_float) -> c_int> =
         Patterns(&[
             // 6153
             pattern!(55 8B EC 83 EC 08 D9 05 ?? ?? ?? ?? D8 1D),
+            // 4554
+            pattern!(55 8B EC 83 E4 F8 83 EC 08 D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? DF E0 F6 C4 41),
         ]),
         my_Host_FilterTime as _,
     );
@@ -154,7 +168,7 @@ pub static Host_InitializeGameDLL: Pointer<unsafe extern "C" fn()> = Pointer::em
     // Alternatively, find LoadEntityDLLs() and go to the parent function.
     Patterns(&[
         // 6153
-        pattern!(E8 ?? ?? ?? ?? 8B 0D ?? ?? ?? ?? 33 C0),
+        pattern!(E8 ?? ?? ?? ?? 8B 0D ?? ?? ?? ?? 33 C0 83 F9 01),
     ]),
     null_mut(),
 );
@@ -164,6 +178,8 @@ pub static Host_NextDemo: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
     Patterns(&[
         // 6153
         pattern!(55 8B EC 81 EC 00 04 00 00 83 3D ?? ?? ?? ?? FF),
+        // 4554
+        pattern!(A1 ?? ?? ?? ?? 81 EC 00 04 00 00 83 F8 FF),
     ]),
     my_Host_NextDemo as _,
 );
@@ -182,6 +198,8 @@ pub static Host_Tell_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_pattern
     Patterns(&[
         // 6153
         pattern!(55 8B EC 83 EC 40 A1 ?? ?? ?? ?? 56),
+        // 4554
+        pattern!(A1 ?? ?? ?? ?? 83 EC 40 83 F8 01 56 75 0A E8),
     ]),
     null_mut(),
 );
@@ -201,6 +219,8 @@ pub static Memory_Init: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_in
         Patterns(&[
             // 6153
             pattern!(55 8B EC 8B 45 ?? 8B 4D ?? 56 BE 00 00 20 00),
+            // 4554
+            pattern!(8B 44 24 ?? 8B 4C 24 ?? 56 BE 00 00 20 00),
         ]),
         my_Memory_Init as _,
     );
@@ -212,6 +232,8 @@ pub static Mem_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty
     Patterns(&[
         // 6153
         pattern!(55 8B EC 6A FF 68 ?? ?? ?? ?? 68 ?? ?? ?? ?? 64 A1 ?? ?? ?? ?? 50 64 89 25 ?? ?? ?? ?? 83 EC 18 53 56 57 8B 75 ?? 85 F6),
+        // 4554
+        pattern!(56 8B 74 24 ?? 85 F6 74 ?? 6A 09),
     ]),
     null_mut(),
 );
@@ -282,6 +304,8 @@ pub static V_FadeAlpha: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empt
     Patterns(&[
         // 6153
         pattern!(55 8B EC 83 EC 08 D9 05 ?? ?? ?? ?? DC 1D),
+        // 4554
+        pattern!(D9 05 ?? ?? ?? ?? DC 1D ?? ?? ?? ?? 8A 0D ?? ?? ?? ?? 83 EC 08),
     ]),
     my_V_FadeAlpha as _,
 );
@@ -312,7 +336,10 @@ pub static Z_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_p
     b"Z_Free\0",
     // To find, search for "Z_Free: NULL pointer".
     Patterns(&[
+        // 6153
         pattern!(55 8B EC 56 8B 75 ?? 85 F6 57 75 ?? 68 ?? ?? ?? ?? E8 ?? ?? ?? ?? 83 C4 04 8B 46),
+        // 4554
+        pattern!(56 8B 74 24 ?? 85 F6 57 75 ?? 68 ?? ?? ?? ?? E8 ?? ?? ?? ?? 83 C4 04 8B 46),
     ]),
     null_mut(),
 );
@@ -543,6 +570,8 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
     match ptr.pattern_index(marker) {
         // 6153
         Some(0) => cmd_functions.set(marker, ptr.by_offset(marker, 43)),
+        // 4554
+        Some(1) => cmd_functions.set(marker, ptr.by_offset(marker, 40)),
         _ => (),
     }
 
@@ -550,6 +579,8 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
     match ptr.pattern_index(marker) {
         // 6153
         Some(0) => cvar_vars.set(marker, ptr.by_offset(marker, 124)),
+        // 4554
+        Some(1) => cvar_vars.set(marker, ptr.by_offset(marker, 122)),
         _ => (),
     }
 
@@ -571,6 +602,11 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
             host_frametime.set(marker, ptr.by_offset(marker, 64));
             realtime.set(marker, ptr.by_offset(marker, 70));
         }
+        // 4554
+        Some(1) => {
+            host_frametime.set(marker, ptr.by_offset(marker, 65));
+            realtime.set(marker, ptr.by_offset(marker, 71));
+        }
         _ => (),
     }
 
@@ -581,6 +617,11 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
             Cbuf_InsertText.set(marker, ptr.by_relative_call(marker, 140));
             cls_demos.set(marker, ptr.by_offset(marker, 11));
         }
+        // 4554
+        Some(1) => {
+            Cbuf_InsertText.set(marker, ptr.by_relative_call(marker, 137));
+            cls_demos.set(marker, ptr.by_offset(marker, 1));
+        }
         _ => (),
     }
 
@@ -590,6 +631,11 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(0) => {
             Cmd_Argc.set(marker, ptr.by_relative_call(marker, 28));
             Cmd_Argv.set(marker, ptr.by_relative_call(marker, 145));
+        }
+        // 4554
+        Some(1) => {
+            Cmd_Argc.set(marker, ptr.by_relative_call(marker, 25));
+            Cmd_Argv.set(marker, ptr.by_relative_call(marker, 144));
         }
         _ => (),
     }
