@@ -201,6 +201,23 @@ impl Recorder {
         })
     }
 
+    unsafe fn initialize_opengl_capturing(&mut self, marker: MainThreadMarker) -> eyre::Result<()> {
+        let external_image_frame_memory = self.vulkan.external_image_frame_memory()?;
+        let external_semaphore = self.vulkan.external_semaphore()?;
+        let size = self.vulkan.image_frame_memory_size();
+
+        self.opengl = Some(opengl::init(
+            marker,
+            self.width,
+            self.height,
+            size,
+            external_image_frame_memory,
+            external_semaphore,
+        )?);
+
+        Ok(())
+    }
+
     unsafe fn acquire_and_capture(&mut self, frames: usize) -> eyre::Result<()> {
         self.vulkan.acquire_image_and_sample()?;
         self.vulkan
@@ -294,23 +311,6 @@ unsafe fn get_resolution(marker: MainThreadMarker) -> (i32, i32) {
     }
 }
 
-unsafe fn initialize_opengl_capturing(
-    marker: MainThreadMarker,
-    recorder: &Recorder,
-) -> eyre::Result<OpenGL> {
-    let external_image_frame_memory = recorder.vulkan.external_image_frame_memory()?;
-    let external_semaphore = recorder.vulkan.external_semaphore()?;
-    let size = recorder.vulkan.image_frame_memory_size();
-    opengl::init(
-        marker,
-        recorder.width,
-        recorder.height,
-        size,
-        external_image_frame_memory,
-        external_semaphore,
-    )
-}
-
 pub unsafe fn capture_frame(marker: MainThreadMarker) {
     if !Capture.is_enabled(marker) {
         return;
@@ -386,18 +386,14 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
 
     // We'll need OpenGL. Initialize it if it isn't.
     if recorder.opengl.is_none() {
-        let opengl = match initialize_opengl_capturing(marker, recorder) {
-            Ok(opengl) => opengl,
-            Err(err) => {
-                error!("error initializing OpenGL capturing: {:?}", err);
-                con_print(marker, "Error initializing OpenGL, stopping recording.\n");
+        if let Err(err) = recorder.initialize_opengl_capturing(marker) {
+            error!("error initializing OpenGL capturing: {:?}", err);
+            con_print(marker, "Error initializing OpenGL, stopping recording.\n");
 
-                drop(state);
-                cap_stop(marker);
-                return;
-            }
-        };
-        recorder.opengl = Some(opengl);
+            drop(state);
+            cap_stop(marker);
+            return;
+        }
     }
 
     // Capture this frame for recording later.
