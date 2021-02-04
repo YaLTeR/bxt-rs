@@ -224,6 +224,25 @@ impl Recorder {
             .convert_colors_and_mux(&mut self.muxer, frames)?;
         Ok(())
     }
+
+    unsafe fn record_last_frame(&mut self) -> eyre::Result<Option<f64>> {
+        if let Some(last_frame_time) = self.last_frame_time.take() {
+            self.remainder += last_frame_time / self.time_base;
+
+            // Push this frame as long as it takes up the most of the video frame.
+            // Remainder is > -0.5 at all times.
+            let frames = (self.remainder + 0.5) as usize;
+            self.remainder -= frames as f64;
+
+            if frames > 0 {
+                self.acquire_and_capture(frames)?;
+            }
+
+            Ok(Some(last_frame_time))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -281,7 +300,7 @@ fn cap_stop(marker: MainThreadMarker) {
     unsafe {
         let mut state = STATE.borrow_mut(marker);
         if let State::Recording(ref mut recorder) = *state {
-            let last_frame_time = match record_last_frame(recorder) {
+            let last_frame_time = match recorder.record_last_frame() {
                 Ok(last_frame_time) => last_frame_time.unwrap_or(0.),
                 Err(err) => {
                     error!("error in Vulkan capturing: {:?}", err);
@@ -346,7 +365,7 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
     };
 
     // Now that we have the duration of the last frame, record it.
-    let last_frame_time = match record_last_frame(recorder) {
+    let last_frame_time = match recorder.record_last_frame() {
         Ok(last_frame_time) => last_frame_time,
         Err(err) => {
             error!("error in Vulkan capturing: {:?}", err);
@@ -410,25 +429,6 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
 
         drop(state);
         cap_stop(marker);
-    }
-}
-
-unsafe fn record_last_frame(recorder: &mut Recorder) -> eyre::Result<Option<f64>> {
-    if let Some(last_frame_time) = recorder.last_frame_time.take() {
-        recorder.remainder += last_frame_time / recorder.time_base;
-
-        // Push this frame as long as it takes up the most of the video frame.
-        // Remainder is > -0.5 at all times.
-        let frames = (recorder.remainder + 0.5) as usize;
-        recorder.remainder -= frames as f64;
-
-        if frames > 0 {
-            recorder.acquire_and_capture(frames)?;
-        }
-
-        Ok(Some(last_frame_time))
-    } else {
-        Ok(None)
     }
 }
 
