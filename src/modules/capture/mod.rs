@@ -2,7 +2,7 @@
 
 use std::{mem, os::raw::c_char, ptr::null_mut};
 
-use color_eyre::eyre;
+use color_eyre::eyre::{self, ensure, Context};
 use rust_hawktracer::*;
 
 use self::muxer::MuxerInitError;
@@ -157,6 +157,50 @@ struct Recorder {
 }
 
 impl Recorder {
+    #[hawktracer(recorder_init)]
+    unsafe fn init(width: i32, height: i32, fps: u64) -> eyre::Result<Recorder> {
+        ensure!(
+            width % 2 == 0 && height % 2 == 0,
+            "can't handle odd game resolutions yet: {}×{}",
+            width,
+            height,
+        );
+
+        let vulkan =
+            vulkan::init(width as u32, height as u32).wrap_err("error initalizing Vulkan")?;
+
+        let time_base = 1. / fps as f64;
+
+        let muxer = match Muxer::new(width as u64, height as u64, fps as u64) {
+            Ok(muxer) => muxer,
+            Err(err @ MuxerInitError::FfmpegSpawn(_)) => {
+                return Err(err).wrap_err(
+                    #[cfg(unix)]
+                    "could not start ffmpeg. Make sure you have \
+                    ffmpeg installed and present in PATH",
+                    #[cfg(windows)]
+                    "could not start ffmpeg. Make sure you have \
+                    ffmpeg.exe in the Half-Life folder",
+                );
+            }
+            Err(err) => {
+                return Err(err).wrap_err("error initializing muxing");
+            }
+        };
+
+        Ok(Recorder {
+            width,
+            height,
+            time_base,
+            remainder: 0.,
+            last_frame_time: None,
+            sound_remainder: 0.,
+            vulkan,
+            muxer,
+            opengl: None,
+        })
+    }
+
     unsafe fn acquire_and_capture(&mut self, frames: usize) -> eyre::Result<()> {
         self.vulkan.acquire_image_and_sample()?;
         self.vulkan
@@ -283,74 +327,17 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
 
     // Initialize the recording if needed.
     if matches!(*state, State::Starting) {
-        scoped_tracepoint!(recorder_init_);
-
-        if width % 2 != 0 || height % 2 != 0 {
-            con_print(
-                marker,
-                &format!(
-                    "Error: can't handle odd game resulutions yet: {}×{}.\n",
-                    width, height,
-                ),
-            );
-            *state = State::Idle;
-            return;
-        }
-
-        let vulkan = match vulkan::init(width as u32, height as u32) {
-            Ok(vulkan) => vulkan,
-            Err(err) => {
-                error!("error initializing Vulkan capturing: {:?}", err);
-                con_print(marker, "Error initializing Vulkan, cancelling recording.\n");
-                *state = State::Idle;
-                return;
-            }
-        };
-
         let fps = BXT_CAP_FPS.as_u64(marker).max(1);
-        let time_base = 1. / fps as f64;
 
-        let muxer = match Muxer::new(width as u64, height as u64, fps as u64) {
-            Ok(muxer) => muxer,
-            Err(MuxerInitError::FfmpegSpawn(err)) => {
-                error!("error inializing muxer {:?}", err);
-
-                #[cfg(unix)]
-                con_print(
-                    marker,
-                    "Could not start ffmpeg. Make sure you have \
-                    ffmpeg installed and present in PATH.\n",
-                );
-                #[cfg(windows)]
-                con_print(
-                    marker,
-                    "Could not start ffmpeg. Make sure you have \
-                    ffmpeg.exe in the Half-Life folder.\n",
-                );
-
-                *state = State::Idle;
-                return;
-            }
+        match Recorder::init(width, height, fps) {
+            Ok(recorder) => *state = State::Recording(recorder),
             Err(err) => {
-                error!("error inializing muxer {:?}", err);
-                con_print(marker, "Error initializing muxing, cancelling recording.\n");
+                error!("error initializing the recorder: {:?}", err);
+                con_print(marker, &format!("Error initializing recording: {}.\n", err));
                 *state = State::Idle;
                 return;
             }
-        };
-
-        let recorder = Recorder {
-            width,
-            height,
-            time_base,
-            remainder: 0.,
-            last_frame_time: None,
-            sound_remainder: 0.,
-            vulkan,
-            muxer,
-            opengl: None,
-        };
-        *state = State::Recording(recorder);
+        }
     }
 
     let recorder = match *state {
