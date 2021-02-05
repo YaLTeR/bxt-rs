@@ -137,7 +137,7 @@ struct Recorder {
 
     /// Difference, in video frames, between how much time passed in-game and how much video we
     /// output.
-    remainder: f64,
+    video_remainder: f64,
 
     /// Difference, in seconds, between how much time passed in-game and how much audio we output.
     sound_remainder: f64,
@@ -189,7 +189,7 @@ impl Recorder {
             width,
             height,
             time_base,
-            remainder: 0.,
+            video_remainder: 0.,
             sound_remainder: 0.,
             vulkan,
             muxer,
@@ -227,8 +227,8 @@ impl Recorder {
     unsafe fn record_last_frame(&mut self) -> eyre::Result<()> {
         // Push this frame as long as it takes up the most of the video frame.
         // Remainder is > -0.5 at all times.
-        let frames = (self.remainder + 0.5) as usize;
-        self.remainder -= frames as f64;
+        let frames = (self.video_remainder + 0.5) as usize;
+        self.video_remainder -= frames as f64;
 
         if frames > 0 {
             self.acquire_and_capture(frames)?;
@@ -238,7 +238,7 @@ impl Recorder {
     }
 
     fn time_passed(&mut self, time: f64) {
-        self.remainder += time / self.time_base;
+        self.video_remainder += time / self.time_base;
         self.sound_remainder += time;
     }
 
@@ -413,7 +413,7 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
 
         // Make sure we don't call Vulkan as OpenGL could've failed in the middle leaving semaphore
         // in a bad state.
-        recorder.remainder = 0.;
+        recorder.video_remainder = 0.;
 
         drop(state);
         cap_stop(marker);
