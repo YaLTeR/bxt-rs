@@ -378,21 +378,6 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
         return;
     }
 
-    let mut state = if recorder.sound_remainder > 0. {
-        drop(state);
-
-        capture_sound(marker, SoundCaptureMode::Normal);
-
-        STATE.borrow_mut(marker)
-    } else {
-        state
-    };
-
-    let recorder = match *state {
-        State::Recording(ref mut recorder) => recorder,
-        _ => unreachable!(),
-    };
-
     // Check for resolution changes.
     if recorder.width != width || recorder.height != height {
         con_print(
@@ -562,4 +547,13 @@ pub unsafe fn time_passed(marker: MainThreadMarker) {
     // Accumulate time for the last frame.
     let time = *engine::host_frametime.get(marker);
     recorder.time_passed(time);
+
+    // Capture sound ASAP.
+    //
+    // In normal operation the sound was already mixed for the next _snd_mixahead (0.1) seconds and
+    // is already playing. If we delay sound capturing until the next flip screen, we'll get next
+    // frame's sounds mixed in on this frame, resulting in the audio being slightly ahead of the
+    // video.
+    drop(state);
+    capture_sound(marker, SoundCaptureMode::Normal);
 }
