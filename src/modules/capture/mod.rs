@@ -241,6 +241,11 @@ impl Recorder {
         Ok(())
     }
 
+    fn time_passed(&mut self, time: f64) {
+        self.last_frame_time += time;
+        self.remainder += time / self.time_base;
+    }
+
     #[hawktracer(write_audio_frame)]
     fn write_audio_frame(&mut self, samples: &[u8]) -> eyre::Result<()> {
         self.muxer.write_audio_frame(samples)?;
@@ -566,6 +571,5 @@ pub unsafe fn time_passed(marker: MainThreadMarker) {
 
     // Accumulate time for the last frame.
     let time = *engine::host_frametime.get(marker);
-    recorder.last_frame_time += time;
-    recorder.remainder += time / recorder.time_base;
+    recorder.time_passed(time);
 }
