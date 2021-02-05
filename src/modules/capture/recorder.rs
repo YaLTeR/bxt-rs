@@ -35,6 +35,9 @@ pub struct Recorder {
     /// OpenGL state; might be missing if the capturing just started or just after an engine
     /// restart.
     opengl: Option<OpenGL>,
+
+    /// Whether Vulkan has already acquired the last frame.
+    acquired_image: bool,
 }
 
 impl Recorder {
@@ -78,6 +81,7 @@ impl Recorder {
             vulkan,
             muxer,
             opengl: None,
+            acquired_image: false,
         })
     }
 
@@ -111,12 +115,27 @@ impl Recorder {
         self.opengl.as_ref().unwrap().capture()
     }
 
-    #[hawktracer(acquire_and_capture)]
-    pub unsafe fn acquire_and_capture(&mut self, frames: usize) -> eyre::Result<()> {
-        self.vulkan.acquire_image()?;
-        self.vulkan
-            .convert_colors_and_mux(&mut self.muxer, frames)?;
-        Ok(())
+    #[hawktracer(acquire_image_if_needed)]
+    pub unsafe fn acquire_image_if_needed(&mut self) -> eyre::Result<()> {
+        if self.acquired_image {
+            return Ok(());
+        }
+
+        let frames = (self.video_remainder + 0.5) as usize;
+        if frames == 0 {
+            return Ok(());
+        }
+
+        self.acquired_image = true;
+        self.vulkan.acquire_image()
+    }
+
+    #[hawktracer(record)]
+    pub unsafe fn record(&mut self, frames: usize) -> eyre::Result<()> {
+        assert!(self.acquired_image);
+        self.acquired_image = false;
+
+        self.vulkan.convert_colors_and_mux(&mut self.muxer, frames)
     }
 
     #[hawktracer(record_last_frame)]
@@ -127,15 +146,16 @@ impl Recorder {
         self.video_remainder -= frames as f64;
 
         if frames > 0 {
-            self.acquire_and_capture(frames)?;
+            self.record(frames)?;
         }
 
         Ok(())
     }
 
-    pub fn time_passed(&mut self, time: f64) {
+    pub fn time_passed(&mut self, time: f64) -> eyre::Result<()> {
         self.video_remainder += time / self.time_base;
         self.sound_remainder += time;
+        unsafe { self.acquire_image_if_needed() }
     }
 
     pub fn samples_to_capture(&mut self, samples_per_second: i32, mode: SoundCaptureMode) -> i32 {

@@ -408,7 +408,20 @@ pub unsafe fn time_passed(marker: MainThreadMarker) {
 
     // Accumulate time for the last frame.
     let time = *engine::host_frametime.get(marker);
-    recorder.time_passed(time);
+    if let Err(err) = recorder.time_passed(time) {
+        error!("error acquiring image: {:?}", err);
+        con_print(
+            marker,
+            "Error capturing frame with Vulkan, stopping recording.\n",
+        );
+
+        // Make sure we don't call Vulkan as we could've left semaphore in a bad state.
+        recorder.reset_video_remainder();
+
+        drop(state);
+        cap_stop(marker);
+        return;
+    }
 
     // Capture sound ASAP.
     //
