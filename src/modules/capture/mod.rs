@@ -254,6 +254,18 @@ impl Recorder {
         self.sound_remainder += time;
     }
 
+    fn samples_to_capture(&mut self, samples_per_second: i32, mode: SoundCaptureMode) -> i32 {
+        let samples = self.sound_remainder * samples_per_second as f64;
+        let samples_rounded = match mode {
+            SoundCaptureMode::Normal => samples.floor(),
+            SoundCaptureMode::Remaining => samples.ceil(),
+        };
+
+        self.sound_remainder = (samples - samples_rounded) / samples_per_second as f64;
+
+        samples_rounded as i32
+    }
+
     #[hawktracer(write_audio_frame)]
     fn write_audio_frame(&mut self, samples: &[u8]) -> eyre::Result<()> {
         self.muxer.write_audio_frame(samples)?;
@@ -444,17 +456,11 @@ pub unsafe fn capture_sound(marker: MainThreadMarker, mode: SoundCaptureMode) {
             _ => unreachable!(),
         };
 
+        let samples_per_second = (**engine::shm.get(marker)).speed;
+        let samples = recorder.samples_to_capture(samples_per_second, mode);
+
         let painted_time = *engine::paintedtime.get(marker);
-        let speed = (**engine::shm.get(marker)).speed;
-        let samples = recorder.sound_remainder * speed as f64;
-        let samples_rounded = match mode {
-            SoundCaptureMode::Normal => samples.floor(),
-            SoundCaptureMode::Remaining => samples.ceil(),
-        };
-
-        recorder.sound_remainder = (samples - samples_rounded) / speed as f64;
-
-        painted_time + samples_rounded as i32
+        painted_time + samples as i32
     };
 
     engine::S_PaintChannels.get(marker)(end_time);
