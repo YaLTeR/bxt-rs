@@ -201,6 +201,7 @@ impl Recorder {
         })
     }
 
+    #[hawktracer(initialize_opengl_capturing)]
     unsafe fn initialize_opengl_capturing(&mut self, marker: MainThreadMarker) -> eyre::Result<()> {
         let external_image_frame_memory = self.vulkan.external_image_frame_memory()?;
         let external_semaphore = self.vulkan.external_semaphore()?;
@@ -218,6 +219,7 @@ impl Recorder {
         Ok(())
     }
 
+    #[hawktracer(acquire_and_capture)]
     unsafe fn acquire_and_capture(&mut self, frames: usize) -> eyre::Result<()> {
         self.vulkan.acquire_image_and_sample()?;
         self.vulkan
@@ -225,6 +227,7 @@ impl Recorder {
         Ok(())
     }
 
+    #[hawktracer(record_last_frame)]
     unsafe fn record_last_frame(&mut self) -> eyre::Result<Option<f64>> {
         if let Some(last_frame_time) = self.last_frame_time.take() {
             self.remainder += last_frame_time / self.time_base;
