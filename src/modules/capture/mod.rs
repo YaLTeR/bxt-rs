@@ -139,9 +139,6 @@ struct Recorder {
     /// output.
     remainder: f64,
 
-    /// Duration of the last frame in seconds.
-    last_frame_time: f64,
-
     /// Difference, in seconds, between how much time passed in-game and how much audio we output.
     sound_remainder: f64,
 
@@ -193,7 +190,6 @@ impl Recorder {
             height,
             time_base,
             remainder: 0.,
-            last_frame_time: 0.,
             sound_remainder: 0.,
             vulkan,
             muxer,
@@ -242,8 +238,8 @@ impl Recorder {
     }
 
     fn time_passed(&mut self, time: f64) {
-        self.last_frame_time += time;
         self.remainder += time / self.time_base;
+        self.sound_remainder += time;
     }
 
     #[hawktracer(write_audio_frame)]
@@ -320,11 +316,8 @@ fn cap_stop(marker: MainThreadMarker) {
                 return;
             }
 
-            let last_frame_time = recorder.last_frame_time;
-            recorder.last_frame_time = 0.;
-
             drop(state);
-            capture_sound(marker, last_frame_time, SoundCaptureMode::Remaining);
+            capture_sound(marker, SoundCaptureMode::Remaining);
         }
     }
 
@@ -385,13 +378,10 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
         return;
     }
 
-    let last_frame_time = recorder.last_frame_time;
-    recorder.last_frame_time = 0.;
-
-    let mut state = if last_frame_time > 0. {
+    let mut state = if recorder.sound_remainder > 0. {
         drop(state);
 
-        capture_sound(marker, last_frame_time, SoundCaptureMode::Normal);
+        capture_sound(marker, SoundCaptureMode::Normal);
 
         STATE.borrow_mut(marker)
     } else {
@@ -438,7 +428,7 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
 
         // Make sure we don't call Vulkan as OpenGL could've failed in the middle leaving semaphore
         // in a bad state.
-        recorder.last_frame_time = 0.;
+        recorder.remainder = 0.;
 
         drop(state);
         cap_stop(marker);
@@ -451,7 +441,7 @@ pub unsafe fn skip_paint_channels(marker: MainThreadMarker) -> bool {
 }
 
 #[hawktracer(capture_sound)]
-pub unsafe fn capture_sound(marker: MainThreadMarker, time: f64, mode: SoundCaptureMode) {
+pub unsafe fn capture_sound(marker: MainThreadMarker, mode: SoundCaptureMode) {
     let end_time = {
         let mut state = STATE.borrow_mut(marker);
         let recorder = match *state {
@@ -461,13 +451,13 @@ pub unsafe fn capture_sound(marker: MainThreadMarker, time: f64, mode: SoundCapt
 
         let painted_time = *engine::paintedtime.get(marker);
         let speed = (**engine::shm.get(marker)).speed;
-        let samples = time * speed as f64 + recorder.sound_remainder;
+        let samples = recorder.sound_remainder * speed as f64;
         let samples_rounded = match mode {
             SoundCaptureMode::Normal => samples.floor(),
             SoundCaptureMode::Remaining => samples.ceil(),
         };
 
-        recorder.sound_remainder = samples - samples_rounded;
+        recorder.sound_remainder = (samples - samples_rounded) / speed as f64;
 
         painted_time + samples_rounded as i32
     };
