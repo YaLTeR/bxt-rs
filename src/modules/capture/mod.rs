@@ -246,6 +246,12 @@ impl Recorder {
             Ok(None)
         }
     }
+
+    #[hawktracer(write_audio_frame)]
+    fn write_audio_frame(&mut self, samples: &[u8]) -> eyre::Result<()> {
+        self.muxer.write_audio_frame(samples)?;
+        Ok(())
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -493,7 +499,6 @@ pub unsafe fn on_s_transfer_stereo_16(marker: MainThreadMarker, end: i32) {
     }
 
     recorder
-        .muxer
         .write_audio_frame(&buf[..sample_count * 4])
         .unwrap();
 }
