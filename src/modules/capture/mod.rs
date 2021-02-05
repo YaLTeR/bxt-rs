@@ -252,6 +252,11 @@ impl Recorder {
         self.muxer.write_audio_frame(samples)?;
         Ok(())
     }
+
+    #[hawktracer(recorder_finish)]
+    fn finish(self) {
+        self.muxer.close();
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -266,7 +271,7 @@ impl State {
         let old_state = mem::replace(self, new);
 
         if let State::Recording(recorder) = old_state {
-            recorder.muxer.close();
+            recorder.finish();
         }
     }
 }
