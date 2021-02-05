@@ -150,6 +150,7 @@ impl OpenGL {
     }
 }
 
+#[hawktracer(opengl_init)]
 pub unsafe fn init(
     marker: MainThreadMarker,
     width: i32,
@@ -158,8 +159,6 @@ pub unsafe fn init(
     external_image_frame_memory: ExternalObject,
     external_semaphore: ExternalObject,
 ) -> eyre::Result<OpenGL> {
-    scoped_tracepoint!(opengl_init_);
-
     let gl = gl::GL.borrow(marker);
     let gl = gl.as_ref().unwrap();
 
