@@ -107,6 +107,7 @@ impl Muxer {
         command
             .args(&args)
             .stdin(Stdio::piped())
+            .stdout(Stdio::inherit())
             .stderr(Stdio::inherit());
 
         #[cfg(windows)]
