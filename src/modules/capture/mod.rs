@@ -223,6 +223,10 @@ impl Recorder {
         self.initialize_opengl_capturing(marker)
     }
 
+    unsafe fn capture_opengl(&self) -> eyre::Result<()> {
+        self.opengl.as_ref().unwrap().capture()
+    }
+
     #[hawktracer(acquire_and_capture)]
     unsafe fn acquire_and_capture(&mut self, frames: usize) -> eyre::Result<()> {
         self.vulkan.acquire_image()?;
@@ -410,7 +414,7 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
     }
 
     // Capture this frame for recording later.
-    if let Err(err) = recorder.opengl.as_ref().unwrap().capture() {
+    if let Err(err) = recorder.capture_opengl() {
         error!("error capturing frame: {:?}", err);
         con_print(
             marker,
