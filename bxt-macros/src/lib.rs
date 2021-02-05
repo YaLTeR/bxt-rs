@@ -51,7 +51,7 @@ pub fn pattern(input: TokenStream) -> TokenStream {
         );
     }
 
-    output.push_str("]");
+    output.push(']');
     output.parse().unwrap()
 }
 
