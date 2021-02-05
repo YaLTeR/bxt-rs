@@ -221,7 +221,7 @@ impl Recorder {
 
     #[hawktracer(acquire_and_capture)]
     unsafe fn acquire_and_capture(&mut self, frames: usize) -> eyre::Result<()> {
-        self.vulkan.acquire_image_and_sample()?;
+        self.vulkan.acquire_image()?;
         self.vulkan
             .convert_colors_and_mux(&mut self.muxer, frames)?;
         Ok(())

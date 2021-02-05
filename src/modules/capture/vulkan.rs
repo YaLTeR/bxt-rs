@@ -241,8 +241,8 @@ impl Vulkan {
         Ok(semaphore_handle)
     }
 
-    #[hawktracer(acquire_image_and_sample)]
-    pub unsafe fn acquire_image_and_sample(&self) -> eyre::Result<()> {
+    #[hawktracer(acquire_image)]
+    pub unsafe fn acquire_image(&self) -> eyre::Result<()> {
         let begin_info = vk::CommandBufferBeginInfo::builder()
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
         self.device
