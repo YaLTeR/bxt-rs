@@ -140,7 +140,7 @@ struct Recorder {
     remainder: f64,
 
     /// Duration of the last frame in seconds.
-    last_frame_time: Option<f64>,
+    last_frame_time: f64,
 
     /// Difference, in seconds, between how much time passed in-game and how much audio we output.
     sound_remainder: f64,
@@ -193,7 +193,7 @@ impl Recorder {
             height,
             time_base,
             remainder: 0.,
-            last_frame_time: None,
+            last_frame_time: 0.,
             sound_remainder: 0.,
             vulkan,
             muxer,
@@ -228,23 +228,17 @@ impl Recorder {
     }
 
     #[hawktracer(record_last_frame)]
-    unsafe fn record_last_frame(&mut self) -> eyre::Result<Option<f64>> {
-        if let Some(last_frame_time) = self.last_frame_time.take() {
-            self.remainder += last_frame_time / self.time_base;
+    unsafe fn record_last_frame(&mut self) -> eyre::Result<()> {
+        // Push this frame as long as it takes up the most of the video frame.
+        // Remainder is > -0.5 at all times.
+        let frames = (self.remainder + 0.5) as usize;
+        self.remainder -= frames as f64;
 
-            // Push this frame as long as it takes up the most of the video frame.
-            // Remainder is > -0.5 at all times.
-            let frames = (self.remainder + 0.5) as usize;
-            self.remainder -= frames as f64;
-
-            if frames > 0 {
-                self.acquire_and_capture(frames)?;
-            }
-
-            Ok(Some(last_frame_time))
-        } else {
-            Ok(None)
+        if frames > 0 {
+            self.acquire_and_capture(frames)?;
         }
+
+        Ok(())
     }
 
     #[hawktracer(write_audio_frame)]
@@ -314,15 +308,15 @@ fn cap_stop(marker: MainThreadMarker) {
     unsafe {
         let mut state = STATE.borrow_mut(marker);
         if let State::Recording(ref mut recorder) = *state {
-            let last_frame_time = match recorder.record_last_frame() {
-                Ok(last_frame_time) => last_frame_time.unwrap_or(0.),
-                Err(err) => {
-                    error!("error in Vulkan capturing: {:?}", err);
-                    con_print(marker, "Error in Vulkan capturing, stopping recording.\n");
-                    *state = State::Idle;
-                    return;
-                }
-            };
+            if let Err(err) = recorder.record_last_frame() {
+                error!("error in Vulkan capturing: {:?}", err);
+                con_print(marker, "Error in Vulkan capturing, stopping recording.\n");
+                *state = State::Idle;
+                return;
+            }
+
+            let last_frame_time = recorder.last_frame_time;
+            recorder.last_frame_time = 0.;
 
             drop(state);
             capture_sound(marker, last_frame_time, SoundCaptureMode::Remaining);
@@ -379,17 +373,17 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
     };
 
     // Now that we have the duration of the last frame, record it.
-    let last_frame_time = match recorder.record_last_frame() {
-        Ok(last_frame_time) => last_frame_time,
-        Err(err) => {
-            error!("error in Vulkan capturing: {:?}", err);
-            con_print(marker, "Error in Vulkan capturing, stopping recording.\n");
-            *state = State::Idle;
-            return;
-        }
-    };
+    if let Err(err) = recorder.record_last_frame() {
+        error!("error in Vulkan capturing: {:?}", err);
+        con_print(marker, "Error in Vulkan capturing, stopping recording.\n");
+        *state = State::Idle;
+        return;
+    }
 
-    let mut state = if let Some(last_frame_time) = last_frame_time {
+    let last_frame_time = recorder.last_frame_time;
+    recorder.last_frame_time = 0.;
+
+    let mut state = if last_frame_time > 0. {
         drop(state);
 
         capture_sound(marker, last_frame_time, SoundCaptureMode::Normal);
@@ -439,7 +433,7 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
 
         // Make sure we don't call Vulkan as OpenGL could've failed in the middle leaving semaphore
         // in a bad state.
-        recorder.last_frame_time = None;
+        recorder.last_frame_time = 0.;
 
         drop(state);
         cap_stop(marker);
@@ -571,6 +565,7 @@ pub unsafe fn time_passed(marker: MainThreadMarker) {
     };
 
     // Accumulate time for the last frame.
-    let last_frame_time = recorder.last_frame_time.unwrap_or(0.);
-    recorder.last_frame_time = Some(last_frame_time + *engine::host_frametime.get(marker));
+    let time = *engine::host_frametime.get(marker);
+    recorder.last_frame_time += time;
+    recorder.remainder += time / recorder.time_base;
 }
