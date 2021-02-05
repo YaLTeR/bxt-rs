@@ -87,17 +87,15 @@ impl Recorder {
 
     #[hawktracer(initialize_opengl_capturing)]
     unsafe fn initialize_opengl_capturing(&mut self, marker: MainThreadMarker) -> eyre::Result<()> {
-        let external_image_frame_memory = self.vulkan.external_image_frame_memory()?;
-        let external_semaphore = self.vulkan.external_semaphore()?;
-        let size = self.vulkan.image_frame_memory_size();
+        let external_handles = self.vulkan.external_handles()?;
 
         self.opengl = Some(opengl::init(
             marker,
             self.width,
             self.height,
-            size,
-            external_image_frame_memory,
-            external_semaphore,
+            external_handles.size,
+            external_handles.external_image_frame_memory,
+            external_handles.external_semaphore,
         )?);
 
         Ok(())

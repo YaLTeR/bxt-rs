@@ -118,6 +118,13 @@ pub struct Vulkan {
     pipeline: vk::Pipeline,
 }
 
+#[derive(Debug)]
+pub struct ExternalHandles {
+    pub external_image_frame_memory: ExternalObject,
+    pub external_semaphore: ExternalObject,
+    pub size: u64,
+}
+
 impl Drop for Vulkan {
     fn drop(&mut self) {
         unsafe {
@@ -192,6 +199,18 @@ impl Vulkan {
 
     pub fn image_frame_memory_size(&self) -> u64 {
         self.image_frame_memory_size
+    }
+
+    pub fn external_handles(&self) -> eyre::Result<ExternalHandles> {
+        let external_image_frame_memory = self.external_image_frame_memory()?;
+        let external_semaphore = self.external_semaphore()?;
+        let size = self.image_frame_memory_size();
+
+        Ok(ExternalHandles {
+            external_image_frame_memory,
+            external_semaphore,
+            size,
+        })
     }
 
     #[cfg(unix)]
