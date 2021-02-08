@@ -176,15 +176,13 @@ fn cap_stop(marker: MainThreadMarker) {
     unsafe {
         let mut state = STATE.borrow_mut(marker);
         if let State::Recording(ref mut recorder) = *state {
-            if let Err(err) = recorder.record_last_frame() {
-                error!("error in Vulkan capturing: {:?}", err);
-                con_print(marker, "Error in Vulkan capturing, stopping recording.\n");
-                *state = State::Idle;
-                return;
+            match recorder.record_last_frame() {
+                Ok(()) => {
+                    drop(state);
+                    capture_sound(marker, SoundCaptureMode::Remaining);
+                }
+                Err(err) => error!("{:?}", err),
             }
-
-            drop(state);
-            capture_sound(marker, SoundCaptureMode::Remaining);
         }
     }
 
@@ -239,9 +237,10 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
 
     // Now that we have the duration of the last frame, record it.
     if let Err(err) = recorder.record_last_frame() {
-        error!("error in Vulkan capturing: {:?}", err);
-        con_print(marker, "Error in Vulkan capturing, stopping recording.\n");
-        *state = State::Idle;
+        error!("{:?}", err);
+        con_print(marker, "Error during recording, stopping.\n");
+        drop(state);
+        cap_stop(marker);
         return;
     }
 
@@ -261,30 +260,13 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
         return;
     }
 
-    // We'll need OpenGL. Initialize it if it isn't.
-    if let Err(err) = recorder.ensure_opengl(marker) {
-        error!("error initializing OpenGL capturing: {:?}", err);
-        con_print(marker, "Error initializing OpenGL, stopping recording.\n");
-
+    // Capture this frame for recording later.
+    if let Err(err) = recorder.capture_opengl(marker) {
+        error!("{:?}", err);
+        con_print(marker, "Error during recording, stopping.\n");
         drop(state);
         cap_stop(marker);
         return;
-    }
-
-    // Capture this frame for recording later.
-    if let Err(err) = recorder.capture_opengl() {
-        error!("error capturing frame: {:?}", err);
-        con_print(
-            marker,
-            "Error capturing frame with OpenGL, stopping recording.\n",
-        );
-
-        // Make sure we don't call Vulkan as OpenGL could've failed in the middle leaving semaphore
-        // in a bad state.
-        recorder.reset_video_remainder();
-
-        drop(state);
-        cap_stop(marker);
     }
 }
 
@@ -339,9 +321,7 @@ pub unsafe fn on_s_transfer_stereo_16(marker: MainThreadMarker, end: i32) {
         buf[2..4].copy_from_slice(&r16.to_le_bytes());
     }
 
-    recorder
-        .write_audio_frame(&buf[..sample_count * 4])
-        .unwrap();
+    recorder.write_audio_frame((&buf[..sample_count * 4]).into());
 }
 
 pub unsafe fn on_host_filter_time(marker: MainThreadMarker) -> bool {
@@ -408,20 +388,7 @@ pub unsafe fn time_passed(marker: MainThreadMarker) {
 
     // Accumulate time for the last frame.
     let time = *engine::host_frametime.get(marker);
-    if let Err(err) = recorder.time_passed(time) {
-        error!("error acquiring image: {:?}", err);
-        con_print(
-            marker,
-            "Error capturing frame with Vulkan, stopping recording.\n",
-        );
-
-        // Make sure we don't call Vulkan as we could've left semaphore in a bad state.
-        recorder.reset_video_remainder();
-
-        drop(state);
-        cap_stop(marker);
-        return;
-    }
+    recorder.time_passed(time);
 
     // Capture sound ASAP.
     //

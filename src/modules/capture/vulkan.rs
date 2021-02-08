@@ -125,6 +125,10 @@ pub struct ExternalHandles {
     pub size: u64,
 }
 
+// Yes, these handles can be sent across threads.
+#[cfg(windows)]
+unsafe impl Send for ExternalHandles {}
+
 impl Drop for Vulkan {
     fn drop(&mut self) {
         unsafe {
