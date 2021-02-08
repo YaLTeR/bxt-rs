@@ -373,7 +373,7 @@ pub unsafe fn on_cl_disconnect(marker: MainThreadMarker) {
         }
 
         // Will play another demo right after.
-        if cls_demos.demonum != -1 {
+        if cls_demos.demonum != -1 && cls_demos.demos[0][0] != 0 {
             return;
         }
     }
