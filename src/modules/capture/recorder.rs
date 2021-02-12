@@ -229,7 +229,9 @@ impl Recorder {
         let samples = self.sound_remainder * samples_per_second as f64;
         let samples_rounded = match mode {
             SoundCaptureMode::Normal => samples.floor(),
-            SoundCaptureMode::Remaining => samples.ceil(),
+            SoundCaptureMode::Remaining { extra } => {
+                (samples + extra as f64 * samples_per_second as f64).ceil()
+            }
         };
 
         self.sound_remainder = (samples - samples_rounded) / samples_per_second as f64;

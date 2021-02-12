@@ -24,7 +24,7 @@ impl Module for Capture {
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
-        static CVARS: &[&CVar] = &[&BXT_CAP_FPS, &BXT_CAP_VOLUME];
+        static CVARS: &[&CVar] = &[&BXT_CAP_FPS, &BXT_CAP_VOLUME, &BXT_CAP_SOUND_EXTRA];
         &CVARS
     }
 
@@ -59,6 +59,7 @@ pub type ExternalObject = std::os::unix::io::RawFd;
 pub type ExternalObject = *mut std::os::raw::c_void;
 
 static BXT_CAP_FPS: CVar = CVar::new(b"bxt_cap_fps\0", b"60\0");
+static BXT_CAP_SOUND_EXTRA: CVar = CVar::new(b"bxt_cap_sound_extra\0", b"0\0");
 static BXT_CAP_VOLUME: CVar = CVar::new(b"bxt_cap_volume\0", b"0.4\0");
 
 static HAVE_REQUIRED_GL_EXTENSIONS: MainThreadCell<bool> = MainThreadCell::new(false);
@@ -116,8 +117,8 @@ pub enum SoundCaptureMode {
     /// Floor time to sample boundary.
     Normal,
 
-    /// Ceil time to sample boundary.
-    Remaining,
+    /// Ceil time to sample boundary and capture this number of seconds of extra sound.
+    Remaining { extra: f32 },
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -178,7 +179,8 @@ fn cap_stop(marker: MainThreadMarker) {
             match recorder.record_last_frame() {
                 Ok(()) => {
                     drop(state);
-                    capture_sound(marker, SoundCaptureMode::Remaining);
+                    let extra = BXT_CAP_SOUND_EXTRA.as_f32(marker);
+                    capture_sound(marker, SoundCaptureMode::Remaining { extra });
                 }
                 Err(err) => error!("{:?}", err),
             }
