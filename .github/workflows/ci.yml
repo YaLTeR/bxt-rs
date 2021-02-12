@@ -60,9 +60,9 @@ jobs:
             release-flag: '--release'
 
           - features: profiling
-            profiling-dep: lib32stdc++-7-dev
+            profiling-dep: lib32stdc++-9-dev
           - features: 'vulkan-debug,profiling'
-            profiling-dep: lib32stdc++-7-dev
+            profiling-dep: lib32stdc++-9-dev
 
     name: ${{ matrix.rust }} - ${{ matrix.label }} - ${{ matrix.configuration }} - ${{ matrix.features }}
     runs-on: ${{ matrix.os }}
