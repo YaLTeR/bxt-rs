@@ -24,7 +24,7 @@ impl Module for Capture {
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
-        static CVARS: &[&CVar] = &[&BXT_CAP_FPS, &BXT_CAP_VOLUME, &BXT_CAP_PLAYDEMOSTOP];
+        static CVARS: &[&CVar] = &[&BXT_CAP_FPS, &BXT_CAP_VOLUME];
         &CVARS
     }
 
@@ -60,7 +60,6 @@ pub type ExternalObject = *mut std::os::raw::c_void;
 
 static BXT_CAP_FPS: CVar = CVar::new(b"bxt_cap_fps\0", b"60\0");
 static BXT_CAP_VOLUME: CVar = CVar::new(b"bxt_cap_volume\0", b"0.4\0");
-static BXT_CAP_PLAYDEMOSTOP: CVar = CVar::new(b"bxt_cap_playdemostop\0", b"1\0");
 
 static HAVE_REQUIRED_GL_EXTENSIONS: MainThreadCell<bool> = MainThreadCell::new(false);
 
@@ -356,10 +355,6 @@ pub unsafe fn on_cl_disconnect(marker: MainThreadMarker) {
         if cls_demos.demonum != -1 && cls_demos.demos[0][0] != 0 {
             return;
         }
-    }
-
-    if !BXT_CAP_PLAYDEMOSTOP.as_bool(marker) {
-        return;
     }
 
     cap_stop(marker);
