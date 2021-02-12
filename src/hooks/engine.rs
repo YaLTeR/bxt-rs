@@ -15,7 +15,7 @@ use rust_hawktracer::*;
 use crate::{
     ffi::{command::cmd_function_s, cvar::cvar_s, playermove::playermove_s, usercmd::usercmd_s},
     hooks::{sdl, server},
-    modules::{capture, commands, cvars, demo_playback, fade_remove, tas_logging},
+    modules::{capture, commands, cvars, demo_playback, fade_remove, force_fov, tas_logging},
     utils::*,
     vulkan,
 };
@@ -241,6 +241,17 @@ pub static paintbuffer: Pointer<*mut [portable_samplepair_t; 1026]> =
     Pointer::empty(b"paintbuffer\0");
 pub static paintedtime: Pointer<*mut c_int> = Pointer::empty(b"paintedtime\0");
 pub static realtime: Pointer<*mut f64> = Pointer::empty(b"realtime\0");
+pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"R_SetFrustum\0",
+    // To find, search for "R_RenderView". This is R_RenderView(). The call between two if (global
+    // == 0) {} conditions is R_RenderScene(). Open R_RenderScene(). The second call after the first
+    // check is R_SetFrustum().
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 83 EC 08 DB 05),
+    ]),
+    my_R_SetFrustum as _,
+);
 pub static ReleaseEntityDlls: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"ReleaseEntityDlls\0",
     // Find Host_Shutdown(). It has a Mem_Free() if. The 3-rd function above that if is
@@ -272,6 +283,7 @@ pub static S_TransferStereo16: Pointer<unsafe extern "C" fn(c_int)> = Pointer::e
     ]),
     my_S_TransferStereo16 as _,
 );
+pub static scr_fov_value: Pointer<*mut c_float> = Pointer::empty(b"scr_fov_value\0");
 pub static shm: Pointer<*mut *mut dma_t> = Pointer::empty(b"shm\0");
 pub static sv: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
 pub static SV_Frame: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
@@ -377,9 +389,11 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &paintbuffer,
     &paintedtime,
     &realtime,
+    &R_SetFrustum,
     &ReleaseEntityDlls,
     &S_PaintChannels,
     &S_TransferStereo16,
+    &scr_fov_value,
     &shm,
     &sv,
     #[cfg(not(feature = "bxt-compatibility"))]
@@ -658,6 +672,15 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
             VideoMode_IsWindowed.set_if_empty(marker, ptr.by_relative_call(marker, 24));
             VideoMode_GetCurrentVideoMode.set_if_empty(marker, ptr.by_relative_call(marker, 79));
             window_rect.set(marker, ptr.by_offset(marker, 43));
+        }
+        _ => (),
+    }
+
+    let ptr = &R_SetFrustum;
+    match ptr.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            scr_fov_value.set(marker, ptr.by_offset(marker, 13));
         }
         _ => (),
     }
@@ -955,6 +978,19 @@ pub mod exported {
             Host_NextDemo.get(marker)();
 
             demo_playback::set_next_demo(marker);
+        })
+    }
+
+    #[export_name = "R_SetFrustum"]
+    pub unsafe extern "C" fn my_R_SetFrustum() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if let Some(fov) = force_fov::fov(marker) {
+                *scr_fov_value.get(marker) = fov;
+            }
+
+            R_SetFrustum.get(marker)();
         })
     }
 }

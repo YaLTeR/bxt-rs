@@ -11,6 +11,7 @@ use cvars::CVar;
 pub mod capture;
 pub mod demo_playback;
 pub mod fade_remove;
+pub mod force_fov;
 pub mod module_list;
 pub mod tas_logging;
 
@@ -40,6 +41,7 @@ pub static MODULES: &[&dyn Module] = &[
     &cvars::CVars,
     &demo_playback::DemoPlayback,
     &fade_remove::FadeRemove,
+    &force_fov::ForceFov,
     &module_list::ModuleList,
     &tas_logging::TASLogging,
 ];
