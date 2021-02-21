@@ -251,6 +251,8 @@ pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
     Patterns(&[
         // 6153
         pattern!(55 8B EC 83 EC 08 DB 05),
+        // 4554
+        pattern!(83 EC 08 DB 05 ?? ?? ?? ?? A1 ?? ?? ?? ?? 56 89 44 24 04),
     ]),
     my_R_SetFrustum as _,
 );
@@ -698,6 +700,10 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 6153
         Some(0) => {
             scr_fov_value.set(marker, ptr.by_offset(marker, 13));
+        }
+        // 4554
+        Some(1) => {
+            scr_fov_value.set(marker, ptr.by_offset(marker, 10));
         }
         _ => (),
     }
