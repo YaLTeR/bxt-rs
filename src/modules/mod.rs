@@ -13,6 +13,7 @@ pub mod demo_playback;
 pub mod fade_remove;
 pub mod force_fov;
 pub mod module_list;
+pub mod shake_remove;
 pub mod tas_logging;
 
 /// Trait for getting module information.
@@ -43,5 +44,6 @@ pub static MODULES: &[&dyn Module] = &[
     &fade_remove::FadeRemove,
     &force_fov::ForceFov,
     &module_list::ModuleList,
+    &shake_remove::ShakeRemove,
     &tas_logging::TASLogging,
 ];

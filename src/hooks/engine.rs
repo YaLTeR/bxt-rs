@@ -15,7 +15,9 @@ use rust_hawktracer::*;
 use crate::{
     ffi::{command::cmd_function_s, cvar::cvar_s, playermove::playermove_s, usercmd::usercmd_s},
     hooks::{sdl, server},
-    modules::{capture, commands, cvars, demo_playback, fade_remove, force_fov, tas_logging},
+    modules::{
+        capture, commands, cvars, demo_playback, fade_remove, force_fov, shake_remove, tas_logging,
+    },
     utils::*,
     vulkan,
 };
@@ -307,6 +309,20 @@ pub static Sys_VID_FlipScreen: Pointer<unsafe extern "C" fn()> = Pointer::empty_
     ]),
     my_Sys_VID_FlipScreen as _,
 );
+pub static V_ApplyShake: Pointer<unsafe extern "C" fn(*mut c_float, *mut c_float, c_float)> =
+    Pointer::empty_patterns(
+        b"V_ApplyShake\0",
+        // To find, search for "ScreenShake". This is ClientDLL_Init(), near the bottom there are
+        // two similar function calls, one is using our string as the 1st param and the 2nd param as
+        // another function, open it. This is V_ScreenShake(), right above it is V_ApplyShake().
+        Patterns(&[
+            // 6153
+            pattern!(55 8B EC 8D 45 ?? 8D 4D ?? 50 8D 55 ?? 51 52 FF 15 ?? ?? ?? ?? 8B 45 ?? 83 C4 0C),
+            // 4554
+            pattern!(8D 44 24 ?? 8D 4C 24 ?? 50 8D 54 24 ?? 51 52 FF 15 ?? ?? ?? ?? 8B 44 24 ?? 83 C4 0C),
+        ]),
+        my_V_ApplyShake as _,
+    );
 pub static V_FadeAlpha: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
     b"V_FadeAlpha\0",
     // To find, search for "%3ifps %3i ms  %4i wpoly %4i epoly". This will lead to either
@@ -399,6 +415,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     #[cfg(not(feature = "bxt-compatibility"))]
     &SV_Frame,
     &Sys_VID_FlipScreen,
+    &V_ApplyShake,
     #[cfg(not(feature = "bxt-compatibility"))]
     &V_FadeAlpha,
     &VideoMode_IsWindowed,
@@ -820,6 +837,23 @@ pub mod exported {
 
             sdl::reset_pointers(marker);
             reset_pointers(marker);
+        })
+    }
+
+    #[export_name = "V_ApplyShake"]
+    pub unsafe extern "C" fn my_V_ApplyShake(
+        origin: *mut c_float,
+        angles: *mut c_float,
+        factor: c_float,
+    ) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if shake_remove::is_active(marker) {
+                return;
+            } else {
+                V_ApplyShake.get(marker)(origin, angles, factor);
+            }
         })
     }
 
