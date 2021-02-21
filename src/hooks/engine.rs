@@ -252,7 +252,7 @@ pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
         // 6153
         pattern!(55 8B EC 83 EC 08 DB 05),
         // 4554
-        pattern!(83 EC 08 DB 05),
+        pattern!(83 EC 08 DB 05 ?? ?? ?? ?? A1 ?? ?? ?? ?? 56 89 44 24 04),
     ]),
     my_R_SetFrustum as _,
 );
