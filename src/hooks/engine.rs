@@ -15,7 +15,9 @@ use rust_hawktracer::*;
 use crate::{
     ffi::{command::cmd_function_s, cvar::cvar_s, playermove::playermove_s, usercmd::usercmd_s},
     hooks::{sdl, server},
-    modules::{capture, commands, cvars, demo_playback, fade_remove, force_fov, shake_remove, tas_logging},
+    modules::{
+        capture, commands, cvars, demo_playback, fade_remove, force_fov, shake_remove, tas_logging,
+    },
     utils::*,
     vulkan,
 };
@@ -839,12 +841,16 @@ pub mod exported {
     }
 
     #[export_name = "V_ApplyShake"]
-    pub unsafe extern "C" fn my_V_ApplyShake(origin: *mut c_float, angles: *mut c_float, factor: c_float) {
+    pub unsafe extern "C" fn my_V_ApplyShake(
+        origin: *mut c_float,
+        angles: *mut c_float,
+        factor: c_float,
+    ) {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
             if shake_remove::is_active(marker) {
-                return
+                return;
             } else {
                 V_ApplyShake.get(marker)(origin, angles, factor);
             }
