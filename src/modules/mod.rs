@@ -47,5 +47,5 @@ pub static MODULES: &[&dyn Module] = &[
     &hud_scale::HudScale,
     &module_list::ModuleList,
     &shake_remove::ShakeRemove,
-    &tas_logging::TASLogging,
+    &tas_logging::TasLogging,
 ];

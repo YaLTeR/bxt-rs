@@ -936,9 +936,9 @@ pub mod exported {
 
             if shake_remove::is_active(marker) {
                 return;
-            } else {
-                V_ApplyShake.get(marker)(origin, angles, factor);
             }
+
+            V_ApplyShake.get(marker)(origin, angles, factor);
         })
     }
 

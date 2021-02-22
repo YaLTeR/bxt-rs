@@ -6,7 +6,7 @@ use rust_hawktracer::*;
 
 use super::{
     muxer::{Muxer, MuxerInitError},
-    opengl::{self, OpenGL},
+    opengl::{self, OpenGl},
     vulkan::{self, ExternalHandles, Vulkan},
     SoundCaptureMode,
 };
@@ -31,7 +31,7 @@ pub struct Recorder {
 
     /// OpenGL state; might be missing if the capturing just started or just after an engine
     /// restart.
-    opengl: Option<OpenGL>,
+    opengl: Option<OpenGl>,
 
     /// Whether Vulkan has already acquired the last frame.
     acquired_image: bool,

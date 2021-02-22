@@ -7,7 +7,7 @@ use crate::{gl, utils::MainThreadMarker};
 
 use super::ExternalObject;
 
-pub struct OpenGL {
+pub struct OpenGl {
     marker: MainThreadMarker,
     width: i32,
     height: i32,
@@ -17,7 +17,7 @@ pub struct OpenGL {
     framebuffer: u32,
 }
 
-impl Drop for OpenGL {
+impl Drop for OpenGl {
     fn drop(&mut self) {
         let gl = gl::GL.borrow(self.marker);
         let gl = gl.as_ref().unwrap();
@@ -64,7 +64,7 @@ unsafe fn reset_gl_error(gl: &gl::Gl) {
     while gl.GetError() != gl::NO_ERROR {}
 }
 
-impl OpenGL {
+impl OpenGl {
     #[hawktracer(opengl_capture)]
     pub unsafe fn capture(&self) -> eyre::Result<()> {
         let gl = gl::GL.borrow(self.marker);
@@ -158,7 +158,7 @@ pub unsafe fn init(
     size: u64,
     external_image_frame_memory: ExternalObject,
     external_semaphore: ExternalObject,
-) -> eyre::Result<OpenGL> {
+) -> eyre::Result<OpenGl> {
     let gl = gl::GL.borrow(marker);
     let gl = gl.as_ref().unwrap();
 
@@ -241,7 +241,7 @@ pub unsafe fn init(
     let mut framebuffer = 0;
     check!(gl, gl.GenFramebuffers(1, &mut framebuffer))?;
 
-    Ok(OpenGL {
+    Ok(OpenGl {
         marker,
         width,
         height,

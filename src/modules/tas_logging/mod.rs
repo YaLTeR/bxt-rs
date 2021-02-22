@@ -24,8 +24,8 @@ use crate::{
 mod serializer;
 use serializer::Serializer;
 
-pub struct TASLogging;
-impl Module for TASLogging {
+pub struct TasLogging;
+impl Module for TasLogging {
     fn name(&self) -> &'static str {
         "bxt_taslog"
     }
@@ -56,10 +56,10 @@ static BXT_TASLOG: Command = Command::new(
 
 static BXT_TASLOG_FILENAME: CVar = CVar::new(b"bxt_taslog_filename\0", b"taslogger.log\0");
 
-static TAS_LOG: MainThreadRefCell<Option<TASLog>> = MainThreadRefCell::new(None);
+static TAS_LOG: MainThreadRefCell<Option<TasLog>> = MainThreadRefCell::new(None);
 
 fn taslog(marker: MainThreadMarker, enabled: i32) {
-    if !TASLogging.is_enabled(marker) {
+    if !TasLogging.is_enabled(marker) {
         return;
     }
 
@@ -99,7 +99,7 @@ fn taslog(marker: MainThreadMarker, enabled: i32) {
         .get_opt(marker)
         .map(|dir| unsafe { CStr::from_ptr(dir.cast()).to_string_lossy() });
 
-    match TASLog::new(&filename, "bxt-rs 0.1", build_number, game_dir.as_deref()) {
+    match TasLog::new(&filename, "bxt-rs 0.1", build_number, game_dir.as_deref()) {
         Ok(tas_log_new) => {
             con_print(
                 marker,
@@ -196,11 +196,11 @@ pub fn end_cmd_frame(marker: MainThreadMarker) {
     }
 }
 
-struct TASLog {
+struct TasLog {
     ser: Serializer,
 }
 
-impl TASLog {
+impl TasLog {
     fn new<P: AsRef<Path>>(
         path: P,
         tool_version: &str,
