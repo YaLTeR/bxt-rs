@@ -11,7 +11,7 @@ fn main() {
     Registry::new(
         Api::Gl,
         (4, 6), // Extensions below were introduced in OpenGL 4.6.
-        Profile::Core,
+        Profile::Compatibility,
         Fallbacks::All,
         [
             "GL_EXT_memory_object",
