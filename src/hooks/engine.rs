@@ -538,6 +538,19 @@ pub fn prepend_command(marker: MainThreadMarker, command: &str) {
     }
 }
 
+/// Returns the current game resolution (width, height).
+pub unsafe fn get_resolution(marker: MainThreadMarker) -> (i32, i32) {
+    if VideoMode_IsWindowed.get(marker)() != 0 {
+        let rect = *window_rect.get(marker);
+        (rect.right - rect.left, rect.bottom - rect.top)
+    } else {
+        let mut width = 0;
+        let mut height = 0;
+        VideoMode_GetCurrentVideoMode.get(marker)(&mut width, &mut height, null_mut());
+        (width, height)
+    }
+}
+
 /// # Safety
 ///
 /// [`reset_pointers()`] must be called before hw is unloaded so the pointers don't go stale.

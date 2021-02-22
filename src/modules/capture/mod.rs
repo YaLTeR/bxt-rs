@@ -1,6 +1,6 @@
 //! Video capture.
 
-use std::{mem, os::raw::c_char, ptr::null_mut};
+use std::{mem, os::raw::c_char};
 
 use rust_hawktracer::*;
 
@@ -190,18 +190,6 @@ fn cap_stop(marker: MainThreadMarker) {
     STATE.borrow_mut(marker).set(State::Idle);
 }
 
-unsafe fn get_resolution(marker: MainThreadMarker) -> (i32, i32) {
-    if engine::VideoMode_IsWindowed.get(marker)() != 0 {
-        let rect = *engine::window_rect.get(marker);
-        (rect.right - rect.left, rect.bottom - rect.top)
-    } else {
-        let mut width = 0;
-        let mut height = 0;
-        engine::VideoMode_GetCurrentVideoMode.get(marker)(&mut width, &mut height, null_mut());
-        (width, height)
-    }
-}
-
 pub unsafe fn capture_frame(marker: MainThreadMarker) {
     if !Capture.is_enabled(marker) {
         return;
@@ -214,7 +202,7 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
 
     scoped_tracepoint!(capture_frame_);
 
-    let (width, height) = get_resolution(marker);
+    let (width, height) = engine::get_resolution(marker);
 
     // Initialize the recording if needed.
     if matches!(*state, State::Starting) {
