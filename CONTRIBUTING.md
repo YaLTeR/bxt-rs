@@ -57,7 +57,7 @@ This means that you need to find a pattern for `Host_NextDemo`. The next section
 
 ### Pointers with patterns
 
-For finding patterns I suggest [Ghidra](https://ghidra-sre.org/) and the [makesig.py](https://github.com/nosoop/ghidra_scripts/blob/master/makesig.py) script.
+For finding patterns I suggest [Ghidra](https://ghidra-sre.org/) and the [makesig.py](https://github.com/YaLTeR/ghidra_scripts/blob/master/makesig.py) script.
 
 For example, let's say you want to add a new pattern for `CL_GameDir_f`.
 
@@ -87,7 +87,7 @@ Go to the function. You can rename it if you want. Put the cursor somewhere insi
 
 Make signature at the start of the function. If the signature has trailing `??`, don't copy them.
 
-![](https://user-images.githubusercontent.com/1794388/106464932-62d0c880-64aa-11eb-84ad-c6788a4ee099.png)
+![](https://user-images.githubusercontent.com/1794388/108740828-23484a00-7547-11eb-9204-35a410d0336c.png)
 
 Add the signature to the list.
 
