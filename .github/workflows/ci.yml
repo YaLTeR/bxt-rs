@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
 
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-20.04, windows-2019]
         rust: [stable, beta]
         features: ['', vulkan-debug, profiling, 'vulkan-debug,profiling', bxt-compatibility]
         configuration: [debug, release]
@@ -28,10 +28,10 @@ jobs:
           # We want only a release profile build, but on Windows hawktracer fails to build on release.
           - configuration: debug
             features: profiling
-            os: ubuntu-latest
+            os: ubuntu-20.04
           - configuration: release
             features: profiling
-            os: windows-latest
+            os: windows-2019
 
           - configuration: debug
             features: bxt-compatibility
@@ -46,12 +46,12 @@ jobs:
             features: bxt-compatibility
 
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-20.04
             label: Ubuntu
             target: i686-unknown-linux-gnu
             filename: libbxt_rs.so
 
-          - os: windows-latest
+          - os: windows-2019
             label: Windows
             target: i686-pc-windows-msvc
             filename: bxt_rs.dll
@@ -71,7 +71,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Install dependencies
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-20.04'
         run: |
           sudo apt-get update
           sudo apt-get install libc6-dev-i386 ${{ matrix.profiling-dep }}
@@ -108,11 +108,11 @@ jobs:
 
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-20.04
             label: Ubuntu
             target: i686-unknown-linux-gnu
 
-          - os: windows-latest
+          - os: windows-2019
             label: Windows
             target: i686-pc-windows-msvc
 
@@ -138,7 +138,7 @@ jobs:
           args: --target ${{ matrix.target }}
 
   rustfmt:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - uses: actions/checkout@v2
