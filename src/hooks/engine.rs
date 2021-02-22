@@ -16,7 +16,8 @@ use crate::{
     ffi::{command::cmd_function_s, cvar::cvar_s, playermove::playermove_s, usercmd::usercmd_s},
     hooks::{sdl, server},
     modules::{
-        capture, commands, cvars, demo_playback, fade_remove, force_fov, shake_remove, tas_logging,
+        capture, commands, cvars, demo_playback, fade_remove, force_fov, hud_scale, shake_remove,
+        tas_logging,
     },
     utils::*,
     vulkan,
@@ -54,6 +55,36 @@ pub static CL_GameDir_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
         pattern!(E8 ?? ?? ?? ?? 83 F8 02 74 ?? 68 ?? ?? ?? ?? 68),
     ]),
     null_mut(),
+);
+pub static ClientDLL_HudRedraw: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
+    b"ClientDLL_HudRedraw\0",
+    // To find, search for "HUD_Redraw". This sets the HUD_Redraw pointer in cl_funcs; the function
+    // calling the pointer is ClientDLL_HudRedraw().
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC E8 ?? ?? ?? ?? 85 C0 75 ?? A1),
+    ]),
+    my_ClientDLL_HudRedraw as _,
+);
+pub static ClientDLL_HudVidInit: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"ClientDLL_HudVidInit\0",
+    // To find, search for "HUD_VidInit". This sets the HUD_VidInit pointer in cl_funcs; the
+    // function calling the pointer is ClientDLL_HudVidInit().
+    Patterns(&[
+        // 6153
+        pattern!(A1 ?? ?? ?? ?? 85 C0 75 ?? 68 1D 04 00 00),
+    ]),
+    my_ClientDLL_HudVidInit as _,
+);
+pub static ClientDLL_UpdateClientData: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"ClientDLL_UpdateClientData\0",
+    // To find, search for "HUD_UpdateClientData". This sets the HUD_UpdateClientData pointer in
+    // cl_funcs; the larger function calling the pointer is ClientDLL_UpdateClientData().
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 83 EC 44 83 3D ?? ?? ?? ?? 05),
+    ]),
+    my_ClientDLL_UpdateClientData as _,
 );
 pub static cls: Pointer<*mut client_static_s> = Pointer::empty(b"cls\0");
 pub static cls_demos: Pointer<*mut client_static_s_demos> = Pointer::empty(
@@ -116,6 +147,16 @@ pub static Cvar_RegisterVariable: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
         null_mut(),
     );
 pub static cvar_vars: Pointer<*mut *mut cvar_s> = Pointer::empty(b"cvar_vars\0");
+pub static DrawCrosshair: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer::empty_patterns(
+    b"DrawCrosshair\0",
+    // To find, search for "Client.dll SPR_DrawHoles error:  invalid frame". This is
+    // SPR_DrawHoles(), it's used in two places: a data table (cl_enginefuncs) and DrawCrosshair().
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC A1 ?? ?? ?? ?? 85 C0 74 ?? 8B 0D ?? ?? ?? ?? 8B 15),
+    ]),
+    my_DrawCrosshair as _,
+);
 pub static GL_BeginRendering: Pointer<
     unsafe extern "C" fn(*mut c_int, *mut c_int, *mut c_int, *mut c_int),
 > = Pointer::empty_patterns(
@@ -214,6 +255,16 @@ pub static Host_ValidSave: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::e
     ]),
     null_mut(),
 );
+pub static hudGetScreenInfo: Pointer<unsafe extern "C" fn(*mut SCREENINFO) -> c_int> =
+    Pointer::empty_patterns(
+        b"hudGetScreenInfo\0",
+        // 12th pointer in cl_enginefuncs.
+        Patterns(&[
+            // 6153
+            pattern!(55 8B EC 8D 45 ?? 50 FF 15 ?? ?? ?? ?? 8B 45 ?? 83 C4 04 85 C0 75 ?? 5D C3 81 38 14 02 00 00),
+        ]),
+        my_hudGetScreenInfo as _,
+    );
 pub static Memory_Init: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
     Pointer::empty_patterns(
         b"Memory_Init\0",
@@ -379,6 +430,9 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Cbuf_InsertText,
     &CL_Disconnect,
     &CL_GameDir_f,
+    &ClientDLL_HudRedraw,
+    &ClientDLL_HudVidInit,
+    &ClientDLL_UpdateClientData,
     &cls,
     &cls_demos,
     &Cmd_AddMallocCommand,
@@ -390,6 +444,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &com_gamedir,
     &Cvar_RegisterVariable,
     &cvar_vars,
+    &DrawCrosshair,
     &GL_BeginRendering,
     &gEntityInterface,
     #[cfg(not(feature = "bxt-compatibility"))]
@@ -402,6 +457,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Host_Shutdown,
     &Host_Tell_f,
     &Host_ValidSave,
+    &hudGetScreenInfo,
     &Memory_Init,
     &Mem_Free,
     &paintbuffer,
@@ -489,6 +545,16 @@ pub struct client_static_s_demos {
     pub demos: [[c_char; 16]; 32],
     pub demorecording: c_int,
     pub demoplayback: c_int,
+}
+
+#[repr(C)]
+pub struct SCREENINFO {
+    pub iSize: c_int,
+    pub iWidth: c_int,
+    pub iHeight: c_int,
+    pub iFlags: c_int,
+    pub iCharHeight: c_int,
+    pub charWidths: [c_short; 256],
 }
 
 /// Prints the string to the console.
@@ -1044,6 +1110,65 @@ pub mod exported {
             }
 
             R_SetFrustum.get(marker)();
+        })
+    }
+
+    #[export_name = "hudGetScreenInfo"]
+    pub unsafe extern "C" fn my_hudGetScreenInfo(info: *mut SCREENINFO) -> c_int {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            let rv = hudGetScreenInfo.get(marker)(info);
+
+            if rv != 0 {
+                hud_scale::maybe_scale_screen_info(marker, &mut *info);
+            }
+
+            rv
+        })
+    }
+
+    #[export_name = "ClientDLL_HudVidInit"]
+    pub unsafe extern "C" fn my_ClientDLL_HudVidInit() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            hud_scale::with_scaled_screen_info(marker, move || ClientDLL_HudVidInit.get(marker)());
+        })
+    }
+
+    #[export_name = "ClientDLL_UpdateClientData"]
+    pub unsafe extern "C" fn my_ClientDLL_UpdateClientData() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            hud_scale::with_scaled_screen_info(marker, move || {
+                ClientDLL_UpdateClientData.get(marker)()
+            });
+        })
+    }
+
+    #[export_name = "ClientDLL_HudRedraw"]
+    pub unsafe extern "C" fn my_ClientDLL_HudRedraw(intermission: c_int) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            hud_scale::with_scaled_projection_matrix(marker, move || {
+                ClientDLL_HudRedraw.get(marker)(intermission)
+            });
+        })
+    }
+
+    #[export_name = "DrawCrosshair"]
+    pub unsafe extern "C" fn my_DrawCrosshair(x: c_int, y: c_int) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            hud_scale::with_scaled_projection_matrix(marker, move || {
+                let scale = hud_scale::scale(marker).unwrap_or(1.);
+
+                DrawCrosshair.get(marker)((x as f32 / scale) as i32, (y as f32 / scale) as i32)
+            });
         })
     }
 }
