@@ -169,6 +169,7 @@ pub static GL_BeginRendering: Pointer<
     null_mut(),
 );
 pub static gEntityInterface: Pointer<*mut DllFunctions> = Pointer::empty(b"gEntityInterface\0");
+#[cfg_attr(feature = "bxt-compatibility", allow(unused))]
 pub static Key_Event: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer::empty_patterns(
     b"Key_Event\0",
     // To find, search for "ctrl-alt-del pressed".
