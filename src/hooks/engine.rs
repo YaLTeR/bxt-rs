@@ -367,8 +367,9 @@ pub static V_ApplyShake: Pointer<unsafe extern "C" fn(*mut c_float, *mut c_float
     Pointer::empty_patterns(
         b"V_ApplyShake\0",
         // To find, search for "ScreenShake". This is ClientDLL_Init(), near the bottom there are
-        // two similar function calls, one is using our string as the 1st param and the 2nd param as
-        // another function, open it. This is V_ScreenShake(), right above it is V_ApplyShake().
+        // two similar function calls, one is using our string as the 1st param and another function
+        // as the 2nd param, open that function in the 2nd param. This is V_ScreenShake(), right
+        // above it is V_ApplyShake().
         Patterns(&[
             // 6153
             pattern!(55 8B EC 8D 45 ?? 8D 4D ?? 50 8D 55 ?? 51 52 FF 15 ?? ?? ?? ?? 8B 45 ?? 83 C4 0C),
