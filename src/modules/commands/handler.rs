@@ -67,7 +67,7 @@ impl<A1: FromStr> CommandHandler for fn(MainThreadMarker, A1) {
 /// fails, usage is printed.
 #[macro_export]
 macro_rules! handler {
-    ($usage:expr, $fn:expr) => {{
+    ($usage:expr, $($fn:expr),+) => {{
         /// Handles the console command.
         ///
         /// # Safety
@@ -77,10 +77,16 @@ macro_rules! handler {
             $crate::utils::abort_on_panic(move || {
                 let marker = $crate::utils::MainThreadMarker::new();
 
-                let success = $crate::modules::commands::CommandHandler::handle($fn, marker);
-                if !success {
-                    $crate::hooks::engine::con_print(marker, $usage);
-                }
+                // Try calling all command handlers. If the argument count doesn't match they will
+                // return false.
+                $(
+                    if $crate::modules::commands::CommandHandler::handle($fn, marker) {
+                        return;
+                    }
+                )+
+
+                // None of the command handlers worked, print usage.
+                $crate::hooks::engine::con_print(marker, $usage);
             })
         }
 
