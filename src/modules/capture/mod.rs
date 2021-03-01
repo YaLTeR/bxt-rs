@@ -124,7 +124,7 @@ pub enum SoundCaptureMode {
 #[allow(clippy::large_enum_variant)]
 enum State {
     Idle,
-    Starting,
+    Starting(String),
     Recording(Recorder),
 }
 
@@ -143,14 +143,24 @@ static STATE: MainThreadRefCell<State> = MainThreadRefCell::new(State::Idle);
 static BXT_CAP_START: Command = Command::new(
     b"bxt_cap_start\0",
     handler!(
-        "Usage: bxt_cap_start\n \
-          Starts capturing video.\n",
-        cap_start as fn(_)
+        "Usage: bxt_cap_start [filename.mp4]\n \
+          Starts capturing video. The default filename is \"output.mp4\".\n",
+        cap_start as fn(_),
+        cap_start_with_filename as fn(_, _)
     ),
 );
 
 fn cap_start(marker: MainThreadMarker) {
+    cap_start_with_filename(marker, "output.mp4".to_string());
+}
+
+fn cap_start_with_filename(marker: MainThreadMarker, filename: String) {
     if !Capture.is_enabled(marker) {
+        return;
+    }
+
+    if !filename.ends_with(".mp4") {
+        con_print(marker, "Error: the filename must end with \".mp4\".\n");
         return;
     }
 
@@ -160,7 +170,7 @@ fn cap_start(marker: MainThreadMarker) {
         return;
     }
 
-    *state = State::Starting;
+    *state = State::Starting(filename);
 }
 
 static BXT_CAP_STOP: Command = Command::new(
@@ -205,10 +215,10 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
     let (width, height) = engine::get_resolution(marker);
 
     // Initialize the recording if needed.
-    if matches!(*state, State::Starting) {
+    if let State::Starting(ref filename) = *state {
         let fps = BXT_CAP_FPS.as_u64(marker).max(1);
 
-        match Recorder::init(width, height, fps) {
+        match Recorder::init(width, height, fps, filename) {
             Ok(recorder) => *state = State::Recording(recorder),
             Err(err) => {
                 error!("error initializing the recorder: {:?}", err);

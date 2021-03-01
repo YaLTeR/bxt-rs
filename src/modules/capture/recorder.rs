@@ -67,7 +67,12 @@ enum VulkanToMain {
 
 impl Recorder {
     #[hawktracer(recorder_init)]
-    pub unsafe fn init(width: i32, height: i32, fps: u64) -> eyre::Result<Recorder> {
+    pub unsafe fn init(
+        width: i32,
+        height: i32,
+        fps: u64,
+        filename: &str,
+    ) -> eyre::Result<Recorder> {
         ensure!(
             width % 2 == 0 && height % 2 == 0,
             "can't handle odd game resolutions yet: {}×{}",
@@ -80,7 +85,7 @@ impl Recorder {
 
         let time_base = 1. / fps as f64;
 
-        let muxer = match Muxer::new(width as u64, height as u64, fps as u64) {
+        let muxer = match Muxer::new(width as u64, height as u64, fps, filename) {
             Ok(muxer) => muxer,
             Err(err @ MuxerInitError::FfmpegSpawn(_)) => {
                 return Err(err).wrap_err(

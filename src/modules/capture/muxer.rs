@@ -85,7 +85,7 @@ fn packet<W: Write>(mut writer: W, startcode: u64, data: &[u8]) -> Result<(), io
 
 impl Muxer {
     #[hawktracer(muxer_new)]
-    pub fn new(width: u64, height: u64, fps: u64) -> Result<Self, MuxerInitError> {
+    pub fn new(width: u64, height: u64, fps: u64, filename: &str) -> Result<Self, MuxerInitError> {
         #[rustfmt::skip]
         let args = [
             "-f", "nut",
@@ -100,7 +100,7 @@ impl Muxer {
             "-chroma_sample_location", "center",
             "-movflags", "+faststart",
             "-y",
-            "output.mp4",
+            filename,
         ];
 
         let mut command = Command::new("ffmpeg");
