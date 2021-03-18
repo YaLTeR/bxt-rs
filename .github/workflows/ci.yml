@@ -101,6 +101,7 @@ jobs:
         with:
           name: bxt-rs-${{ runner.os }}-${{ matrix.configuration }}-${{ matrix.features }}
           path: target/${{ matrix.target }}/${{ matrix.configuration }}/${{ matrix.filename }}
+          if-no-files-found: error
 
   clippy:
     strategy:
