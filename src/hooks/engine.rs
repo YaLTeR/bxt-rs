@@ -63,7 +63,7 @@ pub static ClientDLL_DemoUpdateClientData: Pointer<unsafe extern "C" fn(*mut c_v
         // cl_funcs; the smaller function calling the pointer is ClientDLL_DemoUpdateClientData().
         Patterns(&[
             // 6153
-            pattern!(55 8B EC 51 A1 ?? ?? ?? ?? 56 85 C0),
+            pattern!(55 8B EC 51 A1 ?? ?? ?? ?? 56 85 C0 74 ?? DD 05),
         ]),
         my_ClientDLL_DemoUpdateClientData as _,
     );
