@@ -56,6 +56,17 @@ pub static CL_GameDir_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
     ]),
     null_mut(),
 );
+pub static ClientDLL_DemoUpdateClientData: Pointer<unsafe extern "C" fn(*mut c_void)> =
+    Pointer::empty_patterns(
+        b"ClientDLL_DemoUpdateClientData\0",
+        // To find, search for "HUD_UpdateClientData". This sets the HUD_UpdateClientData pointer in
+        // cl_funcs; the smaller function calling the pointer is ClientDLL_DemoUpdateClientData().
+        Patterns(&[
+            // 6153
+            pattern!(55 8B EC 51 A1 ?? ?? ?? ?? 56 85 C0),
+        ]),
+        my_ClientDLL_DemoUpdateClientData as _,
+    );
 pub static ClientDLL_HudRedraw: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
     b"ClientDLL_HudRedraw\0",
     // To find, search for "HUD_Redraw". This sets the HUD_Redraw pointer in cl_funcs; the function
@@ -432,6 +443,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Cbuf_InsertText,
     &CL_Disconnect,
     &CL_GameDir_f,
+    &ClientDLL_DemoUpdateClientData,
     &ClientDLL_HudRedraw,
     &ClientDLL_HudVidInit,
     &ClientDLL_UpdateClientData,
@@ -1136,6 +1148,17 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             hud_scale::with_scaled_screen_info(marker, move || ClientDLL_HudVidInit.get(marker)());
+        })
+    }
+
+    #[export_name = "ClientDLL_DemoUpdateClientData"]
+    pub unsafe extern "C" fn my_ClientDLL_DemoUpdateClientData(cdat: *mut c_void) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            hud_scale::with_scaled_screen_info(marker, move || {
+                ClientDLL_DemoUpdateClientData.get(marker)(cdat)
+            });
         })
     }
 
