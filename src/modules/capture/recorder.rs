@@ -37,20 +37,20 @@ pub struct Recorder {
     acquired_image: bool,
 
     /// Vulkan recording and muxing thread.
-    vulkan_thread: JoinHandle<()>,
+    thread: JoinHandle<()>,
 
-    /// Sender for messages to the Vulkan thread.
-    to_vulkan_sender: Sender<MainToVulkan>,
+    /// Sender for messages to the thread.
+    sender: Sender<MainToThread>,
 
-    /// Receiver for messages from the Vulkan thread.
-    from_vulkan_receiver: Receiver<VulkanToMain>,
+    /// Receiver for messages from the thread.
+    receiver: Receiver<ThreadToMain>,
 
     /// Error from the thread if it sent one.
     thread_error: Option<eyre::Report>,
 }
 
 #[derive(Debug)]
-enum MainToVulkan {
+enum MainToThread {
     Finish,
     GiveExternalHandles,
     AcquireImage,
@@ -59,7 +59,7 @@ enum MainToVulkan {
 }
 
 #[derive(Debug)]
-enum VulkanToMain {
+enum ThreadToMain {
     Error(eyre::Report),
     ExternalHandles(ExternalHandles),
     AcquiredImage,
@@ -102,10 +102,10 @@ impl Recorder {
             }
         };
 
-        let (to_vulkan_sender, from_main_receiver) = bounded(2);
-        let (to_main_sender, from_vulkan_receiver) = bounded(1);
-        let vulkan_thread =
-            thread::spawn(move || vulkan_thread(vulkan, muxer, to_main_sender, from_main_receiver));
+        let (to_thread_sender, from_main_receiver) = bounded(2);
+        let (to_main_sender, from_thread_receiver) = bounded(1);
+        let thread =
+            thread::spawn(move || thread(vulkan, muxer, to_main_sender, from_main_receiver));
 
         Ok(Recorder {
             width,
@@ -115,43 +115,43 @@ impl Recorder {
             sound_remainder: 0.,
             opengl: None,
             acquired_image: false,
-            vulkan_thread,
-            to_vulkan_sender,
-            from_vulkan_receiver,
+            thread,
+            sender: to_thread_sender,
+            receiver: from_thread_receiver,
             thread_error: None,
         })
     }
 
-    fn send_to_vulkan(&mut self, message: MainToVulkan) {
-        if self.to_vulkan_sender.send(message).is_ok() {
+    fn send_to_thread(&mut self, message: MainToThread) {
+        if self.sender.send(message).is_ok() {
             // The happy path.
             return;
         }
 
         // The channel was closed. Try to get the error.
-        while let Ok(message) = self.from_vulkan_receiver.try_recv() {
-            if let VulkanToMain::Error(err) = message {
+        while let Ok(message) = self.receiver.try_recv() {
+            if let ThreadToMain::Error(err) = message {
                 self.thread_error = Some(err);
             }
         }
     }
 
-    fn recv_from_vulkan(&mut self) -> eyre::Result<VulkanToMain> {
-        match self.from_vulkan_receiver.recv() {
+    fn recv_from_thread(&mut self) -> eyre::Result<ThreadToMain> {
+        match self.receiver.recv() {
             Err(_) => Err(self
                 .thread_error
                 .take()
                 .unwrap_or_else(|| eyre!("recording thread error"))),
-            Ok(VulkanToMain::Error(err)) => Err(err),
+            Ok(ThreadToMain::Error(err)) => Err(err),
             Ok(message) => Ok(message),
         }
     }
 
     #[hawktracer(initialize_opengl_capturing)]
     unsafe fn initialize_opengl_capturing(&mut self, marker: MainThreadMarker) -> eyre::Result<()> {
-        self.send_to_vulkan(MainToVulkan::GiveExternalHandles);
-        let external_handles = match self.recv_from_vulkan()? {
-            VulkanToMain::ExternalHandles(handles) => handles,
+        self.send_to_thread(MainToThread::GiveExternalHandles);
+        let external_handles = match self.recv_from_thread()? {
+            ThreadToMain::ExternalHandles(handles) => handles,
             _ => unreachable!(),
         };
 
@@ -188,7 +188,7 @@ impl Recorder {
 
         self.acquired_image = true;
 
-        self.send_to_vulkan(MainToVulkan::AcquireImage);
+        self.send_to_thread(MainToThread::AcquireImage);
     }
 
     #[hawktracer(record)]
@@ -197,13 +197,13 @@ impl Recorder {
 
         // Must wait for this before OpenGL capture can run.
         assert!(matches!(
-            self.recv_from_vulkan()?,
-            VulkanToMain::AcquiredImage
+            self.recv_from_thread()?,
+            ThreadToMain::AcquiredImage
         ));
 
         self.acquired_image = false;
 
-        self.send_to_vulkan(MainToVulkan::Record { frames });
+        self.send_to_thread(MainToThread::Record { frames });
 
         Ok(())
     }
@@ -246,20 +246,20 @@ impl Recorder {
 
     #[hawktracer(write_audio_frame)]
     pub fn write_audio_frame(&mut self, samples: Vec<u8>) {
-        self.send_to_vulkan(MainToVulkan::Audio(samples));
+        self.send_to_thread(MainToThread::Audio(samples));
     }
 
     #[hawktracer(recorder_finish)]
     pub fn finish(mut self) {
-        self.send_to_vulkan(MainToVulkan::Finish);
+        self.send_to_thread(MainToThread::Finish);
 
-        while let Ok(message) = self.from_vulkan_receiver.recv() {
-            if let VulkanToMain::Error(err) = message {
+        while let Ok(message) = self.receiver.recv() {
+            if let ThreadToMain::Error(err) = message {
                 self.thread_error = Some(err);
             }
         }
 
-        self.vulkan_thread.join().unwrap();
+        self.thread.join().unwrap();
 
         if let Some(err) = self.thread_error {
             error!("recording thread error: {:?}", err);
@@ -283,12 +283,7 @@ impl Recorder {
     }
 }
 
-fn vulkan_thread(
-    vulkan: Vulkan,
-    mut muxer: Muxer,
-    s: Sender<VulkanToMain>,
-    r: Receiver<MainToVulkan>,
-) {
+fn thread(vulkan: Vulkan, mut muxer: Muxer, s: Sender<ThreadToMain>, r: Receiver<MainToThread>) {
     while let Ok(message) = r.recv() {
         match process_message(&vulkan, &mut muxer, &s, message) {
             Ok(done) => {
@@ -297,7 +292,7 @@ fn vulkan_thread(
                 }
             }
             Err(err) => {
-                s.send(VulkanToMain::Error(err)).unwrap();
+                s.send(ThreadToMain::Error(err)).unwrap();
                 break;
             }
         }
@@ -309,30 +304,30 @@ fn vulkan_thread(
 fn process_message(
     vulkan: &Vulkan,
     muxer: &mut Muxer,
-    s: &Sender<VulkanToMain>,
-    message: MainToVulkan,
+    s: &Sender<ThreadToMain>,
+    message: MainToThread,
 ) -> eyre::Result<bool> {
     match message {
-        MainToVulkan::Finish => {
+        MainToThread::Finish => {
             return Ok(true);
         }
-        MainToVulkan::GiveExternalHandles => {
+        MainToThread::GiveExternalHandles => {
             let handles = vulkan.external_handles()?;
-            s.send(VulkanToMain::ExternalHandles(handles)).unwrap();
+            s.send(ThreadToMain::ExternalHandles(handles)).unwrap();
         }
-        MainToVulkan::AcquireImage => {
+        MainToThread::AcquireImage => {
             scoped_tracepoint!(_acquire);
 
             unsafe { vulkan.acquire_image() }?;
 
-            s.send(VulkanToMain::AcquiredImage).unwrap();
+            s.send(ThreadToMain::AcquiredImage).unwrap();
         }
-        MainToVulkan::Record { frames } => {
+        MainToThread::Record { frames } => {
             scoped_tracepoint!(_record);
 
             unsafe { vulkan.convert_colors_and_mux(muxer, frames) }?;
         }
-        MainToVulkan::Audio(samples) => {
+        MainToThread::Audio(samples) => {
             scoped_tracepoint!(_audio);
 
             muxer.write_audio_frame(&samples)?;
