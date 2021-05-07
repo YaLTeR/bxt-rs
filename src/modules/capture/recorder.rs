@@ -5,7 +5,7 @@ use crossbeam_channel::{bounded, Receiver, Sender};
 use rust_hawktracer::*;
 
 use super::{
-    muxer::{Muxer, MuxerInitError},
+    muxer::{Muxer, MuxerInitError, PixelFormat},
     opengl::{self, OpenGl},
     vulkan::{self, ExternalHandles, Vulkan},
     SoundCaptureMode,
@@ -47,6 +47,18 @@ pub struct Recorder {
 
     /// Error from the thread if it sent one.
     thread_error: Option<eyre::Report>,
+
+    /// How we're capturing the frames.
+    capture_type: CaptureType,
+
+    /// Buffer for capturing with ReadPixels.
+    buffer: Option<Box<[u8]>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureType {
+    Vulkan,
+    ReadPixels,
 }
 
 #[derive(Debug)]
@@ -55,6 +67,7 @@ enum MainToThread {
     GiveExternalHandles,
     AcquireImage,
     Record { frames: usize },
+    Mux { pixels: Box<[u8]>, frames: usize },
     Audio(Vec<u8>),
 }
 
@@ -63,6 +76,7 @@ enum ThreadToMain {
     Error(eyre::Report),
     ExternalHandles(ExternalHandles),
     AcquiredImage,
+    Muxed(Box<[u8]>),
 }
 
 impl Recorder {
@@ -71,6 +85,7 @@ impl Recorder {
         width: i32,
         height: i32,
         fps: u64,
+        mut capture_type: CaptureType,
         filename: &str,
     ) -> eyre::Result<Recorder> {
         ensure!(
@@ -80,12 +95,27 @@ impl Recorder {
             height,
         );
 
-        let vulkan =
-            vulkan::init(width as u32, height as u32).wrap_err("error initalizing Vulkan")?;
+        let vulkan = if capture_type == CaptureType::Vulkan {
+            match vulkan::init(width as u32, height as u32).wrap_err("error initalizing Vulkan") {
+                Ok(vulkan) => Some(vulkan),
+                Err(err) => {
+                    warn!("{:?}", err);
+                    capture_type = CaptureType::ReadPixels;
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
         let time_base = 1. / fps as f64;
+        let pixel_format = if vulkan.is_some() {
+            PixelFormat::I420
+        } else {
+            PixelFormat::Rgb24Flipped
+        };
 
-        let muxer = match Muxer::new(width as u64, height as u64, fps, filename) {
+        let muxer = match Muxer::new(width as u64, height as u64, fps, pixel_format, filename) {
             Ok(muxer) => muxer,
             Err(err @ MuxerInitError::FfmpegSpawn(_)) => {
                 return Err(err).wrap_err(
@@ -119,6 +149,8 @@ impl Recorder {
             sender: to_thread_sender,
             receiver: from_thread_receiver,
             thread_error: None,
+            capture_type,
+            buffer: Some(vec![0u8; width as usize * height as usize * 3].into()),
         })
     }
 
@@ -149,6 +181,8 @@ impl Recorder {
 
     #[hawktracer(initialize_opengl_capturing)]
     unsafe fn initialize_opengl_capturing(&mut self, marker: MainThreadMarker) -> eyre::Result<()> {
+        assert_eq!(self.capture_type, CaptureType::Vulkan);
+
         self.send_to_thread(MainToThread::GiveExternalHandles);
         let external_handles = match self.recv_from_thread()? {
             ThreadToMain::ExternalHandles(handles) => handles,
@@ -168,15 +202,39 @@ impl Recorder {
     }
 
     pub unsafe fn capture_opengl(&mut self, marker: MainThreadMarker) -> eyre::Result<()> {
-        if self.opengl.is_none() {
-            self.initialize_opengl_capturing(marker)?;
-        }
+        match self.capture_type {
+            CaptureType::Vulkan => {
+                if self.opengl.is_none() {
+                    self.initialize_opengl_capturing(marker)?;
+                }
 
-        self.opengl.as_ref().unwrap().capture()
+                self.opengl.as_ref().unwrap().capture()
+            }
+            CaptureType::ReadPixels => {
+                if self.buffer.is_none() {
+                    match self.recv_from_thread()? {
+                        ThreadToMain::Muxed(buffer) => {
+                            self.buffer = Some(buffer);
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+
+                opengl::capture_with_read_pixels(
+                    marker,
+                    self.width,
+                    self.height,
+                    self.buffer.as_mut().unwrap(),
+                )
+                .wrap_err("error capturing with glReadPixels")
+            }
+        }
     }
 
     #[hawktracer(acquire_image_if_needed)]
     unsafe fn acquire_image_if_needed(&mut self) {
+        assert_eq!(self.capture_type, CaptureType::Vulkan);
+
         if self.acquired_image {
             return;
         }
@@ -193,17 +251,25 @@ impl Recorder {
 
     #[hawktracer(record)]
     unsafe fn record(&mut self, frames: usize) -> eyre::Result<()> {
-        assert!(self.acquired_image);
+        match self.capture_type {
+            CaptureType::Vulkan => {
+                assert!(self.acquired_image);
 
-        // Must wait for this before OpenGL capture can run.
-        assert!(matches!(
-            self.recv_from_thread()?,
-            ThreadToMain::AcquiredImage
-        ));
+                // Must wait for this before OpenGL capture can run.
+                assert!(matches!(
+                    self.recv_from_thread()?,
+                    ThreadToMain::AcquiredImage
+                ));
 
-        self.acquired_image = false;
+                self.acquired_image = false;
 
-        self.send_to_thread(MainToThread::Record { frames });
+                self.send_to_thread(MainToThread::Record { frames });
+            }
+            CaptureType::ReadPixels => {
+                let pixels = self.buffer.take().unwrap();
+                self.send_to_thread(MainToThread::Mux { pixels, frames });
+            }
+        }
 
         Ok(())
     }
@@ -225,8 +291,11 @@ impl Recorder {
     pub fn time_passed(&mut self, time: f64) {
         self.video_remainder += time / self.time_base;
         self.sound_remainder += time;
-        unsafe {
-            self.acquire_image_if_needed();
+
+        if self.capture_type == CaptureType::Vulkan {
+            unsafe {
+                self.acquire_image_if_needed();
+            }
         }
     }
 
@@ -281,11 +350,20 @@ impl Recorder {
     pub fn time_base(&self) -> f64 {
         self.time_base
     }
+
+    pub fn capture_type(&self) -> CaptureType {
+        self.capture_type
+    }
 }
 
-fn thread(vulkan: Vulkan, mut muxer: Muxer, s: Sender<ThreadToMain>, r: Receiver<MainToThread>) {
+fn thread(
+    vulkan: Option<Vulkan>,
+    mut muxer: Muxer,
+    s: Sender<ThreadToMain>,
+    r: Receiver<MainToThread>,
+) {
     while let Ok(message) = r.recv() {
-        match process_message(&vulkan, &mut muxer, &s, message) {
+        match process_message(vulkan.as_ref(), &mut muxer, &s, message) {
             Ok(done) => {
                 if done {
                     break;
@@ -302,7 +380,7 @@ fn thread(vulkan: Vulkan, mut muxer: Muxer, s: Sender<ThreadToMain>, r: Receiver
 }
 
 fn process_message(
-    vulkan: &Vulkan,
+    vulkan: Option<&Vulkan>,
     muxer: &mut Muxer,
     s: &Sender<ThreadToMain>,
     message: MainToThread,
@@ -312,20 +390,29 @@ fn process_message(
             return Ok(true);
         }
         MainToThread::GiveExternalHandles => {
-            let handles = vulkan.external_handles()?;
+            let handles = vulkan.unwrap().external_handles()?;
             s.send(ThreadToMain::ExternalHandles(handles)).unwrap();
         }
         MainToThread::AcquireImage => {
             scoped_tracepoint!(_acquire);
 
-            unsafe { vulkan.acquire_image() }?;
+            unsafe { vulkan.unwrap().acquire_image() }?;
 
             s.send(ThreadToMain::AcquiredImage).unwrap();
         }
         MainToThread::Record { frames } => {
             scoped_tracepoint!(_record);
 
-            unsafe { vulkan.convert_colors_and_mux(muxer, frames) }?;
+            unsafe { vulkan.unwrap().convert_colors_and_mux(muxer, frames) }?;
+        }
+        MainToThread::Mux { pixels, frames } => {
+            scoped_tracepoint!(_mux);
+
+            for _ in 0..frames {
+                muxer.write_video_frame(&pixels)?;
+            }
+
+            s.send(ThreadToMain::Muxed(pixels)).unwrap();
         }
         MainToThread::Audio(samples) => {
             scoped_tracepoint!(_audio);

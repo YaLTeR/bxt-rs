@@ -251,3 +251,33 @@ pub unsafe fn init(
         framebuffer,
     })
 }
+
+pub unsafe fn capture_with_read_pixels(
+    marker: MainThreadMarker,
+    width: i32,
+    height: i32,
+    buf: &mut [u8],
+) -> eyre::Result<()> {
+    assert_eq!(buf.len(), width as usize * height as usize * 3);
+
+    let gl = gl::GL.borrow(marker);
+    let gl = gl.as_ref().unwrap();
+
+    // HL leaves some GL errors behind.
+    reset_gl_error(gl);
+
+    check!(
+        gl,
+        gl.ReadPixels(
+            0,
+            0,
+            width,
+            height,
+            gl::BGR,
+            gl::UNSIGNED_BYTE,
+            buf.as_mut_ptr().cast()
+        )
+    )?;
+
+    Ok(())
+}

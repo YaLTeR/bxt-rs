@@ -23,6 +23,22 @@ pub enum MuxerInitError {
     Other(#[from] io::Error),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PixelFormat {
+    I420,
+    /// RGB24, vertically flipped (basically, output from glReadPixels).
+    Rgb24Flipped,
+}
+
+impl PixelFormat {
+    fn fourcc(self) -> &'static [u8; 4] {
+        match self {
+            PixelFormat::I420 => b"I420",
+            PixelFormat::Rgb24Flipped => b"24BG",
+        }
+    }
+}
+
 fn v<W: Write>(mut writer: W, mut value: u64) -> Result<(), io::Error> {
     let mut elements = [0; 10];
     let mut i = 10;
@@ -85,9 +101,15 @@ fn packet<W: Write>(mut writer: W, startcode: u64, data: &[u8]) -> Result<(), io
 
 impl Muxer {
     #[hawktracer(muxer_new)]
-    pub fn new(width: u64, height: u64, fps: u64, filename: &str) -> Result<Self, MuxerInitError> {
+    pub fn new(
+        width: u64,
+        height: u64,
+        fps: u64,
+        pixel_format: PixelFormat,
+        filename: &str,
+    ) -> Result<Self, MuxerInitError> {
         #[rustfmt::skip]
-        let args = [
+        let mut args = vec![
             "-f", "nut",
             "-i", "pipe:",
             "-c:v", "libx264",
@@ -102,6 +124,11 @@ impl Muxer {
             "-y",
             filename,
         ];
+
+        if pixel_format == PixelFormat::Rgb24Flipped {
+            args.insert(4, "-vf");
+            args.insert(5, "vflip");
+        }
 
         let mut command = Command::new("ffmpeg");
         command
@@ -147,7 +174,7 @@ impl Muxer {
         buf.clear();
         v(&mut buf, 0)?; // stream_id
         v(&mut buf, 0)?; // stream_class = video
-        vb(&mut buf, b"I420")?; // fourcc
+        vb(&mut buf, pixel_format.fourcc())?; // fourcc
         v(&mut buf, 0)?; // time_base_id
         v(&mut buf, 0)?; // msb_pts_shift
         v(&mut buf, 1)?; // max_pts_distance

@@ -24,7 +24,12 @@ impl Module for Capture {
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
-        static CVARS: &[&CVar] = &[&BXT_CAP_FPS, &BXT_CAP_VOLUME, &BXT_CAP_SOUND_EXTRA];
+        static CVARS: &[&CVar] = &[
+            &BXT_CAP_FPS,
+            &BXT_CAP_VOLUME,
+            &BXT_CAP_SOUND_EXTRA,
+            &BXT_CAP_FORCE_FALLBACK,
+        ];
         &CVARS
     }
 
@@ -42,15 +47,13 @@ impl Module for Capture {
             && engine::VideoMode_GetCurrentVideoMode.is_set(marker)
             && engine::VideoMode_IsWindowed.is_set(marker)
             && engine::window_rect.is_set(marker)
-            && HAVE_REQUIRED_GL_EXTENSIONS.get(marker)
-            && crate::vulkan::VULKAN.get().is_some()
     }
 }
 
 mod muxer;
 mod opengl;
 mod recorder;
-use recorder::Recorder;
+use recorder::{CaptureType, Recorder};
 mod vulkan;
 
 #[cfg(unix)]
@@ -61,6 +64,7 @@ pub type ExternalObject = *mut std::os::raw::c_void;
 static BXT_CAP_FPS: CVar = CVar::new(b"bxt_cap_fps\0", b"60\0");
 static BXT_CAP_SOUND_EXTRA: CVar = CVar::new(b"bxt_cap_sound_extra\0", b"0\0");
 static BXT_CAP_VOLUME: CVar = CVar::new(b"bxt_cap_volume\0", b"0.4\0");
+static BXT_CAP_FORCE_FALLBACK: CVar = CVar::new(b"_bxt_cap_force_fallback\0", b"0\0");
 
 static HAVE_REQUIRED_GL_EXTENSIONS: MainThreadCell<bool> = MainThreadCell::new(false);
 
@@ -218,8 +222,19 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
     if let State::Starting(ref filename) = *state {
         let fps = BXT_CAP_FPS.as_u64(marker).max(1);
 
-        match Recorder::init(width, height, fps, filename) {
-            Ok(recorder) => *state = State::Recording(recorder),
+        let capture_type =
+            if HAVE_REQUIRED_GL_EXTENSIONS.get(marker) && !BXT_CAP_FORCE_FALLBACK.as_bool(marker) {
+                CaptureType::Vulkan
+            } else {
+                CaptureType::ReadPixels
+            };
+        match Recorder::init(width, height, fps, capture_type, filename) {
+            Ok(recorder) => {
+                if recorder.capture_type() == CaptureType::ReadPixels {
+                    con_print(marker, "Recording in slower fallback mode.\n");
+                }
+                *state = State::Recording(recorder)
+            }
             Err(err) => {
                 error!("error initializing the recorder: {:?}", err);
                 con_print(marker, &format!("Error initializing recording: {}.\n", err));
