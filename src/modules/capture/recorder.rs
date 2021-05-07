@@ -176,7 +176,7 @@ impl Recorder {
     }
 
     #[hawktracer(acquire_image_if_needed)]
-    pub unsafe fn acquire_image_if_needed(&mut self) {
+    unsafe fn acquire_image_if_needed(&mut self) {
         if self.acquired_image {
             return;
         }
@@ -192,7 +192,7 @@ impl Recorder {
     }
 
     #[hawktracer(record)]
-    pub unsafe fn record(&mut self, frames: usize) -> eyre::Result<()> {
+    unsafe fn record(&mut self, frames: usize) -> eyre::Result<()> {
         assert!(self.acquired_image);
 
         // Must wait for this before OpenGL capture can run.
