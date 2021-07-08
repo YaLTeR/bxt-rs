@@ -13,11 +13,17 @@ use bxt_patterns::Patterns;
 use rust_hawktracer::*;
 
 use crate::{
-    ffi::{command::cmd_function_s, cvar::cvar_s, playermove::playermove_s, usercmd::usercmd_s},
+    ffi::{
+        com_model::{mleaf_s, model_s},
+        command::cmd_function_s,
+        cvar::cvar_s,
+        playermove::playermove_s,
+        usercmd::usercmd_s,
+    },
     hooks::{sdl, server},
     modules::{
-        capture, commands, cvars, demo_playback, fade_remove, force_fov, hud_scale, shake_remove,
-        tas_logging,
+        capture, commands, cvars, demo_playback, fade_remove, force_fov, hud_scale, novis,
+        shake_remove, tas_logging,
     },
     utils::*,
     vulkan,
@@ -204,6 +210,11 @@ pub static LoadEntityDLLs: Pointer<unsafe extern "C" fn(*const c_char)> = Pointe
     ]),
     my_LoadEntityDLLs as _,
 );
+
+pub static Mod_LeafPVS: Pointer<
+    unsafe extern "C" fn(leaf: *mut mleaf_s, model: *mut model_s) -> *mut c_void,
+> = Pointer::empty(b"Mod_LeafPVS\0");
+
 pub static Host_FilterTime: Pointer<unsafe extern "C" fn(c_float) -> c_int> =
     Pointer::empty_patterns(
         b"Host_FilterTime\0",
@@ -464,6 +475,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     #[cfg(not(feature = "bxt-compatibility"))]
     &Key_Event,
     &LoadEntityDLLs,
+    &Mod_LeafPVS,
     &Host_FilterTime,
     &host_frametime,
     &Host_InitializeGameDLL,
@@ -936,6 +948,22 @@ pub mod exported {
 
             sdl::reset_pointers(marker);
             reset_pointers(marker);
+        })
+    }
+
+    #[cfg_attr(not(feature = "bxt-compatibility"), export_name = "Mod_LeafPVS")]
+    pub unsafe extern "C" fn my_Mod_LeafPVS(
+        leaf: *mut mleaf_s,
+        model: *mut model_s,
+    ) -> *mut c_void {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if novis::is_active(marker) {
+                Mod_LeafPVS.get(marker)((*model).leafs, model)
+            } else {
+                Mod_LeafPVS.get(marker)(leaf, model)
+            }
         })
     }
 
