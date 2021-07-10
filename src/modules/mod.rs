@@ -44,10 +44,10 @@ pub static MODULES: &[&dyn Module] = &[
     &cvars::CVars,
     &demo_playback::DemoPlayback,
     &fade_remove::FadeRemove,
-    &novis::NoVis,
     &force_fov::ForceFov,
     &hud_scale::HudScale,
     &module_list::ModuleList,
+    &novis::NoVis,
     &shake_remove::ShakeRemove,
     &tas_logging::TasLogging,
 ];
