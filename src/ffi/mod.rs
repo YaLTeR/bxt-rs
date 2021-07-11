@@ -1,5 +1,6 @@
 //! Raw bindings to C structs and functions.
 
+pub mod com_model;
 pub mod command;
 pub mod cvar;
 pub mod edict;

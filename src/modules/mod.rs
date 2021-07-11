@@ -14,6 +14,7 @@ pub mod fade_remove;
 pub mod force_fov;
 pub mod hud_scale;
 pub mod module_list;
+pub mod novis;
 pub mod shake_remove;
 pub mod tas_logging;
 
@@ -46,6 +47,7 @@ pub static MODULES: &[&dyn Module] = &[
     &force_fov::ForceFov,
     &hud_scale::HudScale,
     &module_list::ModuleList,
+    &novis::NoVis,
     &shake_remove::ShakeRemove,
     &tas_logging::TasLogging,
 ];
