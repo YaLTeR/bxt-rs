@@ -1,6 +1,7 @@
 #version 450
 #extension GL_EXT_shader_8bit_storage: require
 
+// I selected the value that gave the best performance on this workflow.
 #define WORKGROUP_SIZE 4
 layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE, local_size_z = 1) in;
 
@@ -19,20 +20,29 @@ void main() {
         return;
 
     vec4 color = texture(image_sample, vec2(x + 0.5, y + 0.5));
+
+    // The OpenGL coordinate system is upside-down compared to the usual video coordinate systems.
+    // Let's invert it here in the shader.
     uint y_inv = height - y - 1;
 
+    // Compute luminocity in accordance with the BT.709 specification.
     float Y = 16 + dot(color.rgb, vec3(0.2126, 0.7152, 0.0722) * (235 - 16));
     output_buffer[width * y_inv + x] = uint8_t(uint(round(Y)));
 
+    // 4:2:0 subsampling means we compute one output color pixel
+    // per each 2×2 square of input color pixels.
     if (x % 2 == 0 && y % 2 == 0) {
+        // Subsample the color values assuming center chroma location.
         vec4 b = texture(image_sample, vec2(x + 1 + 0.5, y     + 0.5));
         vec4 c = texture(image_sample, vec2(x     + 0.5, y + 1 + 0.5));
         vec4 d = texture(image_sample, vec2(x + 1 + 0.5, y + 1 + 0.5));
         color = (color + b + c + d) / 4;
 
+        // Convert color values in accordance with the BT.709 specification.
         float U = 128 + dot(color.rgb, vec3(-0.2126, -0.7152,  0.9278) / 1.8556 * (240 - 16));
         float V = 128 + dot(color.rgb, vec3( 0.7874, -0.7152, -0.0722) / 1.5748 * (240 - 16));
 
+        // Write the values into the output buffer in the I420 format (planar YUV 4:2:0).
         output_buffer[width * height         + (width / 2) * (y_inv / 2) + (x / 2)] = uint8_t(uint(round(U)));
         output_buffer[width * height / 4 * 5 + (width / 2) * (y_inv / 2) + (x / 2)] = uint8_t(uint(round(V)));
     }
