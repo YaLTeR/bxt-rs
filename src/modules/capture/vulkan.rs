@@ -760,7 +760,7 @@ pub fn init(width: u32, height: u32) -> eyre::Result<Vulkan> {
         samples: vk::SampleCountFlags::TYPE_1,
         tiling: vk::ImageTiling::OPTIMAL,
         usage: vk::ImageUsageFlags::STORAGE // For updating during the sampling stage.
-            | vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::TRANSFER_SRC
+            | vk::ImageUsageFlags::TRANSFER_DST
             | vk::ImageUsageFlags::SAMPLED, // For reading during YUV conversion.
         sharing_mode: vk::SharingMode::EXCLUSIVE,
         ..Default::default()
