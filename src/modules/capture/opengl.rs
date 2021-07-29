@@ -139,7 +139,7 @@ impl OpenGl {
                 null(),
                 1,
                 [self.texture].as_ptr(),
-                [gl::LAYOUT_TRANSFER_SRC_EXT].as_ptr(),
+                [gl::LAYOUT_GENERAL_EXT].as_ptr(),
             )
         )?;
 

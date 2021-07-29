@@ -275,7 +275,7 @@ impl Vulkan {
         let image_frame_memory_barrier = vk::ImageMemoryBarrier::builder()
             .src_access_mask(vk::AccessFlags::empty())
             .dst_access_mask(vk::AccessFlags::empty())
-            .old_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
+            .old_layout(vk::ImageLayout::GENERAL)
             .new_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
             .src_queue_family_index(vk::QUEUE_FAMILY_EXTERNAL)
             .dst_queue_family_index(self.queue_family_index)
