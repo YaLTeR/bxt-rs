@@ -1,8 +1,10 @@
 //! Console command arguments.
 
-use std::{ffi::CStr, marker::PhantomData};
+use std::ffi::CStr;
+use std::marker::PhantomData;
 
-use crate::{hooks::engine, utils::*};
+use crate::hooks::engine;
+use crate::utils::*;
 
 /// An iterator over arguments of a console command.
 pub struct Args<'a> {

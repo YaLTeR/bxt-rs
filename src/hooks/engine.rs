@@ -2,32 +2,26 @@
 
 #![allow(non_snake_case, non_upper_case_globals)]
 
-use std::{
-    ffi::CString,
-    os::raw::*,
-    ptr::{null_mut, NonNull},
-};
+use std::ffi::CString;
+use std::os::raw::*;
+use std::ptr::{null_mut, NonNull};
 
 use bxt_macros::pattern;
 use bxt_patterns::Patterns;
 use rust_hawktracer::*;
 
-use crate::{
-    ffi::{
-        com_model::{mleaf_s, model_s},
-        command::cmd_function_s,
-        cvar::cvar_s,
-        playermove::playermove_s,
-        usercmd::usercmd_s,
-    },
-    hooks::{sdl, server},
-    modules::{
-        capture, commands, cvars, demo_playback, fade_remove, force_fov, hud_scale, novis,
-        shake_remove, tas_logging,
-    },
-    utils::*,
-    vulkan,
+use crate::ffi::com_model::{mleaf_s, model_s};
+use crate::ffi::command::cmd_function_s;
+use crate::ffi::cvar::cvar_s;
+use crate::ffi::playermove::playermove_s;
+use crate::ffi::usercmd::usercmd_s;
+use crate::hooks::{sdl, server};
+use crate::modules::{
+    capture, commands, cvars, demo_playback, fade_remove, force_fov, hud_scale, novis,
+    shake_remove, tas_logging,
 };
+use crate::utils::*;
+use crate::vulkan;
 
 pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
     b"build_number\0",

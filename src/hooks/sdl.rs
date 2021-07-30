@@ -1,11 +1,10 @@
 #![allow(non_snake_case, non_upper_case_globals)]
 
-use std::{
-    os::raw::{c_char, c_int, c_void},
-    ptr::NonNull,
-};
+use std::os::raw::{c_char, c_int, c_void};
+use std::ptr::NonNull;
 
-use crate::{gl, utils::*};
+use crate::gl;
+use crate::utils::*;
 
 pub static SDL_GL_ExtensionSupported: Pointer<unsafe extern "C" fn(*const c_char) -> c_int> =
     Pointer::empty(b"SDL_GL_ExtensionSupported\0");

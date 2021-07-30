@@ -1,13 +1,13 @@
 //! Console variables.
 
-use std::{
-    cell::UnsafeCell,
-    ffi::{c_void, CStr, OsString},
-    ptr::null_mut,
-};
+use std::cell::UnsafeCell;
+use std::ffi::{c_void, CStr, OsString};
+use std::ptr::null_mut;
 
 use super::{Module, MODULES};
-use crate::{ffi::cvar as ffi, hooks::engine, utils::*};
+use crate::ffi::cvar as ffi;
+use crate::hooks::engine;
+use crate::utils::*;
 
 /// Console variable.
 #[derive(Debug)]

@@ -1,7 +1,5 @@
-use ash::{
-    version::{EntryV1_0, InstanceV1_0},
-    vk,
-};
+use ash::version::{EntryV1_0, InstanceV1_0};
+use ash::vk;
 use color_eyre::eyre;
 use once_cell::sync::OnceCell;
 

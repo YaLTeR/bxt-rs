@@ -4,7 +4,8 @@ use color_eyre::eyre::{self, eyre, WrapErr};
 use rust_hawktracer::*;
 
 use super::ExternalObject;
-use crate::{gl, utils::MainThreadMarker};
+use crate::gl;
+use crate::utils::MainThreadMarker;
 
 pub struct OpenGl {
     marker: MainThreadMarker,

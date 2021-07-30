@@ -1,10 +1,8 @@
 #![allow(unused, deref_nullptr)]
 
-use std::{
-    mem::{align_of, size_of},
-    os::raw::*,
-    ptr::null,
-};
+use std::mem::{align_of, size_of};
+use std::os::raw::*;
+use std::ptr::null;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

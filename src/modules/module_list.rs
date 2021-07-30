@@ -1,12 +1,10 @@
 //! `bxt_moules_list`
 
 use super::{Module, MODULES};
-use crate::{
-    handler,
-    hooks::engine::{self, con_print},
-    modules::commands::{self, Command},
-    utils::*,
-};
+use crate::handler;
+use crate::hooks::engine::{self, con_print};
+use crate::modules::commands::{self, Command};
+use crate::utils::*;
 
 pub struct ModuleList;
 impl Module for ModuleList {

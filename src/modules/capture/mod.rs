@@ -1,16 +1,16 @@
 //! Video capture.
 
-use std::{mem, os::raw::c_char};
+use std::mem;
+use std::os::raw::c_char;
 
 use rust_hawktracer::*;
 
-use super::{cvars::CVar, Module};
-use crate::{
-    handler,
-    hooks::engine::{self, con_print},
-    modules::commands::Command,
-    utils::*,
-};
+use super::cvars::CVar;
+use super::Module;
+use crate::handler;
+use crate::hooks::engine::{self, con_print};
+use crate::modules::commands::Command;
+use crate::utils::*;
 
 pub struct Capture;
 impl Module for Capture {

@@ -1,4 +1,5 @@
-use std::{ffi::CStr, str::FromStr};
+use std::ffi::CStr;
+use std::str::FromStr;
 
 use super::Args;
 use crate::utils::MainThreadMarker;

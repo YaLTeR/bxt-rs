@@ -2,21 +2,17 @@
 
 #![allow(non_snake_case, non_upper_case_globals)]
 
-use std::{
-    ffi::CStr,
-    mem::{size_of_val, zeroed},
-};
+use std::ffi::CStr;
+use std::mem::{size_of_val, zeroed};
 
 use once_cell::sync::OnceCell;
-use winapi::{
-    shared::minwindef::HMODULE,
-    um::{processthreadsapi::GetCurrentProcess, psapi::K32GetModuleInformation, winnt::LPCSTR},
-};
+use winapi::shared::minwindef::HMODULE;
+use winapi::um::processthreadsapi::GetCurrentProcess;
+use winapi::um::psapi::K32GetModuleInformation;
+use winapi::um::winnt::LPCSTR;
 
-use crate::{
-    hooks::engine,
-    utils::{abort_on_panic, MainThreadMarker},
-};
+use crate::hooks::engine;
+use crate::utils::{abort_on_panic, MainThreadMarker};
 
 pub static LoadLibraryA: OnceCell<unsafe extern "system" fn(LPCSTR) -> HMODULE> = OnceCell::new();
 

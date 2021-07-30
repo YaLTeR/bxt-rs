@@ -1,18 +1,15 @@
 //! Playing multiple demos at once.
 
-use std::{
-    ffi::{CStr, OsStr},
-    path::{Path, PathBuf},
-};
+use std::ffi::{CStr, OsStr};
+use std::path::{Path, PathBuf};
 
 use byte_slice_cast::AsSliceOf;
 
-use super::{commands::Command, Module};
-use crate::{
-    handler,
-    hooks::engine::{self, con_print, prepend_command},
-    utils::*,
-};
+use super::commands::Command;
+use super::Module;
+use crate::handler;
+use crate::hooks::engine::{self, con_print, prepend_command};
+use crate::utils::*;
 
 pub struct DemoPlayback;
 impl Module for DemoPlayback {

@@ -67,17 +67,18 @@
 //!             GENERAL => GENERAL
 //!             COMPUTE_SHADER => COMPUTE_SHADER
 
-use std::{ffi::CStr, io::Cursor, mem, slice, str};
+use std::ffi::CStr;
+use std::io::Cursor;
+use std::{mem, slice, str};
 
-use ash::{
-    util::read_spv,
-    version::{DeviceV1_0, InstanceV1_0},
-    vk,
-};
+use ash::util::read_spv;
+use ash::version::{DeviceV1_0, InstanceV1_0};
+use ash::vk;
 use color_eyre::eyre::{self, ensure, eyre};
 use rust_hawktracer::*;
 
-use super::{muxer::Muxer, ExternalObject};
+use super::muxer::Muxer;
+use super::ExternalObject;
 
 pub struct Vulkan {
     width: u32,

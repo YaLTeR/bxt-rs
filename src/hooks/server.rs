@@ -2,14 +2,14 @@
 
 #![allow(non_snake_case, non_upper_case_globals)]
 
-use std::{os::raw::*, ptr::NonNull};
+use std::os::raw::*;
+use std::ptr::NonNull;
 
-use crate::{
-    ffi::{playermove::playermove_s, usercmd::usercmd_s},
-    hooks::engine,
-    modules::tas_logging,
-    utils::*,
-};
+use crate::ffi::playermove::playermove_s;
+use crate::ffi::usercmd::usercmd_s;
+use crate::hooks::engine;
+use crate::modules::tas_logging;
+use crate::utils::*;
 
 pub static CmdStart: Pointer<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)> =
     Pointer::empty(b"CmdStart\0");

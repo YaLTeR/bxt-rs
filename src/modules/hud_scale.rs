@@ -1,12 +1,10 @@
 //! `bxt_hud_scale`
 
 use super::Module;
-use crate::{
-    gl,
-    hooks::engine::{self, SCREENINFO},
-    modules::cvars::{self, CVar},
-    utils::*,
-};
+use crate::gl;
+use crate::hooks::engine::{self, SCREENINFO};
+use crate::modules::cvars::{self, CVar};
+use crate::utils::*;
 
 pub struct HudScale;
 impl Module for HudScale {

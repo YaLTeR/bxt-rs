@@ -1,11 +1,9 @@
 //! `bxt_force_fov`
 
 use super::Module;
-use crate::{
-    hooks::engine,
-    modules::cvars::{self, CVar},
-    utils::*,
-};
+use crate::hooks::engine;
+use crate::modules::cvars::{self, CVar};
+use crate::utils::*;
 
 pub struct ForceFov;
 impl Module for ForceFov {

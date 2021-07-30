@@ -1,13 +1,11 @@
 //! Utility objects.
 
-use std::{
-    env,
-    ffi::{CStr, CString, OsString},
-    fs::OpenOptions,
-    panic::{self, catch_unwind, UnwindSafe},
-    process::abort,
-    sync::Once,
-};
+use std::env;
+use std::ffi::{CStr, CString, OsString};
+use std::fs::OpenOptions;
+use std::panic::{self, catch_unwind, UnwindSafe};
+use std::process::abort;
+use std::sync::Once;
 
 use log::logger;
 use simplelog::{CombinedLogger, LevelFilter, SharedLogger, TermLogger, WriteLogger};
@@ -126,7 +124,8 @@ pub fn ensure_profiling() {
 /// Converts a `CStr` into an `OsString`.
 #[cfg(unix)]
 pub fn c_str_to_os_string(c_str: &CStr) -> OsString {
-    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
     OsStr::from_bytes(c_str.to_bytes()).to_os_string()
 }
 

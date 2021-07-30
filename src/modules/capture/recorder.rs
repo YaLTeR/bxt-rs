@@ -4,12 +4,10 @@ use color_eyre::eyre::{self, ensure, eyre, Context};
 use crossbeam_channel::{bounded, Receiver, Sender};
 use rust_hawktracer::*;
 
-use super::{
-    muxer::{Muxer, MuxerInitError, PixelFormat},
-    opengl::{self, OpenGl},
-    vulkan::{self, ExternalHandles, Vulkan},
-    SoundCaptureMode,
-};
+use super::muxer::{Muxer, MuxerInitError, PixelFormat};
+use super::opengl::{self, OpenGl};
+use super::vulkan::{self, ExternalHandles, Vulkan};
+use super::SoundCaptureMode;
 use crate::utils::*;
 
 pub struct Recorder {

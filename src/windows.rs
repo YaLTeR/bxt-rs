@@ -3,17 +3,14 @@
 use std::os::raw::*;
 
 use minhook_sys::*;
-use winapi::{
-    shared::minwindef::{DWORD, FALSE, HINSTANCE, LPVOID},
-    um::{
-        handleapi::CloseHandle,
-        libloaderapi::{GetModuleHandleA, GetProcAddress},
-        synchapi::{OpenEventA, SetEvent},
-        winnt::EVENT_MODIFY_STATE,
-    },
-};
+use winapi::shared::minwindef::{DWORD, FALSE, HINSTANCE, LPVOID};
+use winapi::um::handleapi::CloseHandle;
+use winapi::um::libloaderapi::{GetModuleHandleA, GetProcAddress};
+use winapi::um::synchapi::{OpenEventA, SetEvent};
+use winapi::um::winnt::EVENT_MODIFY_STATE;
 
-use crate::{hooks, utils::*};
+use crate::hooks;
+use crate::utils::*;
 
 #[no_mangle]
 pub unsafe extern "system" fn DllMain(

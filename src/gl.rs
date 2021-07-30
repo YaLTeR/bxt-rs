@@ -2,7 +2,9 @@ use std::ffi::CString;
 
 use rust_hawktracer::*;
 
-use crate::{hooks::sdl, modules::capture, utils::*};
+use crate::hooks::sdl;
+use crate::modules::capture;
+use crate::utils::*;
 
 mod generated {
     #![allow(clippy::all)]

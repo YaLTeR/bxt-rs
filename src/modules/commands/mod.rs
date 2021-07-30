@@ -1,9 +1,11 @@
 //! Console commands.
 
-use std::{cell::Cell, ffi::CStr};
+use std::cell::Cell;
+use std::ffi::CStr;
 
 use super::{Module, MODULES};
-use crate::{hooks::engine, utils::*};
+use crate::hooks::engine;
+use crate::utils::*;
 
 mod args;
 pub use args::Args;

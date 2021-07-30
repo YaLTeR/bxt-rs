@@ -1,10 +1,8 @@
 //! A main thread pointer.
 
-use std::{
-    cell::Cell,
-    ffi::c_void,
-    ptr::{null_mut, NonNull},
-};
+use std::cell::Cell;
+use std::ffi::c_void;
+use std::ptr::{null_mut, NonNull};
 
 use bxt_patterns::Patterns;
 

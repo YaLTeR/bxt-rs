@@ -1,10 +1,8 @@
 //! Helper for JSON serialization.
 
-use std::{
-    fs::File,
-    io::{self, BufWriter},
-    path::Path,
-};
+use std::fs::File;
+use std::io::{self, BufWriter};
+use std::path::Path;
 
 use serde::Serialize;
 use serde_json::ser::{CompactFormatter, Formatter};

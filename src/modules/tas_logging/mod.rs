@@ -1,25 +1,19 @@
 //! TAS logging.
 
-use std::{
-    ffi::{CStr, OsString},
-    io,
-    path::Path,
-};
+use std::ffi::{CStr, OsString};
+use std::io;
+use std::path::Path;
 
 use super::Module;
-use crate::{
-    ffi::{edict, playermove::playermove_s, usercmd::usercmd_s},
-    handler,
-    hooks::{
-        engine::{self, con_print},
-        server,
-    },
-    modules::{
-        commands::{self, Command},
-        cvars::{self, CVar},
-    },
-    utils::*,
-};
+use crate::ffi::edict;
+use crate::ffi::playermove::playermove_s;
+use crate::ffi::usercmd::usercmd_s;
+use crate::handler;
+use crate::hooks::engine::{self, con_print};
+use crate::hooks::server;
+use crate::modules::commands::{self, Command};
+use crate::modules::cvars::{self, CVar};
+use crate::utils::*;
 
 mod serializer;
 use serializer::Serializer;

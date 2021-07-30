@@ -1,14 +1,14 @@
 #![allow(unused, nonstandard_style, deref_nullptr)]
 
-use std::{
-    mem::{align_of, size_of},
-    os::raw::*,
-    ptr::null,
-};
+use std::mem::{align_of, size_of};
+use std::os::raw::*;
+use std::ptr::null;
 
-use crate::ffi::{
-    edict, physent::physent_s, pmplane::pmplane_t, pmtrace::pmtrace_s, usercmd::usercmd_s,
-};
+use crate::ffi::edict;
+use crate::ffi::physent::physent_s;
+use crate::ffi::pmplane::pmplane_t;
+use crate::ffi::pmtrace::pmtrace_s;
+use crate::ffi::usercmd::usercmd_s;
 
 #[repr(C)]
 pub struct playermove_s {
