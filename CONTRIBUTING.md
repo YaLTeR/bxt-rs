@@ -1,5 +1,15 @@
 # Contributing to bxt-rs
 
+- [Adding support for more GoldSrc versions](#adding-support-for-more-goldsrc-versions)
+  - [Checking what pointers some module needs](#checking-what-pointers-some-module-needs)
+  - [Pointers without patterns](#pointers-without-patterns)
+  - [Pointers with patterns](#pointers-with-patterns)
+- [Modules](#modules)
+  - [Adding a new module](#adding-a-new-module)
+  - [Adding a console variable](#adding-a-console-variable)
+  - [Adding a console command](#adding-a-console-command)
+- [Hooking a new engine function](#hooking-a-new-engine-function)
+
 ## Adding support for more GoldSrc versions
 
 [`src/hooks/engine.rs`](src/hooks/engine.rs) contains function patterns and offsets. All pointers that bxt-rs finds and uses are listed at the top of the file. Every pattern has instructions on how to find it.
@@ -132,3 +142,261 @@ match ptr.pattern_index(marker) {
 ```
 
 Now build bxt-rs and see if it successfully finds the function.
+
+## Modules
+
+### Adding a new module
+
+1. Create a file `src/modules/useful_functionality.rs`:
+
+   ```rust
+   //! Useful functionality.
+
+   use super::Module;
+   use crate::utils::*;
+   
+   pub struct UsefulFunctionality;
+   impl Module for UsefulFunctionality {
+       fn name(&self) -> &'static str {
+           "Useful functionality"
+       }
+   
+       fn is_enabled(&self, _marker: MainThreadMarker) -> bool {
+           true
+       }
+   }
+   ```
+
+1. Open `src/modules/mod.rs`, add the module declaration at the top:
+
+   ```rust
+   pub mod useful_functionality;
+   ```
+
+   Add the module to the array of all modules at the bottom:
+
+   ```rust
+   pub static MODULES: &[&dyn Module] = &[
+       // ...
+       &useful_functionality::UsefulFunctionality,
+   ];
+   ```
+
+Now you can build bxt-rs and find your new module in `bxt_module_list`:
+
+![](https://user-images.githubusercontent.com/1794388/127631714-b79c436b-422a-43b4-b93c-fe5ec6ffb411.png)
+
+### Adding a console variable
+
+1. Import CVar things:
+
+   ```rust
+   use crate::modules::cvars::{self, CVar};
+   ```
+
+1. Add a CVar:
+
+   ```rust
+   static BXT_ENABLE_THING: CVar = CVar::new(b"bxt_enable_thing\0", b"0\0");
+   ```
+
+   The second argument is the default value.
+
+   Note the `\0` in the end. It is required; if you forget it for any active CVar, `cargo test` will complain.
+
+1. Add it to the module's list of CVars:
+
+   ```rust
+   impl Module for UsefulFunctionality {
+       // ...
+   
+       fn cvars(&self) -> &'static [&'static CVar] {
+           static CVARS: &[&CVar] = &[&BXT_ENABLE_THING];
+           &CVARS
+       }
+   }
+   ```
+
+1. Add the `CVars` module to the `is_enabled()` check:
+
+   ```rust
+   fn is_enabled(&self, marker: MainThreadMarker) -> bool {
+       cvars::CVars.is_enabled(marker)
+   }
+   ```
+
+Now you can build bxt-rs and find your new console variable:
+
+![](https://user-images.githubusercontent.com/1794388/127633097-cecf73bf-2d16-4d7b-be84-795382ead2f8.png)
+
+### Adding a console command
+
+1. Import command things:
+
+   ```rust
+   use crate::{
+       handler,
+       hooks::engine::con_print,
+       modules::commands::{self, Command},
+   }
+   ```
+
+1. Add a command:
+
+   ```rust
+   static BXT_DO_THING: Command = Command::new(
+       b"bxt_do_thing\0",
+       handler!(
+           "Usage: bxt_do_thing\n \
+             Does a thing.\n",
+           do_thing as fn(_)
+       ),
+   );
+   
+   fn do_thing(marker: MainThreadMarker) {
+       con_print(marker, "Thing done!\n");
+   }
+   ```
+
+   Usage is printed when the number or types of arguments given to the command from the console is wrong.
+
+   Note the `\0` in the end. It is required; if you forget it for any active CVar, `cargo test` will complain.
+
+1. Add it to the module's list of commands:
+
+   ```rust
+   impl Module for UsefulFunctionality {
+       // ...
+   
+       fn commands(&self) -> &'static [&'static Command] {
+           static COMMANDS: &[&Command] = &[&BXT_DO_THING];
+           &COMMANDS
+       }
+   }
+   ```
+
+1. Add the `Commands` module to the `is_enabled()` check:
+
+   ```rust
+   fn is_enabled(&self, marker: MainThreadMarker) -> bool {
+       commands::Commands.is_enabled(marker)
+   }
+   ```
+
+Now you can build bxt-rs and find your new console command:
+
+![](https://user-images.githubusercontent.com/1794388/127668685-f266160b-64a1-4ea0-94f1-5601d1c2900b.png)
+
+Commands can accept a string argument or an argument of any type that can be parsed from a string. Just add the argument to the handler function and to the type cast inside the `handler! {}` macro:
+
+```rust
+static BXT_DO_THING: Command = Command::new(
+    b"bxt_do_thing\0",
+    handler!(
+        "Usage: bxt_do_thing <N>\n \
+          Does a thing N times.\n",
+        do_thing as fn(_, _)
+    ),
+);
+
+fn do_thing(marker: MainThreadMarker, times: usize) {
+    for _ in 0..times {
+        con_print(marker, "Thing done!\n");
+    }
+}
+```
+
+Now the command can be invoked with an argument:
+
+![](https://user-images.githubusercontent.com/1794388/127669008-b6999242-5521-473b-872e-a6865d266438.png)
+
+Commands can also have multiple handlers with different argument count or types:
+
+```rust
+static BXT_DO_THING: Command = Command::new(
+    b"bxt_do_thing\0",
+    handler!(
+        "Usage: bxt_do_thing [argument]\n \
+          Does a thing, maybe with an argument.\n",
+        do_thing as fn(_),
+        do_thing_with_argument as fn(_, _)
+    ),
+);
+
+fn do_thing(marker: MainThreadMarker) {
+    con_print(marker, "No argument!\n");
+}
+
+fn do_thing_with_argument(marker: MainThreadMarker, argument: String) {
+    con_print(marker, &format!("Got an argument: {}\n", argument));
+}
+```
+
+This command accepts no arguments or one string argument:
+
+![](https://user-images.githubusercontent.com/1794388/127669511-558227e5-07c3-46ab-a751-7a969f4dbf7c.png)
+
+## Hooking a new engine function
+
+1. Find the function you want to hook in Ghidra. Refer to [Pointers with patterns](#pointers-with-patterns).
+1. Open [`src/hooks/engine.rs`](src/hooks/engine.rs).
+1. Add a function pointer variable alongside the ones at the top:
+
+   ```rust
+   pub static SomeFunction: Pointer<unsafe extern "C" fn(*mut c_void) -> c_int> = Pointer::empty_patterns(
+       b"SomeFunction\0",
+       // To find, search for this. Navigate there. The function you're looking at is SomeFunction.
+       Patterns(&[
+           // 1337
+           pattern!(11 22 33 ?? ?? 44 55),
+       ]),
+       my_SomeFunction as _,
+   );
+   ```
+
+   These things should match what you see in Ghidra:
+
+   - the calling convention (`extern "C"`)
+   - argument types (`*mut c_void`)
+   - return type (`c_int`)
+
+   The name (`SomeFunction`) should match the exported symbol name, it's used to get the function pointer on Linux. If there's no name or finding the pointer through it is not needed, feel free to come up with your own name which doesn't match any existing symbol.
+
+   The function may have no patterns if it's Linux-only or if you're getting the pointer some other way.
+
+   Note that the variables are kept in sorted order by name manually.
+
+1. Add the new pointer to the `POINTERS` array:
+
+   ```rust
+   static POINTERS: &[&dyn PointerTrait] = &[
+       // ...
+       &SomeFunction,
+   ];
+   ```
+
+   Note that the variables are kept in sorted order by name manually.
+
+1. Ctrl-F `find_pointers`, in this function you can add code that sets your new pointer using some other pointer's value (if you're not using patterns, or as an alternative finding method). You can also set other pointers based on your pointer. Check other code in the function and do the same. Note there are two `find_pointers` functions, one for Linux and one for Windows.
+
+1. Navigate down to `pub mod exported {`, there you should add the hook function:
+
+   ```rust
+   #[export_name = "SomeFunction"]
+   pub unsafe extern "C" fn my_SomeFunction(some_argument: *mut c_void) -> c_int {
+       abort_on_panic(move || {
+           // Most GoldSrc functions are main game thread-only.
+           let marker = MainThreadMarker::new();
+   
+           // Do something before the original function is called.
+   
+           let rv = SomeFunction.get(marker)(some_argument);
+   
+           // Do something after the original function is called.
+   
+           rv
+       })
+   }
+   ```
+
+   Once again, the calling convention, the argument types and the return type should match what you see in Ghidra. `export_name` is used on Linux and should match the raw, mangled function name, which is also visible in Ghidra. For most functions it'll look the same as the regular name, however for mangled (usually C++) functions it'll look different, for example `_Z18Sys_VID_FlipScreenv`.
