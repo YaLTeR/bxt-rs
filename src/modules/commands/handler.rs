@@ -1,7 +1,6 @@
 use std::{ffi::CStr, str::FromStr};
 
 use super::Args;
-
 use crate::utils::MainThreadMarker;
 
 /// Parses a value of type `T` from the argument string.

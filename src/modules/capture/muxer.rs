@@ -1,10 +1,9 @@
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::{
     io::{self, Write},
     process::{Child, Command, Stdio},
 };
-
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 
 use rust_hawktracer::*;
 use thiserror::Error;
