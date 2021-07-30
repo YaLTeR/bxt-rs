@@ -214,7 +214,7 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
         return;
     }
 
-    scoped_tracepoint!(capture_frame_);
+    scoped_tracepoint!(_capture_frame);
 
     let (width, height) = engine::get_resolution(marker);
 
