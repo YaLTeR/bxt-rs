@@ -211,7 +211,7 @@ pub static LoadEntityDLLs: Pointer<unsafe extern "C" fn(*const c_char)> = Pointe
     my_LoadEntityDLLs as _,
 );
 pub static Mod_LeafPVS: Pointer<unsafe extern "C" fn(*mut mleaf_s, *mut model_s) -> *mut c_void> =
-    Pointer::empty(b"Mod_LeafPVS\0");
+    Pointer::empty_patterns(b"Mod_LeafPVS\0", Patterns(&[]), my_Mod_LeafPVS as _);
 pub static Host_FilterTime: Pointer<unsafe extern "C" fn(c_float) -> c_int> =
     Pointer::empty_patterns(
         b"Host_FilterTime\0",
