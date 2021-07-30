@@ -137,6 +137,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --target ${{ matrix.target }}
+          name: clippy - ${{ matrix.label }}
 
   rustfmt:
     runs-on: ubuntu-20.04
