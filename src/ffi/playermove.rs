@@ -1,4 +1,4 @@
-#![allow(unused, nonstandard_style)]
+#![allow(unused, nonstandard_style, deref_nullptr)]
 
 use std::{
     mem::{align_of, size_of},
