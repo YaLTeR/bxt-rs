@@ -249,7 +249,7 @@ impl Muxer {
 
         {
             scoped_tracepoint!(_write_video_data);
-            writer.write_all(&data)?;
+            writer.write_all(data)?;
         }
 
         self.video_pts += 1;
