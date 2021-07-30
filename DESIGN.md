@@ -29,3 +29,7 @@ The `Pointer` struct represents a function or variable pointer to be found by na
 The `CVars` module provides a safe zero-cost console variable abstraction. Only variables stored as globals can be registered in the engine to ensure their address doesn't change (as the engine stores a pointer to each registered variable). This allows to skip any allocations that would otherwise be necessary to keep the address stable.
 
 The `Commands` module provides safe console command helpers. A console command handler function can be wrapped with a `handler!` macro to have console command arguments automatically parsed and passed into the function with a usage string printed on argument count mismatch or parsing failure.
+
+### Video Recording
+
+Explanation of how the video part of video recording works is in my [Fast Half-Life Video Recording with Vulkan](https://bxt.rs/blog/fast-half-life-video-recording-with-vulkan/) blog post.
