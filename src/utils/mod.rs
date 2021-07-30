@@ -25,7 +25,7 @@ pub use main_thread_ref_cell::*;
 /// Runs the given function and aborts the process if it panics.
 ///
 /// It's necessary to wrap the code of each hook in this function until Rust finally does this
-/// automatically. https://github.com/rust-lang/rust/issues/52652
+/// automatically. <https://github.com/rust-lang/rust/issues/52652>
 pub fn abort_on_panic<R, F: FnOnce() -> R + UnwindSafe>(f: F) -> R {
     match catch_unwind(f) {
         Ok(rv) => rv,
