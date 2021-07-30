@@ -58,7 +58,6 @@ pub unsafe fn reset_entity_interface(marker: MainThreadMarker) {
     }
 }
 
-#[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn my_CmdStart(
     player: *mut c_void,
     cmd: *mut usercmd_s,
@@ -73,7 +72,6 @@ pub unsafe extern "C" fn my_CmdStart(
     })
 }
 
-#[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn my_PM_Move(ppmove: *mut playermove_s, server: c_int) {
     abort_on_panic(move || {
         let marker = MainThreadMarker::new();
