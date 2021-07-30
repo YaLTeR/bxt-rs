@@ -23,6 +23,8 @@ To run the bxt-compatibility build together with the original Bunnymod XT (e.g. 
 
 ## Building
 
+You can uncomment the right line in `.cargo/config` to avoid writing `--target` every time.
+
 ### Linux
 
 1. Install 32-bit libc for linking. On Ubuntu that's `libc6-dev-i386`.

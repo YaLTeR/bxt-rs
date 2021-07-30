@@ -1,0 +1,4 @@
+[build]
+#target = "i686-unknown-linux-gnu"
+#target = "i686-pc-windows-msvc"
+#target = "i686-pc-windows-gnu"
