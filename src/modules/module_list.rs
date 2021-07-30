@@ -16,7 +16,7 @@ impl Module for ModuleList {
 
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[&BXT_MODULE_LIST];
-        &COMMANDS
+        COMMANDS
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {

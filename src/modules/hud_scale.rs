@@ -16,7 +16,7 @@ impl Module for HudScale {
 
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_HUD_SCALE];
-        &CVARS
+        CVARS
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {

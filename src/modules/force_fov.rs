@@ -15,7 +15,7 @@ impl Module for ForceFov {
 
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_FORCE_FOV];
-        &CVARS
+        CVARS
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {

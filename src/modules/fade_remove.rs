@@ -15,7 +15,7 @@ impl Module for FadeRemove {
 
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_FADE_REMOVE];
-        &CVARS
+        CVARS
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {

@@ -15,7 +15,7 @@ impl Module for NoVis {
 
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_NOVIS];
-        &CVARS
+        CVARS
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {

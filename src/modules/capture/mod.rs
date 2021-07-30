@@ -20,7 +20,7 @@ impl Module for Capture {
 
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[&BXT_CAP_START, &BXT_CAP_STOP];
-        &COMMANDS
+        COMMANDS
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
@@ -30,7 +30,7 @@ impl Module for Capture {
             &BXT_CAP_SOUND_EXTRA,
             &BXT_CAP_FORCE_FALLBACK,
         ];
-        &CVARS
+        CVARS
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {

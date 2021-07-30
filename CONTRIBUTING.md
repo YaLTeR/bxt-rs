@@ -212,7 +212,7 @@ Now you can build bxt-rs and find your new module in `bxt_module_list`:
    
        fn cvars(&self) -> &'static [&'static CVar] {
            static CVARS: &[&CVar] = &[&BXT_ENABLE_THING];
-           &CVARS
+           CVARS
        }
    }
    ```
@@ -270,7 +270,7 @@ Now you can build bxt-rs and find your new console variable:
    
        fn commands(&self) -> &'static [&'static Command] {
            static COMMANDS: &[&Command] = &[&BXT_DO_THING];
-           &COMMANDS
+           COMMANDS
        }
    }
    ```

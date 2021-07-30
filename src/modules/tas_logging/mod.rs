@@ -32,12 +32,12 @@ impl Module for TasLogging {
 
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[&BXT_TASLOG];
-        &COMMANDS
+        COMMANDS
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_TASLOG_FILENAME];
-        &CVARS
+        CVARS
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {

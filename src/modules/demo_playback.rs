@@ -22,7 +22,7 @@ impl Module for DemoPlayback {
 
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[&BXT_PLAY_RUN];
-        &COMMANDS
+        COMMANDS
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
