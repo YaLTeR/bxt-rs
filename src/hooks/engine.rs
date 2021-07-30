@@ -570,6 +570,7 @@ pub struct client_static_s_demos {
     pub demoplayback: c_int,
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[repr(C)]
 pub struct SCREENINFO {
     pub iSize: c_int,
