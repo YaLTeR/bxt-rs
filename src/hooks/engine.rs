@@ -324,9 +324,30 @@ pub static realtime: Pointer<*mut f64> = Pointer::empty(b"realtime\0");
 
 pub static R_DrawSequentialPoly: Pointer<
     unsafe extern "C" fn(*mut c_void, *mut c_int) -> *mut c_void,
-> = Pointer::empty(b"R_DrawSequentialPoly\0");
+> = Pointer::empty_patterns(
+    b"R_DrawSequentialPoly\0",
+    // Stolen from BunnymodXT
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 51 A1 ?? ?? ?? ?? 53 56 57 83 B8 F8 02 00 00 01 75 63 E8 ?? ?? ?? ?? 68 03 03 00 00 68 02 03 00 00),
+        // 4554
+        pattern!(A1 ?? ?? ?? ?? 53 55 56 8B 88),
+        // OpposingForce
+        pattern!(A1 ?? ?? ?? ?? 53 55 BD 01 00 00 00 8B 88 F8 02 00 00 56 3B CD 57 75 62 E8 ?? ?? ?? ?? 68 03 03 00 00 68 02 03 00 00),
+    ]),
+    my_R_DrawSequentialPoly as _,
+);
 
-pub static R_Clear: Pointer<unsafe extern "C" fn() -> *mut c_void> = Pointer::empty(b"R_Clear\0");
+pub static R_Clear: Pointer<unsafe extern "C" fn() -> *mut c_void> = Pointer::empty_patterns(
+    b"R_Clear\0",
+    Patterns(&[
+        // 6153
+        pattern!(8B 15 ?? ?? ?? ?? 33 C0 83 FA 01 0F 9F C0 50 E8 ?? ?? ?? ?? D9 05 ?? ?? ?? ?? DC 1D ?? ?? ?? ?? 83 C4 04 DF E0),
+        // HL-NGHL
+        pattern!(D9 05 ?? ?? ?? ?? DC 1D ?? ?? ?? ?? DF E0 F6 C4 ?? ?? ?? D9 05 ?? ?? ?? ?? D8 1D),
+    ]),
+    my_R_Clear as _,
+);
 
 pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"R_SetFrustum\0",
