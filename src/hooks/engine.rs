@@ -205,7 +205,20 @@ pub static LoadEntityDLLs: Pointer<unsafe extern "C" fn(*const c_char)> = Pointe
     my_LoadEntityDLLs as _,
 );
 pub static Mod_LeafPVS: Pointer<unsafe extern "C" fn(*mut mleaf_s, *mut model_s) -> *mut c_void> =
-    Pointer::empty_patterns(b"Mod_LeafPVS\0", Patterns(&[]), my_Mod_LeafPVS as _);
+    Pointer::empty_patterns(
+        b"Mod_LeafPVS\0",
+        // To find, search for "Spawned a NULL entity!", the referencing function is CreateNamedEntity
+        // Find cross references, go to the global data, that data is g_engfuncsExportedToDlls
+        // Go up 5 entries and you'll find PVSFindEntities, inside this function first function
+        // call is Mod_PointInLeaf and the 2nd one is Mod_LeafPVS.
+        Patterns(&[
+            // 6153
+            pattern!(55 8B EC 8B 55 ?? 8B 45 ?? 8B 8A),
+            // 4554
+            pattern!(8B 54 24 ?? 8B 44 24 ?? 8B 8A),
+        ]),
+        my_Mod_LeafPVS as _,
+    );
 pub static Host_FilterTime: Pointer<unsafe extern "C" fn(c_float) -> c_int> =
     Pointer::empty_patterns(
         b"Host_FilterTime\0",
@@ -466,6 +479,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     #[cfg(not(feature = "bxt-compatibility"))]
     &Key_Event,
     &LoadEntityDLLs,
+    #[cfg(not(feature = "bxt-compatibility"))]
     &Mod_LeafPVS,
     &Host_FilterTime,
     &host_frametime,
