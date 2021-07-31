@@ -15,7 +15,7 @@ Started as an experiment to re-architecture Bunnymod XT from scratch with the be
 
 You can download the latest development build from [GitHub Actions](https://github.com/YaLTeR/bxt-rs/actions?query=branch%3Amaster). Open the topmost workflow and scroll down for Artifacts.
 
-On Linux, load it into HL like you would load regular BXT.
+On Linux, you can use the [`runhl.sh`](runhl.sh) script. Correct the paths at the top of the script if necessary.
 
 On Windows:
 
