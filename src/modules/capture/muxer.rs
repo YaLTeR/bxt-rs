@@ -107,6 +107,7 @@ impl Muxer {
     ) -> Result<Self, MuxerInitError> {
         #[rustfmt::skip]
         let mut args = vec![
+            "-loglevel", "error",
             "-f", "nut",
             "-i", "pipe:",
             "-c:v", "libx264",
@@ -130,9 +131,10 @@ impl Muxer {
         let mut command = Command::new("ffmpeg");
         command
             .args(&args)
+            .env_remove("LD_PRELOAD") // So there's no ld.so complaining in the output.
             .stdin(Stdio::piped())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit());
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped());
 
         #[cfg(windows)]
         command.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
@@ -293,14 +295,10 @@ impl Muxer {
         Ok(())
     }
 
+    /// Waits for the child process to exit and returns its output.
     #[hawktracer(muxer_close)]
-    pub fn close(mut self) {
-        let _ = self.child.wait();
-        // use std::os::unix::ffi::OsStringExt;
-        // let output = self.child.wait_with_output().unwrap();
-        // let output = std::ffi::OsString::from_vec(output.stderr)
-        //     .into_string()
-        //     .unwrap();
-        // println!("{}", &output);
+    pub fn close(self) -> String {
+        let output = self.child.wait_with_output().unwrap();
+        String::from_utf8_lossy(&output.stderr).into_owned()
     }
 }

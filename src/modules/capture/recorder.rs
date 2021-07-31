@@ -46,6 +46,9 @@ pub struct Recorder {
     /// Error from the thread if it sent one.
     thread_error: Option<eyre::Report>,
 
+    /// FFmpeg output from the thread if it sent one.
+    ffmpeg_output: Option<String>,
+
     /// How we're capturing the frames.
     capture_type: CaptureType,
 
@@ -75,6 +78,7 @@ enum ThreadToMain {
     ExternalHandles(ExternalHandles),
     AcquiredImage,
     Muxed(Box<[u8]>),
+    FfmpegOutput(String),
 }
 
 impl Recorder {
@@ -131,7 +135,7 @@ impl Recorder {
         };
 
         let (to_thread_sender, from_main_receiver) = bounded(2);
-        let (to_main_sender, from_thread_receiver) = bounded(1);
+        let (to_main_sender, from_thread_receiver) = bounded(2);
         let thread =
             thread::spawn(move || thread(vulkan, muxer, to_main_sender, from_main_receiver));
 
@@ -147,6 +151,7 @@ impl Recorder {
             sender: to_thread_sender,
             receiver: from_thread_receiver,
             thread_error: None,
+            ffmpeg_output: None,
             capture_type,
             buffer: Some(vec![0u8; width as usize * height as usize * 3].into()),
         })
@@ -160,8 +165,12 @@ impl Recorder {
 
         // The channel was closed. Try to get the error.
         while let Ok(message) = self.receiver.try_recv() {
-            if let ThreadToMain::Error(err) = message {
-                self.thread_error = Some(err);
+            match message {
+                ThreadToMain::Error(err) => {
+                    self.thread_error = Some(err);
+                }
+                ThreadToMain::FfmpegOutput(output) => self.ffmpeg_output = Some(output),
+                _ => (),
             }
         }
     }
@@ -317,12 +326,16 @@ impl Recorder {
     }
 
     #[hawktracer(recorder_finish)]
-    pub fn finish(mut self) {
+    pub fn finish(mut self) -> Option<String> {
         self.send_to_thread(MainToThread::Finish);
 
         while let Ok(message) = self.receiver.recv() {
-            if let ThreadToMain::Error(err) = message {
-                self.thread_error = Some(err);
+            match message {
+                ThreadToMain::Error(err) => {
+                    self.thread_error = Some(err);
+                }
+                ThreadToMain::FfmpegOutput(output) => self.ffmpeg_output = Some(output),
+                _ => (),
             }
         }
 
@@ -331,6 +344,8 @@ impl Recorder {
         if let Some(err) = self.thread_error {
             error!("recording thread error: {:?}", err);
         }
+
+        self.ffmpeg_output.take()
     }
 
     pub fn reset_opengl(&mut self) {
@@ -374,7 +389,8 @@ fn thread(
         }
     }
 
-    muxer.close();
+    let output = muxer.close();
+    s.send(ThreadToMain::FfmpegOutput(output)).unwrap();
 }
 
 fn process_message(

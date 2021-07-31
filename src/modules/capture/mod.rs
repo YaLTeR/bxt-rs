@@ -132,16 +132,6 @@ enum State {
     Recording(Recorder),
 }
 
-impl State {
-    fn set(&mut self, new: Self) {
-        let old_state = mem::replace(self, new);
-
-        if let State::Recording(recorder) = old_state {
-            recorder.finish();
-        }
-    }
-}
-
 static STATE: MainThreadRefCell<State> = MainThreadRefCell::new(State::Idle);
 
 static BXT_CAP_START: Command = Command::new(
@@ -201,7 +191,19 @@ fn cap_stop(marker: MainThreadMarker) {
         }
     }
 
-    STATE.borrow_mut(marker).set(State::Idle);
+    // Couldn't replace above because capture_sound() needs the state in place.
+    let old_state = mem::replace(&mut *STATE.borrow_mut(marker), State::Idle);
+    if let State::Recording(recorder) = old_state {
+        if let Some(ffmpeg_output) = recorder.finish() {
+            let output = ffmpeg_output.trim();
+            if !output.is_empty() {
+                warn!("FFmpeg output:\n{}", output);
+                con_print(marker, &format!("FFmpeg output:\n{}\n", output));
+            }
+        }
+    }
+
+    con_print(marker, "Recording stopped.\n");
 }
 
 pub unsafe fn capture_frame(marker: MainThreadMarker) {
