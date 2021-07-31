@@ -1,12 +1,13 @@
 # bxt-rs
 
 A few speedrunning and TAS-related tools for Half-Life and mods. Current features:
+
 - Video recording (a successor to [hl-capture](https://github.com/YaLTeR/hl-capture)).
 - `bxt_hud_scale` to upscale the HUD for high-resolution video recording.
 - `bxt_force_fov` to override FOV when `default_fov` doesn't work.
 - Commands to play many demos at once (`bxt_play_run`).
 - A useful subset of `bxt_taslog` when you can't use the one from the original Bunnymod XT.
-- `bxt_fade_remove`, `bxt_shake_remove`.
+- `bxt_fade_remove`, `bxt_shake_remove`, `bxt_novis`.
 
 Started as an experiment to re-architecture Bunnymod XT from scratch with the benefit of hindsight.
 
