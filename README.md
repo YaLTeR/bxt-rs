@@ -12,12 +12,19 @@ Started as an experiment to re-architecture Bunnymod XT from scratch with the be
 
 ## Usage
 
+You can download the latest development build from [GitHub Actions](https://github.com/YaLTeR/bxt-rs/actions?query=branch%3Amaster). Open the topmost workflow and scroll down for Artifacts.
+
 On Linux, load it into HL like you would load regular BXT.
 
-On Windows, rename `bxt-rs.dll` to `BunnymodXT.dll` and start HL using the injector (`Injector.exe path\to\Half-Life\hl.exe`). Running HL on its own and running the injector afterwards is not supported.
+On Windows:
+
+1. Download [Bunnymod XT Injector](https://github.com/YaLTeR/BunnymodXT-Injector/releases) 3.1 or newer.
+1. Create a new folder with `Injector.exe` and `bxt_rs.dll`.
+1. Start Half-Life with the injector: `Injector.exe path\to\Half-Life\hl.exe`. Running HL on its own and running the injector afterwards is not supported.
 
 To run the bxt-compatibility build together with the original Bunnymod XT (e.g. for capturing TASes):
-1. Create a new folder, copy the original `BunnymodXT.dll` and `Injector.exe` there.
+
+1. Create another new folder, copy the original `BunnymodXT.dll` and `Injector.exe` there.
 1. Load Half-Life with bxt-rs as described above.
 1. While in the main menu, run the injector in the new folder to inject the original Bunnymod XT.
 
