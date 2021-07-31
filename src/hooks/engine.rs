@@ -18,7 +18,7 @@ use crate::ffi::usercmd::usercmd_s;
 use crate::hooks::{sdl, server};
 use crate::modules::{
     capture, commands, cvars, demo_playback, fade_remove, force_fov, hud_scale, novis,
-    shake_remove, tas_logging,
+    shake_remove, tas_logging, wallhack,
 };
 use crate::utils::*;
 use crate::vulkan;
@@ -321,6 +321,13 @@ pub static paintbuffer: Pointer<*mut [portable_samplepair_t; 1026]> =
     Pointer::empty(b"paintbuffer\0");
 pub static paintedtime: Pointer<*mut c_int> = Pointer::empty(b"paintedtime\0");
 pub static realtime: Pointer<*mut f64> = Pointer::empty(b"realtime\0");
+
+pub static R_DrawSequentialPoly: Pointer<
+    unsafe extern "C" fn(*mut c_void, *mut c_int) -> *mut c_void,
+> = Pointer::empty(b"R_DrawSequentialPoly\0");
+
+pub static R_Clear: Pointer<unsafe extern "C" fn() -> *mut c_void> = Pointer::empty(b"R_Clear\0");
+
 pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"R_SetFrustum\0",
     // To find, search for "R_RenderView". This is R_RenderView(). The call between two if (global
@@ -496,6 +503,8 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &realtime,
     &R_SetFrustum,
     &ReleaseEntityDlls,
+    &R_Clear,
+    &R_DrawSequentialPoly,
     &S_PaintChannels,
     &S_TransferStereo16,
     &scr_fov_value,
@@ -969,6 +978,40 @@ pub mod exported {
                 Mod_LeafPVS.get(marker)((*model).leafs, model)
             } else {
                 Mod_LeafPVS.get(marker)(leaf, model)
+            }
+        })
+    }
+
+    #[cfg_attr(
+        not(feature = "bxt-compatibility"),
+        export_name = "R_DrawSequentialPoly"
+    )]
+    pub unsafe extern "C" fn my_R_DrawSequentialPoly(
+        surf: *mut c_void,
+        face: *mut c_int,
+    ) -> *mut c_void {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if wallhack::is_active(marker) {
+                wallhack::with_wallhack(marker, move || {
+                    R_DrawSequentialPoly.get(marker)(surf, face)
+                })
+            } else {
+                R_DrawSequentialPoly.get(marker)(surf, face)
+            }
+        })
+    }
+
+    #[cfg_attr(not(feature = "bxt-compatibility"), export_name = "R_Clear")]
+    pub unsafe extern "C" fn my_R_Clear() -> *mut c_void {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if wallhack::is_active(marker) {
+                wallhack::with_after_wallhack(marker, move || R_Clear.get(marker)())
+            } else {
+                R_Clear.get(marker)()
             }
         })
     }
