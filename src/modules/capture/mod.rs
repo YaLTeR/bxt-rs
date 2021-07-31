@@ -359,7 +359,7 @@ pub unsafe fn on_host_filter_time(marker: MainThreadMarker) -> bool {
 pub unsafe fn on_cl_disconnect(marker: MainThreadMarker) {
     {
         // Safety: no engine functions are called while the reference is active.
-        let cls_demos = &mut *engine::cls_demos.get(marker);
+        let cls_demos = &*engine::cls_demos.get(marker);
 
         // Wasn't playing back a demo.
         if cls_demos.demoplayback == 0 {
