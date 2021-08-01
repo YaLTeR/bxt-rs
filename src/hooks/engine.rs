@@ -326,23 +326,24 @@ pub static R_DrawSequentialPoly: Pointer<
     unsafe extern "C" fn(*mut c_void, *mut c_int) -> *mut c_void,
 > = Pointer::empty_patterns(
     b"R_DrawSequentialPoly\0",
-    // Stolen from BunnymodXT
+    // To find, search for "Too many decal surfaces!\n". This string will be used once in
+    // R_RenderBrushPoly and twice in R_DrawSequentialPoly.
     Patterns(&[
         // 6153
-        pattern!(55 8B EC 51 A1 ?? ?? ?? ?? 53 56 57 83 B8 F8 02 00 00 01 75 63 E8 ?? ?? ?? ?? 68 03 03 00 00 68 02 03 00 00),
+        pattern!(55 8B EC 51 A1 ?? ?? ?? ?? 53 56 57 83 B8 ?? ?? ?? ?? 01),
         // 4554
         pattern!(A1 ?? ?? ?? ?? 53 55 56 8B 88),
-        // OpposingForce
-        pattern!(A1 ?? ?? ?? ?? 53 55 BD 01 00 00 00 8B 88 F8 02 00 00 56 3B CD 57 75 62 E8 ?? ?? ?? ?? 68 03 03 00 00 68 02 03 00 00),
     ]),
     my_R_DrawSequentialPoly as _,
 );
 
 pub static R_Clear: Pointer<unsafe extern "C" fn() -> *mut c_void> = Pointer::empty_patterns(
     b"R_Clear\0",
+    // To find, search for "R_RenderView". This is R_RenderView, the call before two if
+    // (global == 0) {} conditions is R_Clear.
     Patterns(&[
         // 6153
-        pattern!(8B 15 ?? ?? ?? ?? 33 C0 83 FA 01 0F 9F C0 50 E8 ?? ?? ?? ?? D9 05 ?? ?? ?? ?? DC 1D ?? ?? ?? ?? 83 C4 04 DF E0),
+        pattern!(8B 15 ?? ?? ?? ?? 33 C0 83 FA 01),
         // HL-NGHL
         pattern!(D9 05 ?? ?? ?? ?? DC 1D ?? ?? ?? ?? DF E0 F6 C4 ?? ?? ?? D9 05 ?? ?? ?? ?? D8 1D),
     ]),
@@ -524,7 +525,9 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &realtime,
     &R_SetFrustum,
     &ReleaseEntityDlls,
+    #[cfg(not(feature = "bxt-compatibility"))]
     &R_Clear,
+    #[cfg(not(feature = "bxt-compatibility"))]
     &R_DrawSequentialPoly,
     &S_PaintChannels,
     &S_TransferStereo16,
@@ -1003,6 +1006,9 @@ pub mod exported {
         })
     }
 
+    /// This function is hooked instead of some top-level drawing functions because
+    /// we want NPCs to remain opaque, to make them more visible. This function draws
+    /// the worldspawn and other brush entities but not studio models (NPCs).
     #[cfg_attr(
         not(feature = "bxt-compatibility"),
         export_name = "R_DrawSequentialPoly"
@@ -1014,13 +1020,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if wallhack::is_active(marker) {
-                wallhack::with_wallhack(marker, move || {
-                    R_DrawSequentialPoly.get(marker)(surf, face)
-                })
-            } else {
-                R_DrawSequentialPoly.get(marker)(surf, face)
-            }
+            wallhack::with_wallhack(marker, move || R_DrawSequentialPoly.get(marker)(surf, face))
         })
     }
 
@@ -1029,11 +1029,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if wallhack::is_active(marker) {
-                wallhack::with_after_wallhack(marker, move || R_Clear.get(marker)())
-            } else {
-                R_Clear.get(marker)()
-            }
+            wallhack::with_after_wallhack(marker, move || R_Clear.get(marker)())
         })
     }
 

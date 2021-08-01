@@ -35,8 +35,13 @@ pub fn is_active(marker: MainThreadMarker) -> bool {
 }
 
 pub fn with_wallhack<T>(marker: MainThreadMarker, f: impl FnOnce() -> T) -> T {
+    if !is_active(marker) {
+        return f();
+    }
+
     let gl = crate::gl::GL.borrow(marker);
     let gl = gl.as_ref().unwrap();
+
     unsafe {
         gl.Enable(gl::BLEND);
         gl.DepthMask(gl::FALSE);
@@ -53,22 +58,25 @@ pub fn with_wallhack<T>(marker: MainThreadMarker, f: impl FnOnce() -> T) -> T {
     let rv = f();
 
     unsafe {
-        gl.Disable(gl::BLEND);
         gl.DepthMask(gl::TRUE);
+        gl.Disable(gl::BLEND);
     }
 
     rv
 }
 
 pub fn with_after_wallhack<T>(marker: MainThreadMarker, f: impl FnOnce() -> T) -> T {
+    if !is_active(marker) {
+        return f();
+    }
+
     let gl = crate::gl::GL.borrow(marker);
     let gl = gl.as_ref().unwrap();
+
     unsafe {
         gl.ClearColor(0.0f32, 0.0f32, 0.0f32, 1.0f32);
         gl.Clear(gl::COLOR_BUFFER_BIT);
     }
 
-    let rv = f();
-
-    rv
+    f()
 }
