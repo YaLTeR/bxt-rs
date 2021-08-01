@@ -124,8 +124,8 @@ impl Muxer {
         ];
 
         if pixel_format == PixelFormat::Rgb24Flipped {
-            args.insert(4, "-vf");
-            args.insert(5, "vflip");
+            args.insert(6, "-vf");
+            args.insert(7, "vflip");
         }
 
         let mut command = Command::new("ffmpeg");
