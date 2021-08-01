@@ -35,7 +35,7 @@ You can uncomment the right line in `.cargo/config` to avoid writing `--target` 
 
 ### Linux
 
-1. Install 32-bit libc for linking. On Ubuntu that's `libc6-dev-i386`.
+1. Install 32-bit libc for linking. On Ubuntu that's `libc6-dev-i386`, on Fedora you'll need `glibc-devel.i686`.
 1. Install stable Rust (for example, via [rustup](https://rustup.rs/)) with the `i686-unknown-linux-gnu` target.
 1. `cargo build --target=i686-unknown-linux-gnu`
 
