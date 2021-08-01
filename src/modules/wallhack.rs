@@ -12,7 +12,7 @@ impl Module for Wallhack {
         "bxt_wallhack"
     }
     fn cvars(&self) -> &'static [&'static CVar] {
-        static CVARS: &[&CVar] = &[&BXT_WALLHACK, &BXT_WALLHACK_ADDITIVE, &BXT_WALLHACK_ALPHA];
+        static CVARS: &[&CVar] = &[&BXT_WALLHACK, &BXT_WALLHACK_ADDITIVE];
         &CVARS
     }
 
@@ -23,7 +23,6 @@ impl Module for Wallhack {
 
 static BXT_WALLHACK: CVar = CVar::new(b"bxt_wallhack\0", b"0\0");
 static BXT_WALLHACK_ADDITIVE: CVar = CVar::new(b"bxt_wallhack_additive\0", b"0\0");
-static BXT_WALLHACK_ALPHA: CVar = CVar::new(b"bxt_wallhack_alpha\0", b"0.6\0");
 
 /// Returns `true` if wallhack is enabled
 pub fn is_active(marker: MainThreadMarker) -> bool {
@@ -52,7 +51,7 @@ pub fn with_wallhack<T>(marker: MainThreadMarker, f: impl FnOnce() -> T) -> T {
             gl.BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA)
         }
 
-        gl.Color4f(1.0f32, 1.0f32, 1.0f32, BXT_WALLHACK_ALPHA.as_f32(marker));
+        gl.Color4f(1.0f32, 1.0f32, 1.0f32, 0.6f32);
     }
 
     let rv = f();
