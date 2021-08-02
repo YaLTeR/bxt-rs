@@ -24,6 +24,7 @@ pub mod module_list;
 pub mod novis;
 pub mod shake_remove;
 pub mod tas_logging;
+pub mod wallhack;
 
 /// Trait for getting module information.
 pub trait Module: Sync {
@@ -62,4 +63,5 @@ pub static MODULES: &[&dyn Module] = &[
     &novis::NoVis,
     &shake_remove::ShakeRemove,
     &tas_logging::TasLogging,
+    &wallhack::Wallhack,
 ];

@@ -18,7 +18,7 @@ use crate::ffi::usercmd::usercmd_s;
 use crate::hooks::{sdl, server};
 use crate::modules::{
     capture, commands, cvars, demo_playback, fade_remove, force_fov, hud_scale, novis,
-    shake_remove, tas_logging,
+    shake_remove, tas_logging, wallhack,
 };
 use crate::utils::*;
 use crate::vulkan;
@@ -321,6 +321,35 @@ pub static paintbuffer: Pointer<*mut [portable_samplepair_t; 1026]> =
     Pointer::empty(b"paintbuffer\0");
 pub static paintedtime: Pointer<*mut c_int> = Pointer::empty(b"paintedtime\0");
 pub static realtime: Pointer<*mut f64> = Pointer::empty(b"realtime\0");
+
+pub static R_DrawSequentialPoly: Pointer<
+    unsafe extern "C" fn(*mut c_void, *mut c_int) -> *mut c_void,
+> = Pointer::empty_patterns(
+    b"R_DrawSequentialPoly\0",
+    // To find, search for "Too many decal surfaces!\n". This string will be used once in
+    // R_RenderBrushPoly and twice in R_DrawSequentialPoly.
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 51 A1 ?? ?? ?? ?? 53 56 57 83 B8 ?? ?? ?? ?? 01),
+        // 4554
+        pattern!(A1 ?? ?? ?? ?? 53 55 56 8B 88),
+    ]),
+    my_R_DrawSequentialPoly as _,
+);
+
+pub static R_Clear: Pointer<unsafe extern "C" fn() -> *mut c_void> = Pointer::empty_patterns(
+    b"R_Clear\0",
+    // To find, search for "R_RenderView". This is R_RenderView, the call before two if
+    // (global == 0) {} conditions is R_Clear.
+    Patterns(&[
+        // 6153
+        pattern!(8B 15 ?? ?? ?? ?? 33 C0 83 FA 01),
+        // HL-NGHL
+        pattern!(D9 05 ?? ?? ?? ?? DC 1D ?? ?? ?? ?? DF E0 F6 C4 ?? ?? ?? D9 05 ?? ?? ?? ?? D8 1D),
+    ]),
+    my_R_Clear as _,
+);
+
 pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"R_SetFrustum\0",
     // To find, search for "R_RenderView". This is R_RenderView(). The call between two if (global
@@ -496,6 +525,10 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &realtime,
     &R_SetFrustum,
     &ReleaseEntityDlls,
+    #[cfg(not(feature = "bxt-compatibility"))]
+    &R_Clear,
+    #[cfg(not(feature = "bxt-compatibility"))]
+    &R_DrawSequentialPoly,
     &S_PaintChannels,
     &S_TransferStereo16,
     &scr_fov_value,
@@ -970,6 +1003,33 @@ pub mod exported {
             } else {
                 Mod_LeafPVS.get(marker)(leaf, model)
             }
+        })
+    }
+
+    /// This function is hooked instead of some top-level drawing functions because
+    /// we want NPCs to remain opaque, to make them more visible. This function draws
+    /// the worldspawn and other brush entities but not studio models (NPCs).
+    #[cfg_attr(
+        not(feature = "bxt-compatibility"),
+        export_name = "R_DrawSequentialPoly"
+    )]
+    pub unsafe extern "C" fn my_R_DrawSequentialPoly(
+        surf: *mut c_void,
+        face: *mut c_int,
+    ) -> *mut c_void {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            wallhack::with_wallhack(marker, move || R_DrawSequentialPoly.get(marker)(surf, face))
+        })
+    }
+
+    #[cfg_attr(not(feature = "bxt-compatibility"), export_name = "R_Clear")]
+    pub unsafe extern "C" fn my_R_Clear() -> *mut c_void {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            wallhack::with_after_wallhack(marker, move || R_Clear.get(marker)())
         })
     }
 
