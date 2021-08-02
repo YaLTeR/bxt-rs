@@ -321,7 +321,6 @@ pub static paintbuffer: Pointer<*mut [portable_samplepair_t; 1026]> =
     Pointer::empty(b"paintbuffer\0");
 pub static paintedtime: Pointer<*mut c_int> = Pointer::empty(b"paintedtime\0");
 pub static realtime: Pointer<*mut f64> = Pointer::empty(b"realtime\0");
-
 pub static R_DrawSequentialPoly: Pointer<
     unsafe extern "C" fn(*mut c_void, *mut c_int) -> *mut c_void,
 > = Pointer::empty_patterns(
@@ -336,7 +335,7 @@ pub static R_DrawSequentialPoly: Pointer<
     ]),
     my_R_DrawSequentialPoly as _,
 );
-
+#[cfg_attr(feature = "bxt-compatibility", allow(unused))]
 pub static R_Clear: Pointer<unsafe extern "C" fn() -> *mut c_void> = Pointer::empty_patterns(
     b"R_Clear\0",
     // To find, search for "R_RenderView". This is R_RenderView, the call before two if
@@ -349,7 +348,6 @@ pub static R_Clear: Pointer<unsafe extern "C" fn() -> *mut c_void> = Pointer::em
     ]),
     my_R_Clear as _,
 );
-
 pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"R_SetFrustum\0",
     // To find, search for "R_RenderView". This is R_RenderView(). The call between two if (global
@@ -1006,9 +1004,6 @@ pub mod exported {
         })
     }
 
-    /// This function is hooked instead of some top-level drawing functions because
-    /// we want NPCs to remain opaque, to make them more visible. This function draws
-    /// the worldspawn and other brush entities but not studio models (NPCs).
     #[cfg_attr(
         not(feature = "bxt-compatibility"),
         export_name = "R_DrawSequentialPoly"
@@ -1020,6 +1015,9 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
+            // R_DrawSequentialPoly is used instead of some top-level drawing functions because we
+            // want NPCs to remain opaque, to make them more visible. This function draws the
+            // worldspawn and other brush entities but not studio models (NPCs).
             wallhack::with_wallhack(marker, move || R_DrawSequentialPoly.get(marker)(surf, face))
         })
     }
@@ -1029,7 +1027,11 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            wallhack::with_after_wallhack(marker, move || R_Clear.get(marker)())
+            // Half-Life normally doesn't clear the screen every frame, which is a problem with
+            // wallhack as there's no solid background.
+            wallhack::on_r_clear(marker);
+
+            R_Clear.get(marker)()
         })
     }
 

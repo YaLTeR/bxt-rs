@@ -11,9 +11,10 @@ impl Module for Wallhack {
     fn name(&self) -> &'static str {
         "bxt_wallhack"
     }
+
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_WALLHACK, &BXT_WALLHACK_ADDITIVE];
-        &CVARS
+        CVARS
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
@@ -24,7 +25,7 @@ impl Module for Wallhack {
 static BXT_WALLHACK: CVar = CVar::new(b"bxt_wallhack\0", b"0\0");
 static BXT_WALLHACK_ADDITIVE: CVar = CVar::new(b"bxt_wallhack_additive\0", b"0\0");
 
-/// Returns `true` if wallhack is enabled
+/// Returns `true` if wallhack is enabled.
 pub fn is_active(marker: MainThreadMarker) -> bool {
     if !Wallhack.is_enabled(marker) {
         return false;
@@ -64,18 +65,16 @@ pub fn with_wallhack<T>(marker: MainThreadMarker, f: impl FnOnce() -> T) -> T {
     rv
 }
 
-pub fn with_after_wallhack<T>(marker: MainThreadMarker, f: impl FnOnce() -> T) -> T {
+pub fn on_r_clear(marker: MainThreadMarker) {
     if !is_active(marker) {
-        return f();
+        return;
     }
 
     let gl = crate::gl::GL.borrow(marker);
     let gl = gl.as_ref().unwrap();
 
     unsafe {
-        gl.ClearColor(0.0f32, 0.0f32, 0.0f32, 1.0f32);
+        gl.ClearColor(0., 0., 0., 1.);
         gl.Clear(gl::COLOR_BUFFER_BIT);
     }
-
-    f()
 }
