@@ -7,10 +7,10 @@ use rust_hawktracer::*;
 
 use super::cvars::CVar;
 use super::Module;
-use crate::handler;
 use crate::hooks::engine::{self, con_print};
 use crate::modules::commands::Command;
 use crate::utils::*;
+use crate::{gl, handler};
 
 pub struct Capture;
 impl Module for Capture {
@@ -34,7 +34,8 @@ impl Module for Capture {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        engine::cls_demos.is_set(marker)
+        gl::GL.borrow(marker).is_some()
+            && engine::cls_demos.is_set(marker)
             && engine::Host_FilterTime.is_set(marker)
             && engine::host_frametime.is_set(marker)
             && engine::paintbuffer.is_set(marker)

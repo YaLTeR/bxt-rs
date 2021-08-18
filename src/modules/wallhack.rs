@@ -18,7 +18,9 @@ impl Module for Wallhack {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        engine::R_DrawSequentialPoly.is_set(marker) && cvars::CVars.is_enabled(marker)
+        gl::GL.borrow(marker).is_some()
+            && engine::R_DrawSequentialPoly.is_set(marker)
+            && cvars::CVars.is_enabled(marker)
     }
 }
 
