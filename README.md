@@ -19,15 +19,15 @@ On Linux, you can use the [`runhl.sh`](runhl.sh) script. Correct the paths at th
 
 On Windows:
 
-1. Download [Bunnymod XT Injector](https://github.com/YaLTeR/BunnymodXT-Injector/releases) 3.1 or newer.
+1. Download [Bunnymod XT Injector](https://github.com/YaLTeR/BunnymodXT-Injector/releases) 3.2 or newer.
 1. Create a new folder with `Injector.exe` and `bxt_rs.dll`.
 1. Start Half-Life with the injector: `Injector.exe path\to\Half-Life\hl.exe`. Running HL on its own and running the injector afterwards is not supported.
 
-To run the bxt-compatibility build together with the original Bunnymod XT (e.g. for capturing TASes):
+To run the bxt-compatibility build together with the original Bunnymod XT (e.g. for capturing TASes) simply put `BunnymodXT.dll`, `Injector.exe` and `bxt_rs.dll` together into the same folder and start Half-Life with the injector.
 
-1. Create another new folder, copy the original `BunnymodXT.dll` and `Injector.exe` there.
-1. Load Half-Life with bxt-rs as described above.
-1. While in the main menu, run the injector in the new folder to inject the original Bunnymod XT.
+### Video Recording
+
+To use video recording you need FFmpeg. On Linux, install it from your package manager. On Windows, download a static FFmpeg build (e.g. [this one](https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z)) and extract `ffmpeg.exe` into the Half-Life folder (the folder that has `hl.exe`).
 
 ## Building
 
