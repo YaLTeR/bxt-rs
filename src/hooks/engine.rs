@@ -17,8 +17,8 @@ use crate::ffi::playermove::playermove_s;
 use crate::ffi::usercmd::usercmd_s;
 use crate::hooks::{sdl, server};
 use crate::modules::{
-    capture, commands, cvars, demo_playback, fade_remove, force_fov, hud_scale, novis,
-    shake_remove, tas_logging, wallhack,
+    capture, commands, cvars, demo_playback, disable_skybox, fade_remove, force_fov, hud_scale,
+    novis, shake_remove, tas_logging, wallhack,
 };
 use crate::utils::*;
 use crate::vulkan;
@@ -348,6 +348,21 @@ pub static R_Clear: Pointer<unsafe extern "C" fn() -> *mut c_void> = Pointer::em
     ]),
     my_R_Clear as _,
 );
+pub static R_DrawSkyBox: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"R_DrawSkyBox\0",
+    // To find, search for "ClipSkyPolygon: MAX_CLIP_VERTS" string.
+    // This is ClipSkyPolygon. On Windows, right below that function is R_DrawSkyChain.
+    // Last call in R_DrawSkyChain is R_DrawSkyBox.
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 83 EC 1C A1 ?? ?? ?? ?? 53 56),
+        // 4554
+        pattern!(83 EC 1C A1 ?? ?? ?? ?? 53 55),
+        // 1712
+        pattern!(83 EC 0C 53 55 56 57 E8 ?? ?? ?? ?? 33 FF),
+    ]),
+    my_R_DrawSkyBox as _,
+);
 pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"R_SetFrustum\0",
     // To find, search for "R_RenderView". This is R_RenderView(). The call between two if (global
@@ -527,6 +542,8 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &R_Clear,
     #[cfg(not(feature = "bxt-compatibility"))]
     &R_DrawSequentialPoly,
+    #[cfg(not(feature = "bxt-compatibility"))]
+    &R_DrawSkyBox,
     &S_PaintChannels,
     &S_TransferStereo16,
     &scr_fov_value,
@@ -1030,8 +1047,22 @@ pub mod exported {
             // Half-Life normally doesn't clear the screen every frame, which is a problem with
             // wallhack as there's no solid background.
             wallhack::on_r_clear(marker);
+            disable_skybox::on_r_clear(marker);
 
             R_Clear.get(marker)()
+        })
+    }
+
+    #[cfg_attr(not(feature = "bxt-compatibility"), export_name = "R_DrawSkyBox")]
+    pub unsafe extern "C" fn my_R_DrawSkyBox() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if disable_skybox::is_active(marker) {
+                return;
+            }
+
+            R_DrawSkyBox.get(marker)();
         })
     }
 
