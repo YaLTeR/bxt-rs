@@ -17,6 +17,7 @@ use cvars::CVar;
 
 pub mod capture;
 pub mod demo_playback;
+pub mod disable_skybox;
 pub mod fade_remove;
 pub mod force_fov;
 pub mod hud_scale;
@@ -56,6 +57,7 @@ pub static MODULES: &[&dyn Module] = &[
     &commands::Commands,
     &cvars::CVars,
     &demo_playback::DemoPlayback,
+    &disable_skybox::DisableSkybox,
     &fade_remove::FadeRemove,
     &force_fov::ForceFov,
     &hud_scale::HudScale,
