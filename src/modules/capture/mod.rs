@@ -35,6 +35,7 @@ impl Module for Capture {
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         gl::GL.borrow(marker).is_some()
+            && crate::vulkan::VULKAN.get().is_some()
             && engine::cls_demos.is_set(marker)
             && engine::Host_FilterTime.is_set(marker)
             && engine::host_frametime.is_set(marker)
