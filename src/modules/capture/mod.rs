@@ -35,7 +35,6 @@ impl Module for Capture {
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         gl::GL.borrow(marker).is_some()
-            && crate::vulkan::VULKAN.get().is_some()
             && engine::cls_demos.is_set(marker)
             && engine::Host_FilterTime.is_set(marker)
             && engine::host_frametime.is_set(marker)
@@ -226,12 +225,15 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
     if let State::Starting(ref filename) = *state {
         let fps = BXT_CAP_FPS.as_u64(marker).max(1);
 
-        let capture_type =
-            if HAVE_REQUIRED_GL_EXTENSIONS.get(marker) && !BXT_CAP_FORCE_FALLBACK.as_bool(marker) {
+        let capture_type = if HAVE_REQUIRED_GL_EXTENSIONS.get(marker)
+            && crate::vulkan::VULKAN.get().is_some()
+            && !BXT_CAP_FORCE_FALLBACK.as_bool(marker)
+        {
                 CaptureType::Vulkan
             } else {
                 CaptureType::ReadPixels
             };
+
         match Recorder::init(width, height, fps, capture_type, filename) {
             Ok(recorder) => {
                 if recorder.capture_type() == CaptureType::ReadPixels {
