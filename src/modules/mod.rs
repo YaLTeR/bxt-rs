@@ -17,13 +17,13 @@ use cvars::CVar;
 
 pub mod capture;
 pub mod demo_playback;
-pub mod disable_skybox;
 pub mod fade_remove;
 pub mod force_fov;
 pub mod hud_scale;
 pub mod module_list;
 pub mod novis;
 pub mod shake_remove;
+pub mod skybox_remove;
 pub mod tas_logging;
 pub mod wallhack;
 
@@ -57,13 +57,13 @@ pub static MODULES: &[&dyn Module] = &[
     &commands::Commands,
     &cvars::CVars,
     &demo_playback::DemoPlayback,
-    &disable_skybox::DisableSkybox,
     &fade_remove::FadeRemove,
     &force_fov::ForceFov,
     &hud_scale::HudScale,
     &module_list::ModuleList,
     &novis::NoVis,
     &shake_remove::ShakeRemove,
+    &skybox_remove::SkyboxRemove,
     &tas_logging::TasLogging,
     &wallhack::Wallhack,
 ];

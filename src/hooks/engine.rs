@@ -17,8 +17,8 @@ use crate::ffi::playermove::playermove_s;
 use crate::ffi::usercmd::usercmd_s;
 use crate::hooks::{sdl, server};
 use crate::modules::{
-    capture, commands, cvars, demo_playback, disable_skybox, fade_remove, force_fov, hud_scale,
-    novis, shake_remove, tas_logging, wallhack,
+    capture, commands, cvars, demo_playback, fade_remove, force_fov, hud_scale, novis,
+    shake_remove, skybox_remove, tas_logging, wallhack,
 };
 use crate::utils::*;
 use crate::vulkan;
@@ -1047,7 +1047,7 @@ pub mod exported {
             // Half-Life normally doesn't clear the screen every frame, which is a problem with
             // wallhack as there's no solid background.
             wallhack::on_r_clear(marker);
-            disable_skybox::on_r_clear(marker);
+            skybox_remove::on_r_clear(marker);
 
             R_Clear.get(marker)()
         })
@@ -1058,7 +1058,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if disable_skybox::is_active(marker) {
+            if skybox_remove::is_active(marker) {
                 return;
             }
 
