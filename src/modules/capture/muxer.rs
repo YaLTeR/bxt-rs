@@ -104,29 +104,41 @@ impl Muxer {
         fps: u64,
         pixel_format: PixelFormat,
         filename: &str,
+        custom_ffmpeg_args: Option<&[&str]>,
     ) -> Result<Self, MuxerInitError> {
         #[rustfmt::skip]
         let mut args = vec![
             "-loglevel", "error",
             "-f", "nut",
-            "-i", "pipe:",
-            "-c:v", "libx264",
-            "-crf", "15",
-            "-preset", "ultrafast",
-            "-color_primaries", "bt709",
-            "-color_trc", "bt709",
-            "-colorspace", "bt709",
-            "-color_range", "tv",
-            "-chroma_sample_location", "center",
-            "-movflags", "+faststart",
-            "-y",
-            filename,
+            "-i", "pipe:"
         ];
 
         if pixel_format == PixelFormat::Rgb24Flipped {
-            args.insert(6, "-vf");
-            args.insert(7, "vflip");
+            args.extend_from_slice(&["-vf", "vflip"]);
         }
+
+        if let Some(custom_ffmpeg_args) = custom_ffmpeg_args {
+            args.extend_from_slice(custom_ffmpeg_args);
+        } else {
+            #[rustfmt::skip]
+            args.extend_from_slice(&[
+                "-c:v", "libx264",
+                "-crf", "15",
+                "-preset", "ultrafast",
+                "-color_primaries", "bt709",
+                "-color_trc", "bt709",
+                "-colorspace", "bt709",
+                "-color_range", "tv",
+                "-chroma_sample_location", "center",
+            ]);
+        }
+
+        #[rustfmt::skip]
+        args.extend_from_slice(&[
+            "-movflags", "+faststart",
+            "-y",
+            filename,
+        ]);
 
         let mut command = Command::new("ffmpeg");
         command

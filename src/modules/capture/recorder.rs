@@ -89,6 +89,7 @@ impl Recorder {
         fps: u64,
         mut capture_type: CaptureType,
         filename: &str,
+        custom_ffmpeg_args: Option<&[&str]>,
     ) -> eyre::Result<Recorder> {
         ensure!(
             width % 2 == 0 && height % 2 == 0,
@@ -117,7 +118,14 @@ impl Recorder {
             PixelFormat::Rgb24Flipped
         };
 
-        let muxer = match Muxer::new(width as u64, height as u64, fps, pixel_format, filename) {
+        let muxer = match Muxer::new(
+            width as u64,
+            height as u64,
+            fps,
+            pixel_format,
+            filename,
+            custom_ffmpeg_args,
+        ) {
             Ok(muxer) => muxer,
             Err(err @ MuxerInitError::FfmpegSpawn(_)) => {
                 return Err(err).wrap_err(

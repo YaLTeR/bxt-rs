@@ -29,6 +29,7 @@ impl Module for Capture {
             &BXT_CAP_VOLUME,
             &BXT_CAP_SOUND_EXTRA,
             &BXT_CAP_FORCE_FALLBACK,
+            &BXT_CAP_OVERRIDE_FFMPEG_ARGS,
         ];
         CVARS
     }
@@ -66,6 +67,7 @@ static BXT_CAP_FPS: CVar = CVar::new(b"bxt_cap_fps\0", b"60\0");
 static BXT_CAP_SOUND_EXTRA: CVar = CVar::new(b"bxt_cap_sound_extra\0", b"0\0");
 static BXT_CAP_VOLUME: CVar = CVar::new(b"bxt_cap_volume\0", b"0.4\0");
 static BXT_CAP_FORCE_FALLBACK: CVar = CVar::new(b"_bxt_cap_force_fallback\0", b"0\0");
+static BXT_CAP_OVERRIDE_FFMPEG_ARGS: CVar = CVar::new(b"_bxt_cap_override_ffmpeg_args\0", b"\0");
 
 static HAVE_REQUIRED_GL_EXTENSIONS: MainThreadCell<bool> = MainThreadCell::new(false);
 
@@ -229,12 +231,30 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
             && crate::vulkan::VULKAN.get().is_some()
             && !BXT_CAP_FORCE_FALLBACK.as_bool(marker)
         {
-                CaptureType::Vulkan
-            } else {
-                CaptureType::ReadPixels
-            };
+            CaptureType::Vulkan
+        } else {
+            CaptureType::ReadPixels
+        };
 
-        match Recorder::init(width, height, fps, capture_type, filename) {
+        let custom_ffmpeg_args = BXT_CAP_OVERRIDE_FFMPEG_ARGS.to_string(marker);
+        let custom_ffmpeg_args: Option<Vec<&str>> = {
+            let args = custom_ffmpeg_args.trim();
+            if args.is_empty() {
+                None
+            } else {
+                Some(args.split_ascii_whitespace().collect())
+            }
+        };
+        let custom_ffmpeg_args = custom_ffmpeg_args.as_deref();
+
+        match Recorder::init(
+            width,
+            height,
+            fps,
+            capture_type,
+            filename,
+            custom_ffmpeg_args,
+        ) {
             Ok(recorder) => {
                 if recorder.capture_type() == CaptureType::ReadPixels {
                     con_print(marker, "Recording in slower fallback mode.\n");
