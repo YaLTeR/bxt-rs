@@ -102,6 +102,25 @@ impl CVar {
         let c_str = unsafe { CStr::from_ptr(raw.string) };
         c_str_to_os_string(c_str)
     }
+
+    /// Returns the value of the variable as a `String`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the variable is not registered.
+    pub fn to_string(&self, marker: MainThreadMarker) -> String {
+        assert!(self.is_registered(marker));
+
+        // Safety: we're not calling any engine methods while the reference is active.
+        let raw = unsafe { &*self.raw.get() };
+
+        // Safety: we drop the reference in the next line by converting to an owned String.
+        let c_str = unsafe { CStr::from_ptr(raw.string) };
+
+        // TODO: can cvars even contain invalid UTF-8? to_os_string() on Windows assumes they can't.
+        // If they can, this function can be changed to Result<String, Utf8Error>.
+        c_str.to_str().unwrap().to_owned()
+    }
 }
 
 /// Registers the variable in the engine.
