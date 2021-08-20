@@ -281,3 +281,47 @@ pub unsafe fn capture_with_read_pixels(
 
     Ok(())
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Uuids {
+    pub device_uuids: Vec<[u8; 16]>,
+    pub driver_uuid: [u8; 16],
+}
+
+pub unsafe fn get_uuids(marker: MainThreadMarker) -> eyre::Result<Uuids> {
+    let gl = gl::GL.borrow(marker);
+    let gl = gl.as_ref().unwrap();
+
+    // HL leaves some GL errors behind.
+    reset_gl_error(gl);
+
+    let mut num_uuids = 0;
+    check!(gl, gl.GetIntegerv(gl::NUM_DEVICE_UUIDS_EXT, &mut num_uuids))?;
+
+    let mut device_uuids = vec![[0; 16]; num_uuids as _];
+
+    for i in 0..num_uuids {
+        check!(
+            gl,
+            gl.GetUnsignedBytei_vEXT(
+                gl::DEVICE_UUID_EXT,
+                i as _,
+                device_uuids[i as usize].as_mut_ptr()
+            )
+        )?;
+    }
+
+    let mut driver_uuid = [0; 16];
+    check!(
+        gl,
+        gl.GetUnsignedBytevEXT(gl::DRIVER_UUID_EXT, driver_uuid.as_mut_ptr())
+    )?;
+
+    let uuids = Uuids {
+        device_uuids,
+        driver_uuid,
+    };
+    debug!("OpenGL UUIDs: {:?}", uuids);
+
+    Ok(uuids)
+}

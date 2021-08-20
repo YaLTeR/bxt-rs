@@ -72,12 +72,13 @@ use std::io::Cursor;
 use std::{mem, slice, str};
 
 use ash::util::read_spv;
-use ash::version::{DeviceV1_0, InstanceV1_0};
+use ash::version::{DeviceV1_0, InstanceV1_0, InstanceV1_1};
 use ash::vk;
 use color_eyre::eyre::{self, ensure, eyre};
 use rust_hawktracer::*;
 
 use super::muxer::Muxer;
+use super::opengl::Uuids;
 use super::ExternalObject;
 
 pub struct Vulkan {
@@ -571,7 +572,7 @@ impl Vulkan {
 }
 
 #[hawktracer(vulkan_init)]
-pub fn init(width: u32, height: u32) -> eyre::Result<Vulkan> {
+pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
     // TODO: handle weird resolutions.
     ensure!(
         width % 2 == 0 && height % 2 == 0,
@@ -584,19 +585,31 @@ pub fn init(width: u32, height: u32) -> eyre::Result<Vulkan> {
 
     // Physical device.
     let physical_devices = unsafe { instance.enumerate_physical_devices()? };
-    let mut physical_device_index = 0;
+    let mut physical_device_index = None;
     debug!("physical devices:");
     for (i, &device) in physical_devices.iter().enumerate() {
-        let properties = unsafe { instance.get_physical_device_properties(device) };
+        let mut id_properties = vk::PhysicalDeviceIDProperties::default();
+        let mut properties2 = vk::PhysicalDeviceProperties2::builder()
+            .push_next(&mut id_properties)
+            .build();
+
+        unsafe { instance.get_physical_device_properties2(device, &mut properties2) };
+
+        let properties = &properties2.properties;
         debug!("\t{}: [{:?}] {}", i, properties.device_type, unsafe {
             str::from_utf8_unchecked(CStr::from_ptr(properties.device_name.as_ptr()).to_bytes())
         });
 
-        if properties.device_type == vk::PhysicalDeviceType::DISCRETE_GPU {
-            physical_device_index = i;
+        // Choose the device used for the OpenGL context.
+        if id_properties.driver_uuid == uuids.driver_uuid
+            && uuids.device_uuids.contains(&id_properties.device_uuid)
+        {
+            physical_device_index = Some(i);
         }
     }
 
+    let physical_device_index =
+        physical_device_index.ok_or_else(|| eyre!("couldn't find a compatible physical device"))?;
     debug!("choosing physical device {}", physical_device_index);
     let physical_device = physical_devices[physical_device_index];
 

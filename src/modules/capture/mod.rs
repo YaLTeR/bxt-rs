@@ -3,6 +3,7 @@
 use std::mem;
 use std::os::raw::c_char;
 
+use color_eyre::eyre::Context;
 use rust_hawktracer::*;
 
 use super::cvars::CVar;
@@ -237,7 +238,13 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
             // _bxt_cap_force_fallback 1, Vulkan is never initialized, so you can avoid the crash.
             && crate::vulkan::VULKAN.is_some()
         {
-            CaptureType::Vulkan
+            match opengl::get_uuids(marker).wrap_err("error getting OpenGL UUIDs") {
+                Ok(uuids) => CaptureType::Vulkan(uuids),
+                Err(err) => {
+                    warn!("{:?}", err);
+                    CaptureType::ReadPixels
+                }
+            }
         } else {
             CaptureType::ReadPixels
         };
@@ -262,7 +269,7 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
             custom_ffmpeg_args,
         ) {
             Ok(recorder) => {
-                if recorder.capture_type() == CaptureType::ReadPixels {
+                if matches!(recorder.capture_type(), CaptureType::ReadPixels) {
                     con_print(marker, "Recording in slower fallback mode.\n");
                 }
                 *state = State::Recording(recorder)

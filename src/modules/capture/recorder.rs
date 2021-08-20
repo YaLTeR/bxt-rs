@@ -5,7 +5,7 @@ use crossbeam_channel::{bounded, Receiver, Sender};
 use rust_hawktracer::*;
 
 use super::muxer::{Muxer, MuxerInitError, PixelFormat};
-use super::opengl::{self, OpenGl};
+use super::opengl::{self, OpenGl, Uuids};
 use super::vulkan::{self, ExternalHandles, Vulkan};
 use super::SoundCaptureMode;
 use crate::utils::*;
@@ -56,9 +56,9 @@ pub struct Recorder {
     buffer: Option<Box<[u8]>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CaptureType {
-    Vulkan,
+    Vulkan(Uuids),
     ReadPixels,
 }
 
@@ -98,8 +98,10 @@ impl Recorder {
             height,
         );
 
-        let vulkan = if capture_type == CaptureType::Vulkan {
-            match vulkan::init(width as u32, height as u32).wrap_err("error initalizing Vulkan") {
+        let vulkan = if let CaptureType::Vulkan(ref uuids) = capture_type {
+            match vulkan::init(width as u32, height as u32, uuids)
+                .wrap_err("error initalizing Vulkan")
+            {
                 Ok(vulkan) => Some(vulkan),
                 Err(err) => {
                     warn!("{:?}", err);
@@ -196,7 +198,7 @@ impl Recorder {
 
     #[hawktracer(initialize_opengl_capturing)]
     unsafe fn initialize_opengl_capturing(&mut self, marker: MainThreadMarker) -> eyre::Result<()> {
-        assert_eq!(self.capture_type, CaptureType::Vulkan);
+        assert!(matches!(self.capture_type, CaptureType::Vulkan(_)));
 
         self.send_to_thread(MainToThread::GiveExternalHandles);
         let external_handles = match self.recv_from_thread()? {
@@ -218,7 +220,7 @@ impl Recorder {
 
     pub unsafe fn capture_opengl(&mut self, marker: MainThreadMarker) -> eyre::Result<()> {
         match self.capture_type {
-            CaptureType::Vulkan => {
+            CaptureType::Vulkan(_) => {
                 if self.opengl.is_none() {
                     self.initialize_opengl_capturing(marker)?;
                 }
@@ -248,7 +250,7 @@ impl Recorder {
 
     #[hawktracer(acquire_image_if_needed)]
     unsafe fn acquire_image_if_needed(&mut self) {
-        assert_eq!(self.capture_type, CaptureType::Vulkan);
+        assert!(matches!(self.capture_type, CaptureType::Vulkan(_)));
 
         if self.acquired_image {
             return;
@@ -267,7 +269,7 @@ impl Recorder {
     #[hawktracer(record)]
     unsafe fn record(&mut self, frames: usize) -> eyre::Result<()> {
         match self.capture_type {
-            CaptureType::Vulkan => {
+            CaptureType::Vulkan(_) => {
                 assert!(self.acquired_image);
 
                 // Must wait for this before OpenGL capture can run.
@@ -307,7 +309,7 @@ impl Recorder {
         self.video_remainder += time / self.time_base;
         self.sound_remainder += time;
 
-        if self.capture_type == CaptureType::Vulkan {
+        if let CaptureType::Vulkan(_) = self.capture_type {
             unsafe {
                 self.acquire_image_if_needed();
             }
@@ -372,8 +374,8 @@ impl Recorder {
         self.time_base
     }
 
-    pub fn capture_type(&self) -> CaptureType {
-        self.capture_type
+    pub fn capture_type(&self) -> &CaptureType {
+        &self.capture_type
     }
 }
 
