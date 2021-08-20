@@ -580,7 +580,7 @@ pub fn init(width: u32, height: u32) -> eyre::Result<Vulkan> {
         height
     );
 
-    let instance = crate::vulkan::VULKAN.get().unwrap().instance();
+    let instance = crate::vulkan::VULKAN.as_ref().unwrap().instance();
 
     // Physical device.
     let physical_devices = unsafe { instance.enumerate_physical_devices()? };

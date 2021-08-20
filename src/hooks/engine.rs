@@ -21,7 +21,6 @@ use crate::modules::{
     shake_remove, skybox_remove, tas_logging, wallhack,
 };
 use crate::utils::*;
-use crate::vulkan;
 
 pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
     b"build_number\0",
@@ -970,7 +969,6 @@ pub mod exported {
             // This is the first function called on Linux, so do due initialization.
             ensure_logging_hooks();
             ensure_profiling();
-            vulkan::init();
 
             #[cfg(unix)]
             find_pointers(marker);

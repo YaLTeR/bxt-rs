@@ -228,8 +228,14 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
         let fps = BXT_CAP_FPS.as_u64(marker).max(1);
 
         let capture_type = if HAVE_REQUIRED_GL_EXTENSIONS.get(marker)
-            && crate::vulkan::VULKAN.get().is_some()
             && !BXT_CAP_FORCE_FALLBACK.as_bool(marker)
+            // Check Vulkan last.
+            //
+            // On some Windows AMD GPU setups initializing Vulkan and then doing anything with
+            // OpenGL causes a crash in the driver (atioglxx.dll). To remedy this, we initialize
+            // Vulkan lazily. This way if you don't use video recording, or if you have
+            // _bxt_cap_force_fallback 1, Vulkan is never initialized, so you can avoid the crash.
+            && crate::vulkan::VULKAN.is_some()
         {
             CaptureType::Vulkan
         } else {

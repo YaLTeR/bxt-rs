@@ -1,9 +1,15 @@
 use ash::version::{EntryV1_0, InstanceV1_0};
 use ash::vk;
 use color_eyre::eyre;
-use once_cell::sync::OnceCell;
+use once_cell::sync::Lazy;
 
-pub static VULKAN: OnceCell<Vulkan> = OnceCell::new();
+pub static VULKAN: Lazy<Option<Vulkan>> = Lazy::new(|| match Vulkan::new() {
+    Ok(vulkan) => Some(vulkan),
+    Err(err) => {
+        warn!("error loading Vulkan: {:?}", err);
+        None
+    }
+});
 
 pub struct Vulkan {
     #[allow(unused)] // Required to keep the library loaded.
@@ -28,6 +34,8 @@ impl Drop for Vulkan {
 
 impl Vulkan {
     fn new() -> eyre::Result<Self> {
+        debug!("initializing Vulkan");
+
         // Entry, instance.
         let entry = ash::Entry::new()?;
         let app_info = vk::ApplicationInfo {
@@ -89,20 +97,4 @@ unsafe extern "system" fn debug_utils_callback(
     let message = std::ffi::CStr::from_ptr((*p_callback_data).p_message).to_string_lossy();
     info!("{:?} {:?} {}", message_severity, message_types, message);
     vk::FALSE
-}
-
-pub fn init() {
-    if VULKAN.get().is_some() {
-        return;
-    }
-
-    let vulkan = match Vulkan::new() {
-        Ok(vulkan) => vulkan,
-        Err(err) => {
-            warn!("error loading Vulkan: {:?}", err);
-            return;
-        }
-    };
-
-    let _ = VULKAN.set(vulkan);
 }
