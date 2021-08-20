@@ -29,6 +29,11 @@ To run the bxt-compatibility build together with the original Bunnymod XT (e.g. 
 
 To use video recording you need FFmpeg. On Linux, install it from your package manager. On Windows, download a static FFmpeg build (e.g. [this one](https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z)) and extract `ffmpeg.exe` into the Half-Life folder (the folder that has `hl.exe`).
 
+If the video looks glitched or the game crashes when starting recording (happens on some Windows AMD GPU setups):
+
+1. Update your GPU driver.
+1. If the problem still occurs, try `_bxt_cap_force_fallback 1`.
+
 ## Building
 
 You can uncomment the right line in `.cargo/config` to avoid writing `--target` every time.
