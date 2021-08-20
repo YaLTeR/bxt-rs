@@ -7,6 +7,7 @@ use std::panic::{self, catch_unwind, UnwindSafe};
 use std::process::abort;
 use std::sync::Once;
 
+use git_version::git_version;
 use log::logger;
 use simplelog::{CombinedLogger, LevelFilter, SharedLogger, TermLogger, WriteLogger};
 
@@ -90,6 +91,12 @@ fn setup_logging_hooks() {
     }));
 
     eyre_hook.install().unwrap();
+
+    info!(
+        "{} version {}",
+        env!("CARGO_PKG_NAME"),
+        git_version!(cargo_prefix = "cargo:", fallback = "unknown")
+    );
 }
 
 /// Ensures logging, panic and error hooks are in place.
