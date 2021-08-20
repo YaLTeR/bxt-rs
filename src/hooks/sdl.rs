@@ -17,8 +17,9 @@ static POINTERS: &[&dyn PointerTrait] = &[&SDL_GL_ExtensionSupported, &SDL_GL_Ge
 fn open_library() -> Option<libloading::Library> {
     use libc::{RTLD_NOLOAD, RTLD_NOW};
 
-    let library =
-        libloading::os::unix::Library::open(Some("libSDL2-2.0.so.0"), RTLD_NOW | RTLD_NOLOAD);
+    let library = unsafe {
+        libloading::os::unix::Library::open(Some("libSDL2-2.0.so.0"), RTLD_NOW | RTLD_NOLOAD)
+    };
     library.ok().map(libloading::Library::from)
 }
 

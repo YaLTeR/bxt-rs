@@ -68,6 +68,7 @@ fn setup_logging_hooks() {
         LevelFilter::Trace,
         config.clone(),
         simplelog::TerminalMode::Stderr,
+        simplelog::ColorChoice::Auto,
     )];
     if let Ok(log_file) = OpenOptions::new()
         .append(true)
