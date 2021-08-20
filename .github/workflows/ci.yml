@@ -70,6 +70,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      # We need the tags for the version string inside bxt-rs
+      - run: git fetch --force --tags
+
       - name: Install dependencies
         if: matrix.os == 'ubuntu-20.04'
         run: |
@@ -102,6 +105,20 @@ jobs:
           name: bxt-rs-${{ runner.os }}-${{ matrix.configuration }}-${{ matrix.features }}
           path: target/${{ matrix.target }}/${{ matrix.configuration }}/${{ matrix.filename }}
           if-no-files-found: error
+
+      - name: Prepare Release
+        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && matrix.features != 'profiling'
+        run: |
+          cp target/${{ matrix.target }}/${{ matrix.configuration }}/${{ matrix.filename }} ${{ matrix.filename }}
+          7z a bxt-rs-${{ runner.os }}-${{ matrix.features }}.7z ${{ matrix.filename }} COPYING
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && matrix.features != 'profiling'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: bxt-rs-${{ runner.os }}-${{ matrix.features }}.7z
+          draft: true
+          fail_on_unmatched_files: true
 
   clippy:
     strategy:
