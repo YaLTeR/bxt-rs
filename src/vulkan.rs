@@ -1,4 +1,3 @@
-use ash::version::{EntryV1_0, InstanceV1_0};
 use ash::vk;
 use color_eyre::eyre;
 use once_cell::sync::Lazy;
@@ -37,10 +36,10 @@ impl Vulkan {
         debug!("initializing Vulkan");
 
         // Entry, instance.
-        let entry = ash::Entry::new()?;
+        let entry = unsafe { ash::Entry::new()? };
         let app_info = vk::ApplicationInfo {
             // A few extensions we need for capturing are core in 1.1.
-            api_version: vk::make_version(1, 1, 0),
+            api_version: vk::make_api_version(0, 1, 1, 0),
             ..Default::default()
         };
         let extension_names = [

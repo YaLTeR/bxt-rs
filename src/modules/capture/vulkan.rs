@@ -69,10 +69,11 @@
 
 use std::ffi::CStr;
 use std::io::Cursor;
-use std::{mem, slice, str};
+#[cfg(windows)]
+use std::mem;
+use std::{slice, str};
 
 use ash::util::read_spv;
-use ash::version::{DeviceV1_0, InstanceV1_0, InstanceV1_1};
 use ash::vk;
 use color_eyre::eyre::{self, ensure, eyre};
 use rust_hawktracer::*;
@@ -101,7 +102,7 @@ pub struct Vulkan {
     image_sample_memory: vk::DeviceMemory,
     semaphore: vk::Semaphore,
     #[cfg(unix)]
-    external_semaphore_fd_fn: vk::KhrExternalSemaphoreFdFn,
+    external_semaphore_fd: ash::extensions::khr::ExternalSemaphoreFd,
     #[cfg(windows)]
     external_semaphore_win32_fn: vk::KhrExternalSemaphoreWin32Fn,
     buffer: vk::Buffer,
@@ -175,7 +176,7 @@ impl Vulkan {
     pub fn external_image_frame_memory(&self) -> eyre::Result<ExternalObject> {
         let create_info = vk::MemoryGetFdInfoKHR::builder()
             .memory(self.image_frame_memory)
-            .handle_type(vk::ExternalMemoryHandleTypeFlags::EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD);
+            .handle_type(vk::ExternalMemoryHandleTypeFlags::OPAQUE_FD);
         let fd = unsafe { self.external_memory_fd.get_memory_fd(&create_info)? };
         Ok(fd)
     }
@@ -184,9 +185,7 @@ impl Vulkan {
     pub fn external_image_frame_memory(&self) -> eyre::Result<ExternalObject> {
         let create_info = vk::MemoryGetWin32HandleInfoKHR::builder()
             .memory(self.image_frame_memory)
-            .handle_type(
-                vk::ExternalMemoryHandleTypeFlags::EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32,
-            );
+            .handle_type(vk::ExternalMemoryHandleTypeFlags::OPAQUE_WIN32);
         let mut memory_handle = std::ptr::null_mut();
         let rv = unsafe {
             self.external_memory_win32_fn.get_memory_win32_handle_khr(
@@ -223,32 +222,16 @@ impl Vulkan {
     pub fn external_semaphore(&self) -> eyre::Result<ExternalObject> {
         let create_info = vk::SemaphoreGetFdInfoKHR::builder()
             .semaphore(self.semaphore)
-            .handle_type(
-                vk::ExternalSemaphoreHandleTypeFlags::EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD,
-            );
-        let mut semaphore_fd = -1;
-        let rv = unsafe {
-            self.external_semaphore_fd_fn.get_semaphore_fd_khr(
-                self.device.handle(),
-                &*create_info,
-                &mut semaphore_fd,
-            )
-        };
-        ensure!(
-            rv == vk::Result::SUCCESS,
-            "get_semaphore_fd_khr() returned an error: {}",
-            rv
-        );
-        Ok(semaphore_fd)
+            .handle_type(vk::ExternalSemaphoreHandleTypeFlags::OPAQUE_FD);
+        let fd = unsafe { self.external_semaphore_fd.get_semaphore_fd(&create_info)? };
+        Ok(fd)
     }
 
     #[cfg(windows)]
     pub fn external_semaphore(&self) -> eyre::Result<ExternalObject> {
         let create_info = vk::SemaphoreGetWin32HandleInfoKHR::builder()
             .semaphore(self.semaphore)
-            .handle_type(
-                vk::ExternalSemaphoreHandleTypeFlags::EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32,
-            );
+            .handle_type(vk::ExternalSemaphoreHandleTypeFlags::OPAQUE_WIN32);
         let mut semaphore_handle = std::ptr::null_mut();
         let rv = unsafe {
             self.external_semaphore_win32_fn
@@ -596,13 +579,21 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         unsafe { instance.get_physical_device_properties2(device, &mut properties2) };
 
         let properties = &properties2.properties;
-        debug!("\t{}: [{:?}] {}", i, properties.device_type, unsafe {
-            str::from_utf8_unchecked(CStr::from_ptr(properties.device_name.as_ptr()).to_bytes())
-        });
+        debug!(
+            "\t{}: [{:?}, Vulkan {}.{}] {}",
+            i,
+            properties.device_type,
+            vk::api_version_major(properties.api_version),
+            vk::api_version_minor(properties.api_version),
+            unsafe {
+                str::from_utf8_unchecked(CStr::from_ptr(properties.device_name.as_ptr()).to_bytes())
+            }
+        );
 
         // Choose the device used for the OpenGL context.
         if id_properties.driver_uuid == uuids.driver_uuid
             && uuids.device_uuids.contains(&id_properties.device_uuid)
+            && properties.api_version >= vk::make_api_version(0, 1, 1, 0)
         {
             physical_device_index = Some(i);
         }
@@ -641,7 +632,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         #[cfg(windows)]
         vk::KhrExternalMemoryWin32Fn::name().as_ptr(),
         #[cfg(unix)]
-        vk::KhrExternalSemaphoreFdFn::name().as_ptr(),
+        ash::extensions::khr::ExternalSemaphoreFd::name().as_ptr(),
         #[cfg(windows)]
         vk::KhrExternalSemaphoreWin32Fn::name().as_ptr(),
         vk::Khr8bitStorageFn::name().as_ptr(),
@@ -677,10 +668,10 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
     // Image for the OpenGL frame.
     #[cfg(unix)]
     let mut external_memory_image_create_info = vk::ExternalMemoryImageCreateInfo::builder()
-        .handle_types(vk::ExternalMemoryHandleTypeFlags::EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD);
+        .handle_types(vk::ExternalMemoryHandleTypeFlags::OPAQUE_FD);
     #[cfg(windows)]
     let mut external_memory_image_create_info = vk::ExternalMemoryImageCreateInfo::builder()
-        .handle_types(vk::ExternalMemoryHandleTypeFlags::EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32);
+        .handle_types(vk::ExternalMemoryHandleTypeFlags::OPAQUE_WIN32);
     let create_info = vk::ImageCreateInfo::builder()
         .image_type(vk::ImageType::TYPE_2D)
         .format(vk::Format::R8G8B8A8_UNORM)
@@ -716,10 +707,10 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
     .ok_or_else(|| eyre!("couldn't find image_frame memory type"))?;
     #[cfg(unix)]
     let mut export_memory_allocate_info = vk::ExportMemoryAllocateInfo::builder()
-        .handle_types(vk::ExternalMemoryHandleTypeFlags::EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD);
+        .handle_types(vk::ExternalMemoryHandleTypeFlags::OPAQUE_FD);
     #[cfg(windows)]
     let mut export_memory_allocate_info = vk::ExportMemoryAllocateInfo::builder()
-        .handle_types(vk::ExternalMemoryHandleTypeFlags::EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32);
+        .handle_types(vk::ExternalMemoryHandleTypeFlags::OPAQUE_WIN32);
     let mut memory_dedicated_allocate_info =
         vk::MemoryDedicatedAllocateInfo::builder().image(image_frame);
     let create_info = vk::MemoryAllocateInfo::builder()
@@ -819,22 +810,18 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
 
     // Semaphore.
     #[cfg(unix)]
-    let mut export_semaphore_create_info = vk::ExportSemaphoreCreateInfo::builder().handle_types(
-        vk::ExternalSemaphoreHandleTypeFlags::EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD,
-    );
+    let mut export_semaphore_create_info = vk::ExportSemaphoreCreateInfo::builder()
+        .handle_types(vk::ExternalSemaphoreHandleTypeFlags::OPAQUE_FD);
     #[cfg(windows)]
-    let mut export_semaphore_create_info = vk::ExportSemaphoreCreateInfo::builder().handle_types(
-        vk::ExternalSemaphoreHandleTypeFlags::EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32,
-    );
+    let mut export_semaphore_create_info = vk::ExportSemaphoreCreateInfo::builder()
+        .handle_types(vk::ExternalSemaphoreHandleTypeFlags::OPAQUE_WIN32);
     let create_info =
         vk::SemaphoreCreateInfo::builder().push_next(&mut export_semaphore_create_info);
     let semaphore = unsafe { device.create_semaphore(&create_info, None)? };
 
     // Export semaphore.
     #[cfg(unix)]
-    let external_semaphore_fd_fn = vk::KhrExternalSemaphoreFdFn::load(|name| unsafe {
-        mem::transmute(instance.get_device_proc_addr(device.handle(), name.as_ptr()))
-    });
+    let external_semaphore_fd = ash::extensions::khr::ExternalSemaphoreFd::new(instance, &device);
     #[cfg(windows)]
     let external_semaphore_win32_fn = vk::KhrExternalSemaphoreWin32Fn::load(|name| unsafe {
         mem::transmute(instance.get_device_proc_addr(device.handle(), name.as_ptr()))
@@ -1068,7 +1055,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         image_view_sample,
         semaphore,
         #[cfg(unix)]
-        external_semaphore_fd_fn,
+        external_semaphore_fd,
         #[cfg(windows)]
         external_semaphore_win32_fn,
         buffer_color_conversion_output,
