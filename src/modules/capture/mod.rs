@@ -197,6 +197,7 @@ fn cap_stop(marker: MainThreadMarker) {
 
     // Couldn't replace above because capture_sound() needs the state in place.
     let old_state = mem::replace(&mut *STATE.borrow_mut(marker), State::Idle);
+    let stopped = !matches!(old_state, State::Idle);
     if let State::Recording(recorder) = old_state {
         if let Some(ffmpeg_output) = recorder.finish() {
             let output = ffmpeg_output.trim();
@@ -207,7 +208,9 @@ fn cap_stop(marker: MainThreadMarker) {
         }
     }
 
-    con_print(marker, "Recording stopped.\n");
+    if stopped {
+        con_print(marker, "Recording stopped.\n");
+    }
 }
 
 pub unsafe fn capture_frame(marker: MainThreadMarker) {
