@@ -11,6 +11,10 @@ A few speedrunning and TAS-related tools for Half-Life and mods. Current feature
 
 Started as an experiment to re-architecture Bunnymod XT from scratch with the benefit of hindsight.
 
+## VAC Ban Warning
+
+Do not connect to VAC-secured servers with bxt-rs or you might get VAC banned.
+
 ## Usage
 
 You can download the latest development build from [GitHub Actions](https://github.com/YaLTeR/bxt-rs/actions?query=branch%3Amaster). Open the topmost workflow and scroll down for Artifacts.
