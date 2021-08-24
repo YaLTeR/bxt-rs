@@ -958,7 +958,10 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
 
         let original = pointer.get_raw(marker);
         let mut trampoline = null_mut();
-        assert!(MH_CreateHook(original.as_ptr(), hook_fn, &mut trampoline,) == MH_OK);
+        assert_eq!(
+            MH_CreateHook(original.as_ptr(), hook_fn, &mut trampoline),
+            MH_OK
+        );
 
         // Store the original pointer to be able to remove the hook later.
         ORIGINAL_FUNCTIONS
@@ -972,7 +975,7 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
             pointer.pattern_index(marker),
         );
 
-        assert!(MH_EnableHook(original.as_ptr()) == MH_OK);
+        assert_eq!(MH_EnableHook(original.as_ptr()), MH_OK);
     }
 }
 
@@ -987,7 +990,7 @@ fn reset_pointers(marker: MainThreadMarker) {
         use minhook_sys::*;
 
         for function in ORIGINAL_FUNCTIONS.borrow_mut(marker).drain(..) {
-            assert!(unsafe { MH_RemoveHook(function) } == MH_OK);
+            assert_eq!(unsafe { MH_RemoveHook(function) }, MH_OK);
         }
     }
 }

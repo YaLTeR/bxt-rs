@@ -36,7 +36,7 @@ unsafe fn init() {
     ensure_logging_hooks();
     ensure_profiling();
 
-    assert!(MH_Initialize() == MH_OK);
+    assert_eq!(MH_Initialize(), MH_OK);
 
     // Hook LoadLibraryA to be able to run code when the loader attempts to load the engine.
     let kernel = GetModuleHandleA(b"kernel32.dll\0".as_ptr().cast());
@@ -46,12 +46,13 @@ unsafe fn init() {
     assert!(!load_library_a.is_null());
 
     let mut orig = None;
-    assert!(
+    assert_eq!(
         MH_CreateHook(
             load_library_a.cast(),
             hooks::windows::my_LoadLibraryA as _,
             &mut orig as *mut _ as _
-        ) == MH_OK
+        ),
+        MH_OK
     );
 
     hooks::windows::LoadLibraryA
@@ -59,7 +60,7 @@ unsafe fn init() {
         .ok()
         .unwrap();
 
-    assert!(MH_EnableHook(load_library_a.cast()) == MH_OK);
+    assert_eq!(MH_EnableHook(load_library_a.cast()), MH_OK);
 
     // Signal the injector to resume the process.
     let resume_event = OpenEventA(
