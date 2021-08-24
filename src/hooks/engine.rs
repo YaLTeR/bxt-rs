@@ -759,8 +759,6 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
 pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: usize) {
     use std::slice;
 
-    use minhook_sys::*;
-
     // Find all pattern-based pointers.
     {
         let memory = slice::from_raw_parts(base.cast(), size);
@@ -943,40 +941,45 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         _ => (),
     }
 
-    // Hook all found pointers.
     for pointer in POINTERS {
         pointer.log(marker);
-
-        if !pointer.is_set(marker) {
-            continue;
-        }
-
-        let hook_fn = pointer.hook_fn();
-        if hook_fn.is_null() {
-            continue;
-        }
-
-        let original = pointer.get_raw(marker);
-        let mut trampoline = null_mut();
-        assert_eq!(
-            MH_CreateHook(original.as_ptr(), hook_fn, &mut trampoline),
-            MH_OK
-        );
-
-        // Store the original pointer to be able to remove the hook later.
-        ORIGINAL_FUNCTIONS
-            .borrow_mut(marker)
-            .push(original.as_ptr());
-
-        // Store the trampoline pointer which is used to call the original function.
-        pointer.set_with_index(
-            marker,
-            NonNull::new_unchecked(trampoline),
-            pointer.pattern_index(marker),
-        );
-
-        assert_eq!(MH_EnableHook(original.as_ptr()), MH_OK);
     }
+
+    // Hook only Memory_Init() and the rest later, for BXT compatibility.
+    maybe_hook(marker, &Memory_Init);
+}
+
+#[cfg(windows)]
+unsafe fn maybe_hook(marker: MainThreadMarker, pointer: &dyn PointerTrait) {
+    use minhook_sys::*;
+
+    if !pointer.is_set(marker) {
+        return;
+    }
+
+    let hook_fn = pointer.hook_fn();
+    if hook_fn.is_null() {
+        return;
+    }
+
+    let original = pointer.get_raw(marker);
+    let mut trampoline = null_mut();
+    assert_eq!(
+        MH_CreateHook(original.as_ptr(), hook_fn, &mut trampoline),
+        MH_OK
+    );
+
+    ORIGINAL_FUNCTIONS
+        .borrow_mut(marker)
+        .push(original.as_ptr());
+
+    pointer.set_with_index(
+        marker,
+        NonNull::new_unchecked(trampoline),
+        pointer.pattern_index(marker),
+    );
+
+    assert_eq!(MH_EnableHook(original.as_ptr()), MH_OK);
 }
 
 fn reset_pointers(marker: MainThreadMarker) {
@@ -1014,6 +1017,19 @@ pub mod exported {
 
             #[cfg(unix)]
             find_pointers(marker);
+
+            #[cfg(windows)]
+            {
+                // Hook all found pointers on Windows.
+                for &pointer in POINTERS {
+                    if pointer.get_raw(marker) == Memory_Init.get_raw(marker) {
+                        // Memory_Init() is already hooked.
+                        continue;
+                    }
+
+                    maybe_hook(marker, pointer);
+                }
+            }
 
             // GL_SetMode() happens before Memory_Init(), which means the OpenGL context has already
             // been created and made current.
