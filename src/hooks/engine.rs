@@ -18,10 +18,7 @@ use crate::ffi::usercmd::usercmd_s;
 #[cfg(windows)]
 use crate::hooks::opengl32;
 use crate::hooks::{sdl, server};
-use crate::modules::{
-    capture, commands, cvars, demo_playback, fade_remove, force_fov, hud_scale, novis,
-    shake_remove, skybox_remove, tas_logging, wallhack,
-};
+use crate::modules::*;
 use crate::utils::*;
 
 pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
