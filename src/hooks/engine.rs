@@ -717,13 +717,27 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
     use libc::{RTLD_NOLOAD, RTLD_NOW};
     use libloading::os::unix::Library;
 
-    let library = Library::open(Some("hw.so"), RTLD_NOW | RTLD_NOLOAD).unwrap();
+    let engine = Library::open(Some("hw.so"), RTLD_NOW | RTLD_NOLOAD).unwrap();
+    let bxt = Library::open(Some("libBunnymodXT.so"), RTLD_NOW | RTLD_NOLOAD);
 
     for pointer in POINTERS {
-        let ptr = library
-            .get(pointer.symbol())
-            .ok()
-            .and_then(|sym| NonNull::new(*sym));
+        // Search in BXT first. If a function exists in BXT we want to call the BXT version so BXT
+        // can run its hooks too and then dispatch to the engine function.
+        let ptr = if let Ok(ref bxt) = bxt {
+            bxt.get(pointer.symbol())
+                .ok()
+                .and_then(|sym| NonNull::new(*sym))
+        } else {
+            None
+        };
+
+        let ptr = ptr.or_else(|| {
+            engine
+                .get(pointer.symbol())
+                .ok()
+                .and_then(|sym| NonNull::new(*sym))
+        });
+
         pointer.set(marker, ptr);
     }
 
