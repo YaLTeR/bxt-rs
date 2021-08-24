@@ -27,7 +27,7 @@ On Windows:
 1. Create a new folder with `Injector.exe` and `bxt_rs.dll`.
 1. Start Half-Life with the injector: `Injector.exe path\to\Half-Life\hl.exe`. Running HL on its own and running the injector afterwards is not supported.
 
-To run the bxt-compatibility build together with the original Bunnymod XT (e.g. for capturing TASes) simply put `BunnymodXT.dll`, `Injector.exe` and `bxt_rs.dll` together into the same folder and start Half-Life with the injector.
+To run bxt-rs together with the original Bunnymod XT (e.g. for capturing TASes) simply put `BunnymodXT.dll`, `Injector.exe` and `bxt_rs.dll` together into the same folder and start Half-Life with the injector.
 
 ### Video Recording
 

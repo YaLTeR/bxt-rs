@@ -181,7 +181,6 @@ pub static GL_BeginRendering: Pointer<
     null_mut(),
 );
 pub static gEntityInterface: Pointer<*mut DllFunctions> = Pointer::empty(b"gEntityInterface\0");
-#[cfg_attr(feature = "bxt-compatibility", allow(unused))]
 pub static Key_Event: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer::empty_patterns(
     b"Key_Event\0",
     // To find, search for "ctrl-alt-del pressed".
@@ -336,7 +335,6 @@ pub static R_DrawSequentialPoly: Pointer<
     ]),
     my_R_DrawSequentialPoly as _,
 );
-#[cfg_attr(feature = "bxt-compatibility", allow(unused))]
 pub static R_Clear: Pointer<unsafe extern "C" fn() -> *mut c_void> = Pointer::empty_patterns(
     b"R_Clear\0",
     // To find, search for "R_RenderView". This is R_RenderView, the call before two if
@@ -525,10 +523,8 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &DrawCrosshair,
     &GL_BeginRendering,
     &gEntityInterface,
-    #[cfg(not(feature = "bxt-compatibility"))]
     &Key_Event,
     &LoadEntityDLLs,
-    #[cfg(not(feature = "bxt-compatibility"))]
     &Mod_LeafPVS,
     &Host_FilterTime,
     &host_frametime,
@@ -545,22 +541,17 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &realtime,
     &R_SetFrustum,
     &ReleaseEntityDlls,
-    #[cfg(not(feature = "bxt-compatibility"))]
     &R_Clear,
-    #[cfg(not(feature = "bxt-compatibility"))]
     &R_DrawSequentialPoly,
-    #[cfg(not(feature = "bxt-compatibility"))]
     &R_DrawSkyBox,
     &S_PaintChannels,
     &S_TransferStereo16,
     &scr_fov_value,
     &shm,
     &sv,
-    #[cfg(not(feature = "bxt-compatibility"))]
     &SV_Frame,
     &Sys_VID_FlipScreen,
     &V_ApplyShake,
-    #[cfg(not(feature = "bxt-compatibility"))]
     &V_FadeAlpha,
     &VideoMode_IsWindowed,
     &VideoMode_GetCurrentVideoMode,
@@ -1066,7 +1057,7 @@ pub mod exported {
         })
     }
 
-    #[cfg_attr(not(feature = "bxt-compatibility"), export_name = "Mod_LeafPVS")]
+    #[export_name = "Mod_LeafPVS"]
     pub unsafe extern "C" fn my_Mod_LeafPVS(
         leaf: *mut mleaf_s,
         model: *mut model_s,
@@ -1082,10 +1073,7 @@ pub mod exported {
         })
     }
 
-    #[cfg_attr(
-        not(feature = "bxt-compatibility"),
-        export_name = "R_DrawSequentialPoly"
-    )]
+    #[export_name = "R_DrawSequentialPoly"]
     pub unsafe extern "C" fn my_R_DrawSequentialPoly(
         surf: *mut c_void,
         face: *mut c_int,
@@ -1100,7 +1088,7 @@ pub mod exported {
         })
     }
 
-    #[cfg_attr(not(feature = "bxt-compatibility"), export_name = "R_Clear")]
+    #[export_name = "R_Clear"]
     pub unsafe extern "C" fn my_R_Clear() -> *mut c_void {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
@@ -1114,7 +1102,7 @@ pub mod exported {
         })
     }
 
-    #[cfg_attr(not(feature = "bxt-compatibility"), export_name = "R_DrawSkyBox")]
+    #[export_name = "R_DrawSkyBox"]
     pub unsafe extern "C" fn my_R_DrawSkyBox() {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
@@ -1144,7 +1132,7 @@ pub mod exported {
         })
     }
 
-    #[cfg_attr(not(feature = "bxt-compatibility"), export_name = "V_FadeAlpha")]
+    #[export_name = "V_FadeAlpha"]
     pub unsafe extern "C" fn my_V_FadeAlpha() -> c_int {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
@@ -1157,7 +1145,7 @@ pub mod exported {
         })
     }
 
-    #[cfg_attr(not(feature = "bxt-compatibility"), export_name = "SV_Frame")]
+    #[export_name = "SV_Frame"]
     pub unsafe extern "C" fn my_SV_Frame() {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
@@ -1267,7 +1255,7 @@ pub mod exported {
         })
     }
 
-    #[cfg_attr(not(feature = "bxt-compatibility"), export_name = "Key_Event")]
+    #[export_name = "Key_Event"]
     pub unsafe extern "C" fn my_Key_Event(key: c_int, down: c_int) {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
