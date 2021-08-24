@@ -36,6 +36,9 @@ jobs:
           - configuration: debug
             features: bxt-compatibility
 
+          - os: ubuntu-20.04
+            features: bxt-compatibility
+
           - rust: beta
             features: vulkan-debug
           - rust: beta
