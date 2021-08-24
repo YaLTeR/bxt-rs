@@ -173,10 +173,13 @@ pub static GL_BeginRendering: Pointer<
     unsafe extern "C" fn(*mut c_int, *mut c_int, *mut c_int, *mut c_int),
 > = Pointer::empty_patterns(
     b"GL_BeginRendering\0",
-    // To find, take usages of glClear(). The shortest is GL_BeginRendering().
+    // To find, search for "R_BeginFrame". The function using this string is
+    // GLimp_LogNewFrame() and the function calling that is GL_BeginRendering().
     Patterns(&[
         // 6153
         pattern!(55 8B EC 8B 45 ?? 8B 4D ?? 56 57),
+        // 4554
+        pattern!(8B 44 24 ?? 8B 4C 24 ?? 8B 54 24 ?? C7 00 00 00 00 00),
     ]),
     null_mut(),
 );
@@ -394,6 +397,8 @@ pub static S_PaintChannels: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empt
     Patterns(&[
         // 6153
         pattern!(55 8B EC A1 ?? ?? ?? ?? 53 8B 5D ?? 3B C3 0F 8D),
+        // 4554
+        pattern!(A1 ?? ?? ?? ?? 55 8B 6C 24),
     ]),
     my_S_PaintChannels as _,
 );
@@ -405,6 +410,8 @@ pub static S_TransferStereo16: Pointer<unsafe extern "C" fn(c_int)> = Pointer::e
     Patterns(&[
         // 6153
         pattern!(55 8B EC 83 EC 0C D9 05 ?? ?? ?? ?? D8 0D),
+        // 4554
+        pattern!(D9 05 ?? ?? ?? ?? D8 0D ?? ?? ?? ?? 83 EC 0C),
     ]),
     my_S_TransferStereo16 as _,
 );
@@ -429,6 +436,8 @@ pub static Sys_VID_FlipScreen: Pointer<unsafe extern "C" fn()> = Pointer::empty_
     Patterns(&[
         // 6153
         pattern!(A1 ?? ?? ?? ?? 85 C0 74 ?? 8B 00),
+        // 4554
+        pattern!(A1 ?? ?? ?? ?? 50 FF 15 ?? ?? ?? ?? C3),
     ]),
     my_Sys_VID_FlipScreen as _,
 );
@@ -463,8 +472,8 @@ pub static V_FadeAlpha: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empt
 );
 pub static VideoMode_IsWindowed: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
     b"VideoMode_IsWindowed\0",
-    // To find, take usages of glClear(). The shortest is GL_BeginRendering(). The first check is
-    // for the return value of VideoMode_IsWindowed().
+    // To find, first find GL_BeginRendering(). The first check is for the
+    // return value of VideoMode_IsWindowed().
     Patterns(&[
         // 6153
         pattern!(8B 0D ?? ?? ?? ?? 85 C9 74 ?? 8B 01 FF 50 ?? 84 C0),
@@ -475,7 +484,7 @@ pub static VideoMode_GetCurrentVideoMode: Pointer<
     unsafe extern "C" fn(*mut c_int, *mut c_int, *mut c_int),
 > = Pointer::empty_patterns(
     b"VideoMode_GetCurrentVideoMode\0",
-    // To find, take usages of glClear(). The shortest is GL_BeginRendering(). The first if calls
+    // To find, first find GL_BeginRendering(). The first if calls
     // VideoMode_GetCurrentVideoMode().
     Patterns(&[
         // 6153
@@ -687,7 +696,11 @@ pub fn prepend_command(marker: MainThreadMarker, command: &str) {
 
 /// Returns the current game resolution (width, height).
 pub unsafe fn get_resolution(marker: MainThreadMarker) -> (i32, i32) {
-    if VideoMode_IsWindowed.get(marker)() != 0 {
+    let should_use_window_rect = !VideoMode_IsWindowed.is_set(marker)
+        || !VideoMode_GetCurrentVideoMode.is_set(marker)
+        || VideoMode_IsWindowed.get(marker)() != 0;
+
+    if should_use_window_rect {
         let rect = *window_rect.get(marker);
         (rect.right - rect.left, rect.bottom - rect.top)
     } else {
@@ -852,6 +865,10 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
             VideoMode_GetCurrentVideoMode.set_if_empty(marker, ptr.by_relative_call(marker, 79));
             window_rect.set(marker, ptr.by_offset(marker, 43));
         }
+        // 4554
+        Some(1) => {
+            window_rect.set(marker, ptr.by_offset(marker, 31));
+        }
         _ => (),
     }
 
@@ -884,6 +901,11 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
             paintedtime.set(marker, ptr.by_offset(marker, 4));
             paintbuffer.set(marker, ptr.by_offset(marker, 60));
         }
+        // 4554
+        Some(1) => {
+            paintedtime.set(marker, ptr.by_offset(marker, 1));
+            paintbuffer.set(marker, ptr.by_offset(marker, 56));
+        }
         _ => (),
     }
 
@@ -892,6 +914,10 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 6153
         Some(0) => {
             shm.set(marker, ptr.by_offset(marker, 337));
+        }
+        // 4554
+        Some(1) => {
+            shm.set(marker, ptr.by_offset(marker, 308));
         }
         _ => (),
     }

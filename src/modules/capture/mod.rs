@@ -46,8 +46,6 @@ impl Module for Capture {
             && engine::S_TransferStereo16.is_set(marker)
             && engine::shm.is_set(marker)
             && engine::Sys_VID_FlipScreen.is_set(marker)
-            && engine::VideoMode_GetCurrentVideoMode.is_set(marker)
-            && engine::VideoMode_IsWindowed.is_set(marker)
             && engine::window_rect.is_set(marker)
     }
 }
