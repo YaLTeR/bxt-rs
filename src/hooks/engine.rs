@@ -966,14 +966,15 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            // This is the first function called on Linux, so do due initialization.
+            // This is the first function that we hook called on Linux, so do due initialization.
             ensure_logging_hooks();
             ensure_profiling();
 
             #[cfg(unix)]
             find_pointers(marker);
 
-            // hw depends on SDL so it must be loaded by now.
+            // GL_SetMode() happens before Memory_Init(), which means the OpenGL context has already
+            // been created and made current.
             sdl::find_pointers(marker);
 
             let rv = Memory_Init.get(marker)(buf, size);
