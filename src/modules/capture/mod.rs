@@ -1,7 +1,6 @@
 //! Video capture.
 
 use std::mem;
-use std::os::raw::c_char;
 
 use color_eyre::eyre::Context;
 use rust_hawktracer::*;
@@ -72,39 +71,39 @@ static BXT_CAP_OVERRIDE_FFMPEG_ARGS: CVar = CVar::new(b"_bxt_cap_override_ffmpeg
 
 static HAVE_REQUIRED_GL_EXTENSIONS: MainThreadCell<bool> = MainThreadCell::new(false);
 
-pub fn check_gl_extensions(marker: MainThreadMarker, is_supported: impl Fn(*const c_char) -> bool) {
+pub fn check_gl_extensions(marker: MainThreadMarker, is_supported: impl Fn(&'static str) -> bool) {
     let mut have_everything = true;
 
-    if !is_supported(b"GL_EXT_memory_object\0".as_ptr().cast()) {
+    if !is_supported("GL_EXT_memory_object") {
         warn!("MISSING: GL_EXT_memory_object OpenGL extension");
         have_everything = false;
     }
 
     #[cfg(unix)]
-    if !is_supported(b"GL_EXT_memory_object_fd\0".as_ptr().cast()) {
+    if !is_supported("GL_EXT_memory_object_fd") {
         warn!("MISSING: GL_EXT_memory_object_fd OpenGL extension");
         have_everything = false;
     }
 
     #[cfg(windows)]
-    if !is_supported(b"GL_EXT_memory_object_win32\0".as_ptr().cast()) {
+    if !is_supported("GL_EXT_memory_object_win32") {
         warn!("MISSING: GL_EXT_memory_object_win32 OpenGL extension");
         have_everything = false;
     }
 
-    if !is_supported(b"GL_EXT_semaphore\0".as_ptr().cast()) {
+    if !is_supported("GL_EXT_semaphore") {
         warn!("MISSING: GL_EXT_semaphore OpenGL extension");
         have_everything = false;
     }
 
     #[cfg(unix)]
-    if !is_supported(b"GL_EXT_semaphore_fd\0".as_ptr().cast()) {
+    if !is_supported("GL_EXT_semaphore_fd") {
         warn!("MISSING: GL_EXT_semaphore_fd OpenGL extension");
         have_everything = false;
     }
 
     #[cfg(windows)]
-    if !is_supported(b"GL_EXT_semaphore_win32\0".as_ptr().cast()) {
+    if !is_supported("GL_EXT_semaphore_win32") {
         warn!("MISSING: GL_EXT_semaphore_win32 OpenGL extension");
         have_everything = false;
     }

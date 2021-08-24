@@ -1,5 +1,6 @@
 #![allow(non_snake_case, non_upper_case_globals)]
 
+use std::ffi::CString;
 use std::os::raw::{c_char, c_int, c_void};
 use std::ptr::NonNull;
 
@@ -8,7 +9,7 @@ use crate::utils::*;
 
 pub static SDL_GL_ExtensionSupported: Pointer<unsafe extern "C" fn(*const c_char) -> c_int> =
     Pointer::empty(b"SDL_GL_ExtensionSupported\0");
-pub static SDL_GL_GetProcAddress: Pointer<unsafe extern "C" fn(*const c_char) -> *mut c_void> =
+pub static SDL_GL_GetProcAddress: Pointer<unsafe extern "C" fn(*const c_char) -> *const c_void> =
     Pointer::empty(b"SDL_GL_GetProcAddress\0");
 
 static POINTERS: &[&dyn PointerTrait] = &[&SDL_GL_ExtensionSupported, &SDL_GL_GetProcAddress];
@@ -51,7 +52,21 @@ pub unsafe fn find_pointers(marker: MainThreadMarker) {
         pointer.log(marker);
     }
 
-    gl::load_pointers(marker);
+    let load = |name| {
+        let name = CString::new(name).unwrap();
+        SDL_GL_GetProcAddress.get(marker)(name.as_ptr())
+    };
+
+    // SDL docs say that on X11 extension function pointers might be non-NULL even when extensions
+    // aren't actually available. So we need to check for extension availability manually.
+    //
+    // https://wiki.libsdl.org/SDL_GL_GetProcAddress#Remarks
+    let is_extension_supported = |name| {
+        let name = CString::new(name).unwrap();
+        SDL_GL_ExtensionSupported.get(marker)(name.as_ptr()) != 0
+    };
+
+    gl::load_pointers(marker, load, is_extension_supported);
 }
 
 pub fn reset_pointers(marker: MainThreadMarker) {

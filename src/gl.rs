@@ -1,8 +1,7 @@
-use std::ffi::CString;
+use std::os::raw::c_void;
 
 use rust_hawktracer::*;
 
-use crate::hooks::sdl;
 use crate::modules::capture;
 use crate::utils::*;
 
@@ -17,21 +16,19 @@ pub static GL: MainThreadRefCell<Option<Gl>> = MainThreadRefCell::new(None);
 
 /// # Safety
 ///
-/// [`reset_pointers()`] must be called before SDL is unloaded so the pointers don't go stale.
+/// `load` must return valid pointers to OpenGL functions or null pointers.
+///
+/// [`reset_pointers()`] must be called before the library providing pointers is unloaded so the
+/// pointers don't go stale.
 #[hawktracer(gl_load_pointers)]
-pub unsafe fn load_pointers(marker: MainThreadMarker) {
-    *GL.borrow_mut(marker) = Some(Gl::load_with(|name| {
-        let name = CString::new(name).unwrap();
-        sdl::SDL_GL_GetProcAddress.get(marker)(name.as_ptr())
-    }));
+pub unsafe fn load_pointers(
+    marker: MainThreadMarker,
+    load: impl Fn(&'static str) -> *const c_void,
+    is_extension_supported: impl Fn(&'static str) -> bool,
+) {
+    *GL.borrow_mut(marker) = Some(Gl::load_with(load));
 
-    // SDL docs say that on X11 extension function pointers might be non-NULL even when extensions
-    // aren't actually available. So we need to check for extension availability manually.
-    //
-    // https://wiki.libsdl.org/SDL_GL_GetProcAddress#Remarks
-    let is_supported = |name| sdl::SDL_GL_ExtensionSupported.get(marker)(name) != 0;
-
-    capture::check_gl_extensions(marker, is_supported);
+    capture::check_gl_extensions(marker, is_extension_supported);
 }
 
 pub fn reset_pointers(marker: MainThreadMarker) {
