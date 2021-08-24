@@ -15,6 +15,8 @@ use crate::ffi::command::cmd_function_s;
 use crate::ffi::cvar::cvar_s;
 use crate::ffi::playermove::playermove_s;
 use crate::ffi::usercmd::usercmd_s;
+#[cfg(windows)]
+use crate::hooks::opengl32;
 use crate::hooks::{sdl, server};
 use crate::modules::{
     capture, commands, cvars, demo_playback, fade_remove, force_fov, hud_scale, novis,
@@ -976,6 +978,8 @@ pub mod exported {
             // GL_SetMode() happens before Memory_Init(), which means the OpenGL context has already
             // been created and made current.
             sdl::find_pointers(marker);
+            #[cfg(windows)]
+            opengl32::find_pointers(marker);
 
             let rv = Memory_Init.get(marker)(buf, size);
 
@@ -999,6 +1003,8 @@ pub mod exported {
 
             cvars::mark_all_cvars_as_not_registered(marker);
 
+            #[cfg(windows)]
+            opengl32::reset_pointers(marker);
             sdl::reset_pointers(marker);
             reset_pointers(marker);
         })
