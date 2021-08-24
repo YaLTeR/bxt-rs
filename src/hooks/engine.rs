@@ -1013,7 +1013,7 @@ pub mod exported {
             {
                 // Hook all found pointers on Windows.
                 for &pointer in POINTERS {
-                    if pointer.get_raw(marker) == Memory_Init.get_raw(marker) {
+                    if pointer.symbol() == Memory_Init.symbol() {
                         // Memory_Init() is already hooked.
                         continue;
                     }
