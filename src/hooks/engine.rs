@@ -371,7 +371,8 @@ pub static R_DrawSkyBox: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
     b"R_DrawSkyBox\0",
     // To find, search for "ClipSkyPolygon: MAX_CLIP_VERTS" string.
     // This is ClipSkyPolygon. On Windows, right below that function is R_DrawSkyChain.
-    // Last call in R_DrawSkyChain is R_DrawSkyBox.
+    // Last call in R_DrawSkyChain is R_DrawSkyBox. Alternatively, search for the byte
+    // sequence "42 B0 47 34 C3 BE D2 BF", the referencing function is R_DrawSkyBox.
     Patterns(&[
         // 6153
         pattern!(55 8B EC 83 EC 1C A1 ?? ?? ?? ?? 53 56),
