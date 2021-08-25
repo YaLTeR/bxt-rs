@@ -30,7 +30,9 @@ pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::emp
         // 6153
         pattern!(55 8B EC 83 EC 08 A1 ?? ?? ?? ?? 56 33 F6 85 C0),
         // 4554
-        pattern!(A1 ?? ?? ?? ?? 83 EC 08 57 33 FF 85 C0 0F 85 A5 00 00 00 53 56 33 DB BE ?? ?? ?? ?? 8B 06 8B 0D),
+        pattern!(A1 ?? ?? ?? ?? 83 EC 08 57 33 FF 85 C0),
+        // 3248
+        pattern!(A1 ?? ?? ?? ?? 83 EC 08 56),
     ]),
     null_mut(),
 );
@@ -42,6 +44,8 @@ pub static CL_Disconnect: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
     Patterns(&[
         // 6153
         pattern!(55 8B EC 83 EC 14 53 56 33 DB),
+        // 4554
+        pattern!(83 EC 14 C7 05 ?? ?? ?? ?? F0 69 F8 C0),
     ]),
     my_CL_Disconnect as _,
 );
@@ -62,6 +66,8 @@ pub static ClientDLL_DemoUpdateClientData: Pointer<unsafe extern "C" fn(*mut c_v
         Patterns(&[
             // 6153
             pattern!(55 8B EC 51 A1 ?? ?? ?? ?? 56 85 C0 74 ?? DD 05),
+            // 4554
+            pattern!(51 A1 ?? ?? ?? ?? 56 85 C0 74 4B),
         ]),
         my_ClientDLL_DemoUpdateClientData as _,
     );
@@ -72,6 +78,8 @@ pub static ClientDLL_HudRedraw: Pointer<unsafe extern "C" fn(c_int)> = Pointer::
     Patterns(&[
         // 6153
         pattern!(55 8B EC E8 ?? ?? ?? ?? 85 C0 75 ?? A1),
+        // 4554
+        pattern!(E8 ?? ?? ?? ?? 85 C0 75 ?? A1 ?? ?? ?? ?? 85 C0 74 ?? DD 05 ?? ?? ?? ?? 8B 4C),
     ]),
     my_ClientDLL_HudRedraw as _,
 );
@@ -92,6 +100,8 @@ pub static ClientDLL_UpdateClientData: Pointer<unsafe extern "C" fn()> = Pointer
     Patterns(&[
         // 6153
         pattern!(55 8B EC 83 EC 44 83 3D ?? ?? ?? ?? 05),
+        // 4554
+        pattern!(A1 ?? ?? ?? ?? 83 EC 44 83 F8 05),
     ]),
     my_ClientDLL_UpdateClientData as _,
 );
@@ -163,6 +173,8 @@ pub static DrawCrosshair: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer:
     Patterns(&[
         // 6153
         pattern!(55 8B EC A1 ?? ?? ?? ?? 85 C0 74 ?? 8B 0D ?? ?? ?? ?? 8B 15),
+        // 4554
+        pattern!(A1 ?? ?? ?? ?? 85 C0 74 5C 8B 0D ?? ?? ?? ?? 8B 15 ?? ?? ?? ?? 51 8B 0D),
     ]),
     my_DrawCrosshair as _,
 );
@@ -228,6 +240,8 @@ pub static Host_FilterTime: Pointer<unsafe extern "C" fn(c_float) -> c_int> =
             pattern!(55 8B EC 83 EC 08 D9 05 ?? ?? ?? ?? D8 1D),
             // 4554
             pattern!(55 8B EC 83 E4 F8 83 EC 08 D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? DF E0 F6 C4 41),
+            // 3248
+            pattern!(55 8B EC 83 E4 F8 83 EC 08 D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? DF E0 25 00 41 00 00),
         ]),
         my_Host_FilterTime as _,
     );
@@ -259,6 +273,8 @@ pub static Host_Shutdown: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
     Patterns(&[
         // 6153
         pattern!(A1 ?? ?? ?? ?? 53 33 DB 3B C3 74 ?? 68),
+        // 3248
+        pattern!(53 33 DB 53 68 ?? ?? ?? ?? FF 15),
     ]),
     my_Host_Shutdown as _,
 );
@@ -270,6 +286,8 @@ pub static Host_Tell_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_pattern
         pattern!(55 8B EC 83 EC 40 A1 ?? ?? ?? ?? 56),
         // 4554
         pattern!(A1 ?? ?? ?? ?? 83 EC 40 83 F8 01 56 75 0A E8),
+        // 3248
+        pattern!(A1 ?? ?? ?? ?? 83 EC 40 83 F8 01 56 75 09),
     ]),
     null_mut(),
 );
@@ -289,6 +307,8 @@ pub static hudGetScreenInfo: Pointer<unsafe extern "C" fn(*mut SCREENINFO) -> c_
         Patterns(&[
             // 6153
             pattern!(55 8B EC 8D 45 ?? 50 FF 15 ?? ?? ?? ?? 8B 45 ?? 83 C4 04 85 C0 75 ?? 5D C3 81 38 14 02 00 00),
+            // 4554
+            pattern!(8D 44 24 ?? 50 FF 15 ?? ?? ?? ?? 8B 44 24 ?? 83 C4 04 85 C0 75 ?? C3 81 38 14 02 00 00),
         ]),
         my_hudGetScreenInfo as _,
     );
@@ -342,7 +362,7 @@ pub static R_Clear: Pointer<unsafe extern "C" fn() -> *mut c_void> = Pointer::em
     Patterns(&[
         // 6153
         pattern!(8B 15 ?? ?? ?? ?? 33 C0 83 FA 01),
-        // HL-NGHL
+        // 3248
         pattern!(D9 05 ?? ?? ?? ?? DC 1D ?? ?? ?? ?? DF E0 F6 C4 ?? ?? ?? D9 05 ?? ?? ?? ?? D8 1D),
     ]),
     my_R_Clear as _,
@@ -406,7 +426,9 @@ pub static S_TransferStereo16: Pointer<unsafe extern "C" fn(c_int)> = Pointer::e
         // 6153
         pattern!(55 8B EC 83 EC 0C D9 05 ?? ?? ?? ?? D8 0D),
         // 4554
-        pattern!(D9 05 ?? ?? ?? ?? D8 0D ?? ?? ?? ?? 83 EC 0C),
+        pattern!(D9 05 ?? ?? ?? ?? D8 0D ?? ?? ?? ?? 83 EC 0C 53 56 57 E8 ?? ?? ?? ?? 8B 4C 24 1C A3 ?? ?? ?? ?? A1 ?? ?? ?? ?? C7 05 ?? ?? ?? ?? ?? ?? ?? ?? 8D 3C 09 8D 34 00 A1 ?? ?? ?? ?? 85 C0 74 55 E8),
+        // 3248
+        pattern!(D9 05 ?? ?? ?? ?? D8 0D ?? ?? ?? ?? 83 EC 0C 53 56 57 E8 ?? ?? ?? ?? 8B 4C 24 1C A3 ?? ?? ?? ?? A1 ?? ?? ?? ?? C7 05 ?? ?? ?? ?? ?? ?? ?? ?? 8D 3C 09 8D 34 00 A1 ?? ?? ?? ?? 85 C0 74 54 E8),
     ]),
     my_S_TransferStereo16 as _,
 );
@@ -472,6 +494,8 @@ pub static VideoMode_IsWindowed: Pointer<unsafe extern "C" fn() -> c_int> = Poin
     Patterns(&[
         // 6153
         pattern!(8B 0D ?? ?? ?? ?? 85 C9 74 ?? 8B 01 FF 50 ?? 84 C0),
+        // 3248
+        pattern!(8B 0D ?? ?? ?? ?? 8B 01 FF 50 ?? 25 FF 00 00 00),
     ]),
     null_mut(),
 );
@@ -484,6 +508,8 @@ pub static VideoMode_GetCurrentVideoMode: Pointer<
     Patterns(&[
         // 6153
         pattern!(55 8B EC 8B 0D ?? ?? ?? ?? 8B 01 FF 50 ?? 85 C0),
+        // 4554
+        pattern!(8B 0D ?? ?? ?? ?? 8B 01 FF 50 ?? 85 C0 74 ?? 8B 4C 24),
     ]),
     null_mut(),
 );
@@ -813,6 +839,11 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
             host_frametime.set(marker, ptr.by_offset(marker, 65));
             realtime.set(marker, ptr.by_offset(marker, 71));
         }
+        // 3248
+        Some(2) => {
+            host_frametime.set(marker, ptr.by_offset(marker, 67));
+            realtime.set(marker, ptr.by_offset(marker, 73));
+        }
         _ => (),
     }
 
@@ -842,6 +873,11 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(1) => {
             Cmd_Argc.set(marker, ptr.by_relative_call(marker, 25));
             Cmd_Argv.set(marker, ptr.by_relative_call(marker, 144));
+        }
+        // 3248
+        Some(2) => {
+            Cmd_Argc.set(marker, ptr.by_relative_call(marker, 24));
+            Cmd_Argv.set(marker, ptr.by_relative_call(marker, 143));
         }
         _ => (),
     }
@@ -918,6 +954,10 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 4554
         Some(1) => {
             shm.set(marker, ptr.by_offset(marker, 308));
+        }
+        // 3248
+        Some(2) => {
+            shm.set(marker, ptr.by_offset(marker, 307));
         }
         _ => (),
     }
