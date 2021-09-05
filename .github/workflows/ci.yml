@@ -82,6 +82,8 @@ jobs:
           toolchain: ${{ matrix.rust }}
           target: ${{ matrix.target }}
 
+      - uses: Swatinem/rust-cache@v1
+
       - name: Build
         uses: actions-rs/cargo@v1
         with:
@@ -143,6 +145,8 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           components: clippy
+
+      - uses: Swatinem/rust-cache@v1
 
       - name: Run clippy
         uses: actions-rs/clippy-check@v1
