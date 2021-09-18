@@ -21,16 +21,16 @@ use serializer::Serializer;
 pub struct TasLogging;
 impl Module for TasLogging {
     fn name(&self) -> &'static str {
-        "bxt_taslog"
+        "bxt_tas_log"
     }
 
     fn commands(&self) -> &'static [&'static Command] {
-        static COMMANDS: &[&Command] = &[&BXT_TASLOG];
+        static COMMANDS: &[&Command] = &[&BXT_TAS_LOG];
         COMMANDS
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
-        static CVARS: &[&CVar] = &[&BXT_TASLOG_FILENAME];
+        static CVARS: &[&CVar] = &[&BXT_TAS_LOG_FILENAME];
         CVARS
     }
 
@@ -39,20 +39,20 @@ impl Module for TasLogging {
     }
 }
 
-static BXT_TASLOG: Command = Command::new(
-    b"bxt_taslog\0",
+static BXT_TAS_LOG: Command = Command::new(
+    b"bxt_tas_log\0",
     handler!(
-        "Usage: bxt_taslog <0|1>\n \
-          Enables or disables TAS logging into the file at bxt_taslog_filename.\n",
-        taslog as fn(_, _)
+        "Usage: bxt_tas_log <0|1>\n \
+          Enables or disables TAS logging into the file at bxt_tas_log_filename.\n",
+        tas_log as fn(_, _)
     ),
 );
 
-static BXT_TASLOG_FILENAME: CVar = CVar::new(b"bxt_taslog_filename\0", b"taslogger.log\0");
+static BXT_TAS_LOG_FILENAME: CVar = CVar::new(b"bxt_tas_log_filename\0", b"taslogger.log\0");
 
 static TAS_LOG: MainThreadRefCell<Option<TasLog>> = MainThreadRefCell::new(None);
 
-fn taslog(marker: MainThreadMarker, enabled: i32) {
+fn tas_log(marker: MainThreadMarker, enabled: i32) {
     if !TasLogging.is_enabled(marker) {
         return;
     }
@@ -80,7 +80,7 @@ fn taslog(marker: MainThreadMarker, enabled: i32) {
     }
 
     let filename = if cvars::CVars.is_enabled(marker) {
-        BXT_TASLOG_FILENAME.to_os_string(marker)
+        BXT_TAS_LOG_FILENAME.to_os_string(marker)
     } else {
         OsString::from("taslogger.log")
     };
