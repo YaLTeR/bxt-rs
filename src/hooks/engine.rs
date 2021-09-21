@@ -58,6 +58,7 @@ pub static CL_GameDir_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
     ]),
     null_mut(),
 );
+pub static CL_Move: Pointer<unsafe extern "C" fn()> = Pointer::empty(b"CL_Move\0");
 pub static ClientDLL_DemoUpdateClientData: Pointer<unsafe extern "C" fn(*mut c_void)> =
     Pointer::empty_patterns(
         b"ClientDLL_DemoUpdateClientData\0",
@@ -177,6 +178,10 @@ pub static DrawCrosshair: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer:
         pattern!(A1 ?? ?? ?? ?? 85 C0 74 5C 8B 0D ?? ?? ?? ?? 8B 15 ?? ?? ?? ?? 51 8B 0D),
     ]),
     my_DrawCrosshair as _,
+);
+pub static frametime_remainder: Pointer<*mut f64> = Pointer::empty(
+    // Not a real symbol name.
+    b"frametime_remainder\0",
 );
 pub static GL_BeginRendering: Pointer<
     unsafe extern "C" fn(*mut c_int, *mut c_int, *mut c_int, *mut c_int),
@@ -532,6 +537,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Cbuf_InsertText,
     &CL_Disconnect,
     &CL_GameDir_f,
+    &CL_Move,
     &ClientDLL_DemoUpdateClientData,
     &ClientDLL_HudRedraw,
     &ClientDLL_HudVidInit,
@@ -548,6 +554,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Cvar_RegisterVariable,
     &cvar_vars,
     &DrawCrosshair,
+    &frametime_remainder,
     &GL_BeginRendering,
     &gEntityInterface,
     &Key_Event,
@@ -760,6 +767,7 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
     }
 
     cls_demos.set(marker, cls.offset(marker, 15960));
+    frametime_remainder.set(marker, CL_Move.by_offset(marker, 452));
 
     for pointer in POINTERS {
         pointer.log(marker);
@@ -1192,9 +1200,11 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             tas_logging::begin_physics_frame(marker);
+            tas_recording::on_sv_frame_start(marker);
 
             SV_Frame.get(marker)();
 
+            tas_recording::on_sv_frame_end(marker);
             tas_logging::end_physics_frame(marker);
         })
     }
@@ -1411,6 +1421,17 @@ pub mod exported {
 
                 DrawCrosshair.get(marker)((x as f32 / scale) as i32, (y as f32 / scale) as i32)
             });
+        })
+    }
+
+    #[export_name = "CL_Move"]
+    pub unsafe extern "C" fn my_CL_Move() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            tas_recording::on_cl_move(marker);
+
+            CL_Move.get(marker)();
         })
     }
 }

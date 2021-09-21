@@ -26,6 +26,7 @@ thiserror = "1.0.26"
 byte-slice-cast = "1.0.0"
 crossbeam-channel = "0.5.1"
 git-version = "0.3.5"
+hltas = { git = "https://github.com/HLTAS/hltas" }
 
 [target."cfg(windows)".dependencies.simplelog]
 version = "0.10.0"

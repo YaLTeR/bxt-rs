@@ -25,6 +25,7 @@ pub mod novis;
 pub mod shake_remove;
 pub mod skybox_remove;
 pub mod tas_logging;
+pub mod tas_recording;
 pub mod wallhack;
 
 /// Trait for getting module information.
@@ -65,5 +66,6 @@ pub static MODULES: &[&dyn Module] = &[
     &shake_remove::ShakeRemove,
     &skybox_remove::SkyboxRemove,
     &tas_logging::TasLogging,
+    &tas_recording::TasRecording,
     &wallhack::Wallhack,
 ];
