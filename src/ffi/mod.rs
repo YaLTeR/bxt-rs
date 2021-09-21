@@ -8,6 +8,7 @@
 //!
 //! and then manually cleaned up a bit.
 
+pub mod buttons;
 pub mod com_model;
 pub mod command;
 pub mod cvar;
