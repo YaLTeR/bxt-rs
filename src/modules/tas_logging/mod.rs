@@ -9,7 +9,7 @@ use crate::ffi::edict;
 use crate::ffi::playermove::playermove_s;
 use crate::ffi::usercmd::usercmd_s;
 use crate::handler;
-use crate::hooks::engine::{self, con_print};
+use crate::hooks::engine::{self, con_print, RngState};
 use crate::hooks::server;
 use crate::modules::commands::{self, Command};
 use crate::modules::cvars::{self, CVar};
@@ -118,7 +118,13 @@ pub unsafe fn begin_physics_frame(marker: MainThreadMarker) {
         let is_paused = engine::sv.get_opt(marker).map(|sv| *sv.offset(4).cast());
 
         // TODO: command_buffer
-        if let Err(err) = tas_log.begin_physics_frame(frame_time, client_state, is_paused, None) {
+        if let Err(err) = tas_log.begin_physics_frame(
+            frame_time,
+            client_state,
+            is_paused,
+            None,
+            engine::rng_state(marker),
+        ) {
             con_print(marker, &format!("Error writing to the TAS log: {}", err));
         }
     }
@@ -233,6 +239,7 @@ impl TasLog {
         client_state: Option<i32>,
         is_paused: Option<bool>,
         command_buffer: Option<&str>,
+        rng_state: Option<RngState>,
     ) -> Result<(), io::Error> {
         self.ser.begin_array_value()?;
         self.ser.begin_object()?;
@@ -255,6 +262,17 @@ impl TasLog {
 
         if let Some(command_buffer) = command_buffer {
             self.ser.entry("cbuf", command_buffer)?;
+        }
+
+        if let Some(rng_state) = rng_state {
+            self.ser.key("rng")?;
+            self.ser.begin_object_value()?;
+            self.ser.begin_object()?;
+            self.ser.entry("idum", &rng_state.idum)?;
+            self.ser.entry("iy", &rng_state.iy)?;
+            self.ser.entry("iv", &rng_state.iv)?;
+            self.ser.end_object()?;
+            self.ser.end_object_value()?;
         }
 
         self.ser.key("cf")?;
