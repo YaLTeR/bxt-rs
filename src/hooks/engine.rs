@@ -3,8 +3,11 @@
 #![allow(non_snake_case, non_upper_case_globals)]
 
 use std::ffi::CString;
+use std::fmt;
+use std::num::ParseIntError;
 use std::os::raw::*;
 use std::ptr::{null_mut, NonNull};
+use std::str::FromStr;
 
 use bxt_macros::pattern;
 use bxt_patterns::Patterns;
@@ -327,6 +330,10 @@ pub static hudGetScreenInfo: Pointer<unsafe extern "C" fn(*mut SCREENINFO) -> c_
         ]),
         my_hudGetScreenInfo as _,
     );
+pub static idum: Pointer<*mut c_int> = Pointer::empty(
+    // Not a real symbol name.
+    b"idum\0",
+);
 pub static Memory_Init: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
     Pointer::empty_patterns(
         b"Memory_Init\0",
@@ -355,6 +362,15 @@ pub static Mem_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty
 pub static paintbuffer: Pointer<*mut [portable_samplepair_t; 1026]> =
     Pointer::empty(b"paintbuffer\0");
 pub static paintedtime: Pointer<*mut c_int> = Pointer::empty(b"paintedtime\0");
+pub static ran1: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty(b"ran1\0");
+pub static ran1_iy: Pointer<*mut c_int> = Pointer::empty(
+    // Not a real symbol name.
+    b"ran1::iy\0",
+);
+pub static ran1_iv: Pointer<*mut [c_int; 32]> = Pointer::empty(
+    // Not a real symbol name.
+    b"ran1::iv\0",
+);
 pub static realtime: Pointer<*mut f64> = Pointer::empty(b"realtime\0");
 pub static R_DrawSequentialPoly: Pointer<
     unsafe extern "C" fn(*mut c_void, *mut c_int) -> *mut c_void,
@@ -579,10 +595,14 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Host_Tell_f,
     &Host_ValidSave,
     &hudGetScreenInfo,
+    &idum,
     &Memory_Init,
     &Mem_Free,
     &paintbuffer,
     &paintedtime,
+    &ran1,
+    &ran1_iy,
+    &ran1_iv,
     &realtime,
     &R_SetFrustum,
     &ReleaseEntityDlls,
@@ -678,6 +698,69 @@ pub struct SCREENINFO {
     pub iFlags: c_int,
     pub iCharHeight: c_int,
     pub charWidths: [c_short; 256],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RngState {
+    pub idum: c_int,
+    pub iy: c_int,
+    pub iv: [c_int; 32],
+}
+
+// `FromStr` and `Display` implementations are for parsing and printing a console command argument.
+impl FromStr for RngState {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut rv = RngState::default();
+
+        let mut iter = s.split_ascii_whitespace();
+        rv.idum = iter.next().unwrap_or_default().parse()?;
+        rv.iy = iter.next().unwrap_or_default().parse()?;
+        for x in rv.iv.iter_mut() {
+            *x = iter.next().unwrap_or_default().parse()?;
+        }
+
+        Ok(rv)
+    }
+}
+
+impl fmt::Display for RngState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}", self.idum, self.iy)?;
+        for x in self.iv {
+            write!(f, " {}", x)?;
+        }
+        Ok(())
+    }
+}
+
+/// Returns the non-shared RNG state.
+///
+/// If the required pointers are missing, returns `None`.
+pub fn rng_state(marker: MainThreadMarker) -> Option<RngState> {
+    // Safety: these are all global buffers which are always valid.
+    unsafe {
+        Some(RngState {
+            idum: *idum.get_opt(marker)?,
+            iy: *ran1_iy.get_opt(marker)?,
+            iv: *ran1_iv.get_opt(marker)?,
+        })
+    }
+}
+
+/// Sets the non-shared RNG state.
+///
+/// # Panics
+///
+/// Panics if any of the RNG state pointers are missing.
+pub fn set_rng_state(marker: MainThreadMarker, rng_state: RngState) {
+    // Safety: these are all global buffers which are always valid.
+    unsafe {
+        *idum.get(marker) = rng_state.idum;
+        *ran1_iy.get(marker) = rng_state.iy;
+        *ran1_iv.get(marker) = rng_state.iv;
+    }
 }
 
 /// Prints the string to the console.
@@ -779,6 +862,9 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
 
     cls_demos.set(marker, cls.offset(marker, 15960));
     frametime_remainder.set(marker, CL_Move.by_offset(marker, 452));
+    idum.set(marker, ran1.by_offset(marker, 2));
+    ran1_iy.set(marker, ran1.by_offset(marker, 13));
+    ran1_iv.set(marker, ran1.by_offset(marker, 116));
 
     for pointer in POINTERS {
         pointer.log(marker);
