@@ -58,7 +58,15 @@ pub static CL_GameDir_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
     ]),
     null_mut(),
 );
-pub static CL_Move: Pointer<unsafe extern "C" fn()> = Pointer::empty(b"CL_Move\0");
+pub static CL_Move: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"CL_Move\0",
+    // To find, search for "Client Move".
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 81 EC 78 08 00 00),
+    ]),
+    my_CL_Move as _,
+);
 pub static ClientDLL_DemoUpdateClientData: Pointer<unsafe extern "C" fn(*mut c_void)> =
     Pointer::empty_patterns(
         b"ClientDLL_DemoUpdateClientData\0",
@@ -804,6 +812,13 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
     match ptr.pattern_index(marker) {
         // 6153
         Some(0) => com_gamedir.set(marker, ptr.by_offset(marker, 11)),
+        _ => (),
+    }
+
+    let ptr = &CL_Move;
+    match ptr.pattern_index(marker) {
+        // 6153
+        Some(0) => frametime_remainder.set(marker, ptr.by_offset(marker, 451)),
         _ => (),
     }
 
