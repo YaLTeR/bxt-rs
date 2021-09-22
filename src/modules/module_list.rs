@@ -1,4 +1,4 @@
-//! `bxt_moules_list`
+//! `bxt_module_list`
 
 use super::{Module, MODULES};
 use crate::handler;
