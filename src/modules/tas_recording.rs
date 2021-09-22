@@ -74,6 +74,8 @@ struct Recorder {
     pending_console_commands: Vec<String>,
     keys: Keys,
     last_cmd_was_zero_ms: bool,
+    was_loading: bool,
+    last_shared_seed_before_load: u32,
 }
 
 static STATE: MainThreadRefCell<State> = MainThreadRefCell::new(State::Idle);
@@ -233,12 +235,19 @@ pub unsafe fn on_sv_frame_start(marker: MainThreadMarker) {
     recorder.pending_bound_commands.clear();
 }
 
-pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s) {
+pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s, random_seed: u32) {
     let mut state = STATE.borrow_mut(marker);
     let recorder = match &mut *state {
         State::Recording(recorder) => recorder,
         State::Idle => return,
     };
+
+    if recorder.hltas.properties.seeds.is_none() {
+        recorder.hltas.properties.seeds = Some(hltas::types::Seeds {
+            shared: random_seed,
+            non_shared: 1337,
+        });
+    }
 
     if let Some(hltas::types::Line::FrameBulk(last_frame_bulk)) = recorder.hltas.lines.last_mut() {
         if last_frame_bulk.frame_time == "" && cmd.msec != 0 && !recorder.last_cmd_was_zero_ms {
@@ -251,10 +260,20 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s) {
     let is_paused = *engine::sv.get(marker).offset(4).cast();
     if is_paused {
         // TODO: pauses which aren't loads.
+        recorder.was_loading = true;
         return;
     }
 
+    if recorder.was_loading {
+        // Loads can vary in length, thus record the seed change.
+        recorder.hltas.lines.push(hltas::types::Line::SharedSeed(
+            random_seed - recorder.last_shared_seed_before_load,
+        ));
+    }
+
     recorder.last_cmd_was_zero_ms = cmd.msec == 0;
+    recorder.was_loading = false;
+    recorder.last_shared_seed_before_load = random_seed;
 
     let mut frame_bulk = hltas::types::FrameBulk {
         auto_actions: Default::default(),
@@ -388,7 +407,6 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s) {
     }
 
     // TODO: upmove.
-    // TODO: shared RNG.
     // TODO: non-shared RNG.
     // TODO: confirming selection in invnext, invprev.
 

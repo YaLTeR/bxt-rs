@@ -67,7 +67,7 @@ pub unsafe extern "C" fn my_CmdStart(
         let marker = MainThreadMarker::new();
 
         tas_logging::begin_cmd_frame(marker, *cmd, random_seed);
-        tas_recording::on_cmd_start(marker, *cmd);
+        tas_recording::on_cmd_start(marker, *cmd, random_seed);
 
         CmdStart.get(marker)(player, cmd, random_seed);
     })
