@@ -4,6 +4,8 @@ use std::ffi::{CStr, OsString};
 use std::io;
 use std::path::Path;
 
+use git_version::git_version;
+
 use super::Module;
 use crate::ffi::edict;
 use crate::ffi::playermove::playermove_s;
@@ -93,7 +95,16 @@ fn tas_log(marker: MainThreadMarker, enabled: i32) {
         .get_opt(marker)
         .map(|dir| unsafe { CStr::from_ptr(dir.cast()).to_string_lossy() });
 
-    match TasLog::new(&filename, "bxt-rs 0.1", build_number, game_dir.as_deref()) {
+    match TasLog::new(
+        &filename,
+        &format!(
+            "{} {}",
+            env!("CARGO_PKG_NAME"),
+            git_version!(cargo_prefix = "cargo:", fallback = "unknown")
+        ),
+        build_number,
+        game_dir.as_deref(),
+    ) {
         Ok(tas_log_new) => {
             con_print(
                 marker,
