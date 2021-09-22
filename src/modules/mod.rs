@@ -22,6 +22,7 @@ pub mod force_fov;
 pub mod hud_scale;
 pub mod module_list;
 pub mod novis;
+pub mod rng_set;
 pub mod shake_remove;
 pub mod skybox_remove;
 pub mod tas_logging;
@@ -63,6 +64,7 @@ pub static MODULES: &[&dyn Module] = &[
     &hud_scale::HudScale,
     &module_list::ModuleList,
     &novis::NoVis,
+    &rng_set::RngSet,
     &shake_remove::ShakeRemove,
     &skybox_remove::SkyboxRemove,
     &tas_logging::TasLogging,
