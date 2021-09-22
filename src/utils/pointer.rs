@@ -169,6 +169,7 @@ impl<P: Copy> Pointer<P> {
     /// # Panics
     ///
     /// Panics if the `Pointer` is empty.
+    #[track_caller]
     pub fn get(&self, marker: MainThreadMarker) -> P {
         self.get_opt(marker).unwrap()
     }
