@@ -1,4 +1,4 @@
-//! `TAS Recording`
+//! TAS recording.
 
 use std::borrow::Cow;
 use std::convert::TryInto;
@@ -22,7 +22,7 @@ use crate::utils::*;
 pub struct TasRecording;
 impl Module for TasRecording {
     fn name(&self) -> &'static str {
-        "TAS Recording"
+        "TAS recording"
     }
 
     fn commands(&self) -> &'static [&'static Command] {
