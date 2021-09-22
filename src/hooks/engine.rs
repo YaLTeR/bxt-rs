@@ -36,6 +36,8 @@ pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::emp
     ]),
     null_mut(),
 );
+pub static Cbuf_AddText: Pointer<unsafe extern "C" fn(*const c_char)> =
+    Pointer::empty(b"Cbuf_AddText\0");
 pub static Cbuf_InsertText: Pointer<unsafe extern "C" fn(*const c_char)> =
     Pointer::empty(b"Cbuf_InsertText\0");
 pub static CL_Disconnect: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
@@ -542,6 +544,7 @@ pub static Z_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_p
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &build_number,
+    &Cbuf_AddText,
     &Cbuf_InsertText,
     &CL_Disconnect,
     &CL_GameDir_f,
@@ -928,6 +931,19 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 4554
         Some(1) => {
             window_rect.set(marker, ptr.by_offset(marker, 31));
+        }
+        _ => (),
+    }
+
+    let ptr = &Key_Event;
+    match ptr.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            Cbuf_AddText.set_if_empty(marker, ptr.by_relative_call(marker, 462));
+        }
+        // 4554
+        Some(1) => {
+            Cbuf_AddText.set_if_empty(marker, ptr.by_relative_call(marker, 475));
         }
         _ => (),
     }
@@ -1327,9 +1343,11 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             capture::on_key_event_start(marker);
+            tas_recording::on_key_event_start(marker);
 
             Key_Event.get(marker)(key, down);
 
+            tas_recording::on_key_event_end(marker);
             capture::on_key_event_end(marker);
         })
     }
@@ -1447,6 +1465,17 @@ pub mod exported {
             tas_recording::on_cl_move(marker);
 
             CL_Move.get(marker)();
+        })
+    }
+
+    #[export_name = "Cbuf_AddText"]
+    pub unsafe extern "C" fn my_Cbuf_AddText(text: *const c_char) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            tas_recording::on_cbuf_addtext(marker, text);
+
+            Cbuf_AddText.get(marker)(text);
         })
     }
 }

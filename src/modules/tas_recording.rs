@@ -2,8 +2,10 @@
 
 use std::borrow::Cow;
 use std::convert::TryInto;
+use std::ffi::CStr;
 use std::fs::File;
 use std::mem;
+use std::os::raw::c_char;
 use std::path::PathBuf;
 
 use hltas::HLTAS;
@@ -68,6 +70,8 @@ struct Recorder {
     filename: PathBuf,
     pending_frame_times: Vec<f64>,
     pending_remainders: Vec<f64>,
+    pending_bound_commands: Vec<String>,
+    pending_console_commands: Vec<String>,
     keys: Keys,
     last_cmd_was_zero_ms: bool,
 }
@@ -222,6 +226,11 @@ pub unsafe fn on_sv_frame_start(marker: MainThreadMarker) {
     recorder
         .pending_frame_times
         .push(*engine::host_frametime.get(marker));
+
+    recorder
+        .pending_console_commands
+        .push(recorder.pending_bound_commands.join(";"));
+    recorder.pending_bound_commands.clear();
 }
 
 pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s) {
@@ -379,9 +388,9 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s) {
     }
 
     // TODO: upmove.
-    // TODO: player's console commands.
     // TODO: shared RNG.
     // TODO: non-shared RNG.
+    // TODO: confirming selection in invnext, invprev.
 
     frame_bulk.console_command = Some(Cow::Owned(commands.join(";")));
 
@@ -439,10 +448,80 @@ pub unsafe fn on_sv_frame_end(marker: MainThreadMarker) {
                 .pop()
                 .expect("unexpected more commands than frame time remainders"),
         ));
+
+        let player_command = recorder
+            .pending_console_commands
+            .pop()
+            .expect("unexpected more commands than console commands");
+        if !player_command.is_empty() {
+            console_command.push(';');
+            console_command.push_str(&player_command);
+        }
     }
 
     if had_cmd {
         recorder.pending_frame_times.clear();
+        recorder.pending_console_commands.clear();
         recorder.pending_remainders.clear();
     }
+}
+
+static INSIDE_KEY_EVENT: MainThreadCell<bool> = MainThreadCell::new(false);
+
+pub fn on_key_event_start(marker: MainThreadMarker) {
+    INSIDE_KEY_EVENT.set(marker, true);
+}
+
+pub fn on_key_event_end(marker: MainThreadMarker) {
+    INSIDE_KEY_EVENT.set(marker, false);
+}
+
+pub unsafe fn on_cbuf_addtext(marker: MainThreadMarker, text: *const c_char) {
+    if !INSIDE_KEY_EVENT.get(marker) {
+        return;
+    }
+
+    let mut state = STATE.borrow_mut(marker);
+    let recorder = match &mut *state {
+        State::Recording(recorder) => recorder,
+        State::Idle => return,
+    };
+
+    let text = match CStr::from_ptr(text).to_str() {
+        Ok(text) => text,
+        Err(_) => return,
+    };
+
+    let text = text.trim_end_matches(&['\n', ';'][..]);
+    if text.is_empty() {
+        return;
+    }
+
+    // Ignore commands that we handle with frame bulk inputs.
+    if matches!(text.as_bytes()[0], b'+' | b'-') {
+        for prefix in [
+            "forward ",
+            "back ",
+            "moveright ",
+            "moveleft ",
+            "moveup ",
+            "movedown ",
+            "jump ",
+            "duck ",
+            "use ",
+            "attack ",
+            "attack2 ",
+            "reload ",
+            "left ",
+            "right ",
+            "lookup ",
+            "lookdown ",
+        ] {
+            if text[1..].starts_with(prefix) {
+                return;
+            }
+        }
+    }
+
+    recorder.pending_bound_commands.push(text.to_string());
 }
