@@ -406,6 +406,12 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s, random_seed
         }
     }
 
+    if recorder.hltas.lines.is_empty() {
+        if let Some(rng_state) = engine::rng_state(marker) {
+            commands.push(format!("_bxt_rng_set \"{}\"", rng_state));
+        }
+    }
+
     // TODO: upmove.
     // TODO: non-shared RNG.
     // TODO: confirming selection in invnext, invprev.
