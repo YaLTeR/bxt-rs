@@ -362,7 +362,15 @@ pub static Mem_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty
 pub static paintbuffer: Pointer<*mut [portable_samplepair_t; 1026]> =
     Pointer::empty(b"paintbuffer\0");
 pub static paintedtime: Pointer<*mut c_int> = Pointer::empty(b"paintedtime\0");
-pub static ran1: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty(b"ran1\0");
+pub static ran1: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
+    b"ran1\0",
+    // Find RandomLong(). The function it calls in the loop is ran1().
+    Patterns(&[
+        // 6153
+        pattern!(8B 0D ?? ?? ?? ?? 56 85 C9 ?? ?? 8B 35),
+    ]),
+    null_mut(),
+);
 pub static ran1_iy: Pointer<*mut c_int> = Pointer::empty(
     // Not a real symbol name.
     b"ran1::iy\0",
@@ -428,7 +436,18 @@ pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
     my_R_SetFrustum as _,
 );
 pub static RandomLong: Pointer<unsafe extern "C" fn(c_int, c_int) -> c_int> =
-    Pointer::empty(b"RandomLong\0");
+    Pointer::empty_patterns(
+        b"RandomLong\0",
+        // Find S_StartDynamicSound(). The last function call, which has (0, variable) arguments, is
+        // RandomLong().
+        Patterns(&[
+            // 6153
+            pattern!(55 8B EC 53 8D 45),
+            // 4554
+            pattern!(8D 44 24 ?? 57 8D 4C 24 ?? 50 51 FF 15 ?? ?? ?? ?? 8B 7C 24),
+        ]),
+        my_RandomLong as _,
+    );
 pub static ReleaseEntityDlls: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"ReleaseEntityDlls\0",
     // Find Host_Shutdown(). It has a Mem_Free() if. The 3-rd function above that if is
@@ -453,7 +472,17 @@ pub static S_PaintChannels: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empt
 );
 pub static S_StartDynamicSound: Pointer<
     unsafe extern "C" fn(c_int, c_int, *mut c_void, *mut c_void, f32, f32, c_int, c_int),
-> = Pointer::empty(b"S_StartDynamicSound\0");
+> = Pointer::empty_patterns(
+    b"S_StartDynamicSound\0",
+    // To find, search for "S_StartDynamicSound".
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 83 EC 48 A1 ?? ?? ?? ?? 53),
+        // 4554
+        pattern!(83 EC 48 A1 ?? ?? ?? ?? 53 55 56 85 C0 57),
+    ]),
+    my_S_StartDynamicSound as _,
+);
 pub static S_TransferStereo16: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
     b"S_TransferStereo16\0",
     // To find, find S_PaintChannels(), go into the last call before the while () condition in the
@@ -1050,6 +1079,17 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 4554
         Some(1) => {
             scr_fov_value.set(marker, ptr.by_offset(marker, 10));
+        }
+        _ => (),
+    }
+
+    let ptr = &ran1;
+    match ptr.pattern_index(marker) {
+        // 6153
+        Some(0) => {
+            idum.set(marker, ptr.by_offset(marker, 2));
+            ran1_iy.set(marker, ptr.by_offset(marker, 13));
+            ran1_iv.set(marker, ptr.by_offset(marker, 97));
         }
         _ => (),
     }
