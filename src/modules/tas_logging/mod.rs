@@ -32,7 +32,7 @@ impl Module for TasLogging {
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
-        static CVARS: &[&CVar] = &[&BXT_TAS_LOG_FILENAME];
+        static CVARS: &[&CVar] = &[&BXT_TAS_LOG_FILENAME, &BXT_TAS_LOG_WRITE_FULL_RNG_STATE];
         CVARS
     }
 
@@ -51,6 +51,8 @@ static BXT_TAS_LOG: Command = Command::new(
 );
 
 static BXT_TAS_LOG_FILENAME: CVar = CVar::new(b"bxt_tas_log_filename\0", b"taslogger.log\0");
+static BXT_TAS_LOG_WRITE_FULL_RNG_STATE: CVar =
+    CVar::new(b"_bxt_tas_log_write_full_rng_state\0", b"0\0");
 
 static TAS_LOG: MainThreadRefCell<Option<TasLog>> = MainThreadRefCell::new(None);
 
@@ -135,6 +137,7 @@ pub unsafe fn begin_physics_frame(marker: MainThreadMarker) {
             is_paused,
             None,
             engine::rng_state(marker),
+            BXT_TAS_LOG_WRITE_FULL_RNG_STATE.as_bool(marker),
         ) {
             con_print(marker, &format!("Error writing to the TAS log: {}", err));
         }
@@ -251,6 +254,7 @@ impl TasLog {
         is_paused: Option<bool>,
         command_buffer: Option<&str>,
         rng_state: Option<RngState>,
+        write_full_rng_state: bool,
     ) -> Result<(), io::Error> {
         self.ser.begin_array_value()?;
         self.ser.begin_object()?;
@@ -280,8 +284,12 @@ impl TasLog {
             self.ser.begin_object_value()?;
             self.ser.begin_object()?;
             self.ser.entry("idum", &rng_state.idum)?;
-            self.ser.entry("iy", &rng_state.iy)?;
-            self.ser.entry("iv", &rng_state.iv)?;
+
+            if write_full_rng_state {
+                self.ser.entry("iy", &rng_state.iy)?;
+                self.ser.entry("iv", &rng_state.iv)?;
+            }
+
             self.ser.end_object()?;
             self.ser.end_object_value()?;
         }
