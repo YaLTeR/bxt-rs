@@ -478,8 +478,8 @@ pub unsafe fn on_sv_frame_end(marker: MainThreadMarker) {
             .pop()
             .expect("unexpected more commands than console commands");
         if !player_command.is_empty() {
-            console_command.push(';');
-            console_command.push_str(&player_command);
+            // Prepend player commands so they don't override ours.
+            *console_command = format!("{};{}", &player_command, &console_command);
         }
     }
 
