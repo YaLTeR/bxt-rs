@@ -8,7 +8,7 @@ use std::ptr::NonNull;
 use crate::ffi::playermove::playermove_s;
 use crate::ffi::usercmd::usercmd_s;
 use crate::hooks::engine;
-use crate::modules::{tas_logging, tas_recording};
+use crate::modules::{tas_logging, tas_recording, tas_server_time_fix};
 use crate::utils::*;
 
 pub static CmdStart: Pointer<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)> =
@@ -78,9 +78,11 @@ pub unsafe extern "C" fn my_PM_Move(ppmove: *mut playermove_s, server: c_int) {
         let marker = MainThreadMarker::new();
 
         tas_logging::write_pre_pm_state(marker, ppmove);
+        tas_server_time_fix::on_pm_move_start(marker, ppmove);
 
         PM_Move.get(marker)(ppmove, server);
 
+        tas_server_time_fix::on_pm_move_end(marker, ppmove);
         tas_logging::write_post_pm_state(marker, ppmove);
         tas_logging::end_cmd_frame(marker);
     })

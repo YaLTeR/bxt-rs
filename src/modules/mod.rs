@@ -28,6 +28,7 @@ pub mod skybox_remove;
 pub mod tas_logging;
 pub mod tas_recording;
 pub mod tas_rng_fix;
+pub mod tas_server_time_fix;
 pub mod wallhack;
 
 /// Trait for getting module information.
@@ -71,5 +72,6 @@ pub static MODULES: &[&dyn Module] = &[
     &tas_logging::TasLogging,
     &tas_recording::TasRecording,
     &tas_rng_fix::TasRngFix,
+    &tas_server_time_fix::TasServerTimeFix,
     &wallhack::Wallhack,
 ];

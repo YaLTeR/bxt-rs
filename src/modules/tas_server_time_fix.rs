@@ -1,0 +1,53 @@
+//! TAS server time fix.
+
+use super::Module;
+use crate::ffi::playermove::playermove_s;
+use crate::hooks::server;
+use crate::utils::*;
+
+pub struct TasServerTimeFix;
+impl Module for TasServerTimeFix {
+    fn name(&self) -> &'static str {
+        "TAS server time fix"
+    }
+
+    fn is_enabled(&self, marker: MainThreadMarker) -> bool {
+        server::PM_Move.is_set(marker)
+    }
+}
+
+static ORIGINAL_DATA: MainThreadCell<Option<(*mut playermove_s, unsafe extern "C" fn() -> f64)>> =
+    MainThreadCell::new(None);
+
+#[allow(non_snake_case)]
+unsafe extern "C" fn my_Sys_FloatTime() -> f64 {
+    abort_on_panic(|| {
+        // Safety: assuming the game doesn't call Sys_FloatTime() from another thread.
+        let marker = MainThreadMarker::new();
+
+        (*ORIGINAL_DATA.get(marker).unwrap().0).time as f64 / 1000.
+    })
+}
+
+pub fn on_pm_move_start(marker: MainThreadMarker, ppmove: *mut playermove_s) {
+    if ORIGINAL_DATA.get(marker).is_some() {
+        return;
+    }
+
+    unsafe {
+        ORIGINAL_DATA.set(marker, Some((ppmove, (*ppmove).Sys_FloatTime.unwrap())));
+        (*ppmove).Sys_FloatTime = Some(my_Sys_FloatTime);
+    }
+}
+
+pub fn on_pm_move_end(marker: MainThreadMarker, ppmove: *mut playermove_s) {
+    if let Some((ppmove_, sys_floattime)) = ORIGINAL_DATA.get(marker) {
+        unsafe {
+            // Sanity checks.
+            if ppmove == ppmove_ && (*ppmove).Sys_FloatTime == Some(my_Sys_FloatTime) {
+                (*ppmove).Sys_FloatTime = Some(sys_floattime);
+                ORIGINAL_DATA.set(marker, None);
+            }
+        }
+    }
+}
