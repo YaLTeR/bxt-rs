@@ -5,6 +5,7 @@ use crate::ffi::playermove::playermove_s;
 use crate::hooks::server;
 use crate::utils::*;
 
+// TODO: the client needs a similar fix.
 pub struct TasServerTimeFix;
 impl Module for TasServerTimeFix {
     fn name(&self) -> &'static str {
