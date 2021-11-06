@@ -1,6 +1,5 @@
 //! TAS recording.
 
-use std::borrow::Cow;
 use std::convert::TryInto;
 use std::ffi::CStr;
 use std::fs::File;
@@ -66,7 +65,7 @@ enum State {
 
 #[derive(Default)]
 struct Recorder {
-    hltas: HLTAS<'static>,
+    hltas: HLTAS,
     filename: PathBuf,
     pending_frame_times: Vec<f64>,
     pending_remainders: Vec<f64>,
@@ -250,7 +249,8 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s, random_seed
     }
 
     if let Some(hltas::types::Line::FrameBulk(last_frame_bulk)) = recorder.hltas.lines.last_mut() {
-        if last_frame_bulk.frame_time == "" && cmd.msec != 0 && !recorder.last_cmd_was_zero_ms {
+        if last_frame_bulk.frame_time.is_empty() && cmd.msec != 0 && !recorder.last_cmd_was_zero_ms
+        {
             // This command is a part of a command-split sequence that we already made a frame bulk
             // for.
             return;
@@ -416,7 +416,7 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s, random_seed
     // TODO: non-shared RNG.
     // TODO: confirming selection in invnext, invprev.
 
-    frame_bulk.console_command = Some(Cow::Owned(commands.join(";")));
+    frame_bulk.console_command = Some(commands.join(";"));
 
     recorder
         .hltas
@@ -449,19 +449,17 @@ pub unsafe fn on_sv_frame_end(marker: MainThreadMarker) {
                 None
             }
         })
-        .take_while(|frame_bulk| frame_bulk.frame_time == "")
+        .take_while(|frame_bulk| frame_bulk.frame_time.is_empty())
     {
         had_cmd = true;
 
-        frame_bulk.frame_time = Cow::Owned(
-            recorder
-                .pending_frame_times
-                .pop()
-                .expect("unexpected more commands than physics frames")
-                .to_string(),
-        );
+        frame_bulk.frame_time = recorder
+            .pending_frame_times
+            .pop()
+            .expect("unexpected more commands than physics frames")
+            .to_string();
 
-        let console_command = frame_bulk.console_command.as_mut().unwrap().to_mut();
+        let console_command = frame_bulk.console_command.as_mut().unwrap();
         if !console_command.is_empty() {
             console_command.push(';');
         }
