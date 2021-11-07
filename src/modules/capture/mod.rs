@@ -139,7 +139,8 @@ static BXT_CAP_START: Command = Command::new(
     b"bxt_cap_start\0",
     handler!(
         "Usage: bxt_cap_start [filename.mp4]\n \
-          Starts capturing video. The default filename is \"output.mp4\".\n",
+          Starts capturing video. The default filename is \"output.mp4\".\n \
+          If the filename ends with \".wav\", captures only the sound.\n",
         cap_start as fn(_),
         cap_start_with_filename as fn(_, _)
     ),
@@ -154,8 +155,11 @@ fn cap_start_with_filename(marker: MainThreadMarker, filename: String) {
         return;
     }
 
-    if !filename.ends_with(".mp4") {
-        con_print(marker, "Error: the filename must end with \".mp4\".\n");
+    if !filename.ends_with(".mp4") && !filename.ends_with(".wav") {
+        con_print(
+            marker,
+            "Error: the filename must end with \".mp4\" or \".wav\".\n",
+        );
         return;
     }
 
