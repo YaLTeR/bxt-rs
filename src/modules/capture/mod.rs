@@ -341,6 +341,13 @@ pub unsafe fn capture_sound(marker: MainThreadMarker, mode: SoundCaptureMode) {
             _ => unreachable!(),
         };
 
+        if (*engine::shm.get(marker)).is_null() {
+            // If we're running with -nosound, write blank samples.
+            let samples = recorder.samples_to_capture(22050, mode);
+            recorder.write_audio_frame(vec![0; samples as usize * 4]);
+            return;
+        }
+
         let samples_per_second = (**engine::shm.get(marker)).speed;
         let samples = recorder.samples_to_capture(samples_per_second, mode);
 
