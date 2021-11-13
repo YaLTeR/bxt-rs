@@ -323,7 +323,6 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
         con_print(marker, "Error during recording, stopping.\n");
         drop(state);
         cap_stop(marker);
-        return;
     }
 }
 
