@@ -1,18 +1,18 @@
-//! `bxt_shake_remove`
+//! `bxt_remove_shake`
 
 use super::Module;
 use crate::hooks::engine;
 use crate::modules::cvars::{self, CVar};
 use crate::utils::*;
 
-pub struct ShakeRemove;
-impl Module for ShakeRemove {
+pub struct RemoveShake;
+impl Module for RemoveShake {
     fn name(&self) -> &'static str {
-        "bxt_shake_remove"
+        "bxt_remove_shake"
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
-        static CVARS: &[&CVar] = &[&BXT_SHAKE_REMOVE];
+        static CVARS: &[&CVar] = &[&BXT_REMOVE_SHAKE];
         CVARS
     }
 
@@ -21,13 +21,13 @@ impl Module for ShakeRemove {
     }
 }
 
-static BXT_SHAKE_REMOVE: CVar = CVar::new(b"bxt_shake_remove\0", b"0\0");
+static BXT_REMOVE_SHAKE: CVar = CVar::new(b"bxt_remove_shake\0", b"0\0");
 
 /// Returns `true` if shake should currently be removed.
 pub fn is_active(marker: MainThreadMarker) -> bool {
-    if !ShakeRemove.is_enabled(marker) {
+    if !RemoveShake.is_enabled(marker) {
         return false;
     }
 
-    BXT_SHAKE_REMOVE.as_bool(marker)
+    BXT_REMOVE_SHAKE.as_bool(marker)
 }

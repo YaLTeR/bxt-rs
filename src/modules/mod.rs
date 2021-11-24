@@ -17,14 +17,14 @@ use cvars::CVar;
 
 pub mod capture;
 pub mod demo_playback;
-pub mod fade_remove;
 pub mod force_fov;
 pub mod hud_scale;
 pub mod module_list;
 pub mod novis;
+pub mod remove_fade;
+pub mod remove_shake;
+pub mod remove_skybox;
 pub mod rng_set;
-pub mod shake_remove;
-pub mod skybox_remove;
 pub mod tas_logging;
 pub mod tas_recording;
 pub mod tas_rng_fix;
@@ -61,14 +61,14 @@ pub static MODULES: &[&dyn Module] = &[
     &commands::Commands,
     &cvars::CVars,
     &demo_playback::DemoPlayback,
-    &fade_remove::FadeRemove,
+    &remove_fade::RemoveFade,
     &force_fov::ForceFov,
     &hud_scale::HudScale,
     &module_list::ModuleList,
     &novis::NoVis,
     &rng_set::RngSet,
-    &shake_remove::ShakeRemove,
-    &skybox_remove::SkyboxRemove,
+    &remove_shake::RemoveShake,
+    &remove_skybox::RemoveSkybox,
     &tas_logging::TasLogging,
     &tas_recording::TasRecording,
     &tas_rng_fix::TasRngFix,

@@ -1,4 +1,4 @@
-//! `bxt_skybox_remove`
+//! `bxt_remove_skybox`
 
 use super::Module;
 use crate::gl;
@@ -6,14 +6,14 @@ use crate::hooks::engine;
 use crate::modules::cvars::{self, CVar};
 use crate::utils::*;
 
-pub struct SkyboxRemove;
-impl Module for SkyboxRemove {
+pub struct RemoveSkybox;
+impl Module for RemoveSkybox {
     fn name(&self) -> &'static str {
-        "bxt_skybox_remove"
+        "bxt_remove_skybox"
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
-        static CVARS: &[&CVar] = &[&BXT_SKYBOX_REMOVE];
+        static CVARS: &[&CVar] = &[&BXT_REMOVE_SKYBOX];
         CVARS
     }
 
@@ -24,15 +24,15 @@ impl Module for SkyboxRemove {
     }
 }
 
-static BXT_SKYBOX_REMOVE: CVar = CVar::new(b"bxt_skybox_remove\0", b"0\0");
+static BXT_REMOVE_SKYBOX: CVar = CVar::new(b"bxt_remove_skybox\0", b"0\0");
 
 /// Returns `true` if skybox should currently be disabled.
 pub fn is_active(marker: MainThreadMarker) -> bool {
-    if !SkyboxRemove.is_enabled(marker) {
+    if !RemoveSkybox.is_enabled(marker) {
         return false;
     }
 
-    BXT_SKYBOX_REMOVE.as_bool(marker)
+    BXT_REMOVE_SKYBOX.as_bool(marker)
 }
 
 pub fn on_r_clear(marker: MainThreadMarker) {

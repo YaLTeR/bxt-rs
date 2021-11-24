@@ -1309,7 +1309,7 @@ pub mod exported {
             // Half-Life normally doesn't clear the screen every frame, which is a problem with
             // wallhack as there's no solid background.
             wallhack::on_r_clear(marker);
-            skybox_remove::on_r_clear(marker);
+            remove_skybox::on_r_clear(marker);
 
             R_Clear.get(marker)()
         })
@@ -1320,7 +1320,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if skybox_remove::is_active(marker) {
+            if remove_skybox::is_active(marker) {
                 return;
             }
 
@@ -1337,7 +1337,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if shake_remove::is_active(marker) {
+            if remove_shake::is_active(marker) {
                 return;
             }
 
@@ -1350,7 +1350,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if fade_remove::is_active(marker) {
+            if remove_fade::is_active(marker) {
                 0
             } else {
                 V_FadeAlpha.get(marker)()

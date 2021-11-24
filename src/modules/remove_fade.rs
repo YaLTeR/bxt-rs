@@ -1,18 +1,18 @@
-//! `bxt_fade_remove`
+//! `bxt_remove_fade`
 
 use super::Module;
 use crate::hooks::engine;
 use crate::modules::cvars::{self, CVar};
 use crate::utils::*;
 
-pub struct FadeRemove;
-impl Module for FadeRemove {
+pub struct RemoveFade;
+impl Module for RemoveFade {
     fn name(&self) -> &'static str {
-        "bxt_fade_remove"
+        "bxt_remove_fade"
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
-        static CVARS: &[&CVar] = &[&BXT_FADE_REMOVE];
+        static CVARS: &[&CVar] = &[&BXT_REMOVE_FADE];
         CVARS
     }
 
@@ -21,13 +21,13 @@ impl Module for FadeRemove {
     }
 }
 
-static BXT_FADE_REMOVE: CVar = CVar::new(b"bxt_fade_remove\0", b"0\0");
+static BXT_REMOVE_FADE: CVar = CVar::new(b"bxt_remove_fade\0", b"0\0");
 
 /// Returns `true` if fade should currently be removed.
 pub fn is_active(marker: MainThreadMarker) -> bool {
-    if !FadeRemove.is_enabled(marker) {
+    if !RemoveFade.is_enabled(marker) {
         return false;
     }
 
-    BXT_FADE_REMOVE.as_bool(marker)
+    BXT_REMOVE_FADE.as_bool(marker)
 }

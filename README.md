@@ -7,7 +7,7 @@ A few speedrunning and TAS-related tools for Half-Life and mods. Current feature
 - `bxt_force_fov` to override FOV when `default_fov` doesn't work.
 - Commands to play many demos at once (`bxt_play_run`).
 - A useful subset of `bxt_taslog` when you can't use the one from the original Bunnymod XT.
-- `bxt_fade_remove`, `bxt_shake_remove`, `bxt_novis`, `bxt_wallhack`, `bxt_skybox_remove`.
+- `bxt_remove_fade`, `bxt_remove_shake`, `bxt_novis`, `bxt_wallhack`, `bxt_remove_skybox`.
 
 Started as an experiment to re-architecture Bunnymod XT from scratch with the benefit of hindsight.
 

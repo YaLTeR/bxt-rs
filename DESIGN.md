@@ -16,7 +16,7 @@ The huge `HwDLL` and other classes—collections of hooked functions and pointer
 
 The actual BXT functionality is put into small modules. The modules can have console variables and commands. Note that there's no module hooking system; modules export plain functions which are called directly from hooks—the same as in BXT if functionality was split into separate functions instead of intertwining all code in the hooks.
 
-Modules have an `is_enabled()` function which can check if the required pointers were found or if other required modules were enabled. For example, the `bxt_fade_remove` module checks for the `V_FadeAlpha` engine function and for the `CVars` module.
+Modules have an `is_enabled()` function which can check if the required pointers were found or if other required modules were enabled. For example, the `bxt_remove_fade` module checks for the `V_FadeAlpha` engine function and for the `CVars` module.
 
 All console commands and variables are initially registered in the engine, and then commands and variables for disabled modules are de-registered. For example, `bxt_timer_autostop` will be available in the main menu (making it settable from `userconfig.cfg`) and then upon loading a map for the first time it will either remain or disappear if the required pointers are missing.
 
