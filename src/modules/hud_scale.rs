@@ -23,8 +23,6 @@ impl Module for HudScale {
             && engine::ClientDLL_HudVidInit.is_set(marker)
             && engine::ClientDLL_UpdateClientData.is_set(marker)
             && engine::ClientDLL_HudRedraw.is_set(marker)
-            && engine::VideoMode_GetCurrentVideoMode.is_set(marker)
-            && engine::VideoMode_IsWindowed.is_set(marker)
             && engine::window_rect.is_set(marker)
             && cvars::CVars.is_enabled(marker)
     }
