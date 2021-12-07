@@ -45,7 +45,8 @@ impl Module for Capture {
             && engine::S_PaintChannels.is_set(marker)
             && engine::S_TransferStereo16.is_set(marker)
             && engine::shm.is_set(marker)
-            && engine::Sys_VID_FlipScreen.is_set(marker)
+            && (engine::Sys_VID_FlipScreen.is_set(marker)
+                || engine::Sys_VID_FlipScreen_old.is_set(marker))
             && engine::window_rect.is_set(marker)
     }
 }

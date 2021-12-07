@@ -546,6 +546,18 @@ pub static Sys_VID_FlipScreen: Pointer<unsafe extern "C" fn()> = Pointer::empty_
     ]),
     my_Sys_VID_FlipScreen as _,
 );
+pub static Sys_VID_FlipScreen_old: Pointer<unsafe extern "system" fn(*mut c_void)> =
+    Pointer::empty_patterns(
+        // Not a real symbol name.
+        b"_Z18Sys_VID_FlipScreenv_old\0",
+        // To find, search for "wglSwapBuffers". This pointer is assigned to a global, which is called
+        // in a single function, this is Sys_VID_FlipScreen().
+        Patterns(&[
+            // 1712
+            pattern!(8B 44 24 ?? 50 FF 15 ?? ?? ?? ?? C2 04 00),
+        ]),
+        my_Sys_VID_FlipScreen_old as _,
+    );
 pub static V_ApplyShake: Pointer<unsafe extern "C" fn(*mut c_float, *mut c_float, c_float)> =
     Pointer::empty_patterns(
         b"V_ApplyShake\0",
@@ -674,6 +686,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &sv,
     &SV_Frame,
     &Sys_VID_FlipScreen,
+    &Sys_VID_FlipScreen_old,
     &V_ApplyShake,
     &V_FadeAlpha,
     &VideoMode_IsWindowed,
@@ -1408,6 +1421,16 @@ pub mod exported {
             capture::capture_frame(marker);
 
             Sys_VID_FlipScreen.get(marker)();
+        })
+    }
+
+    pub unsafe extern "system" fn my_Sys_VID_FlipScreen_old(hdc: *mut c_void) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            capture::capture_frame(marker);
+
+            Sys_VID_FlipScreen_old.get(marker)(hdc);
         })
     }
 
