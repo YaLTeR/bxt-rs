@@ -9,7 +9,7 @@ use std::sync::Once;
 
 use git_version::git_version;
 use log::logger;
-use simplelog::{CombinedLogger, LevelFilter, SharedLogger, WriteLogger};
+use simplelog::{CombinedLogger, LevelFilter, SharedLogger, TermLogger, WriteLogger};
 
 pub mod marker;
 pub use marker::*;
@@ -65,13 +65,7 @@ fn setup_logging_hooks() {
         .set_time_to_local(true)
         .build();
 
-    // https://github.com/rust-lang/rust/issues/88576
-    // In Rust 1.56 terminal logging on Windows causes panics. Disable it until the fix lands in
-    // stable.
-    #[cfg(windows)]
-    let mut logger: Vec<Box<(dyn SharedLogger + 'static)>> = vec![];
-    #[cfg(not(windows))]
-    let mut logger: Vec<Box<(dyn SharedLogger + 'static)>> = vec![simplelog::TermLogger::new(
+    let mut logger: Vec<Box<(dyn SharedLogger + 'static)>> = vec![TermLogger::new(
         LevelFilter::Trace,
         config.clone(),
         simplelog::TerminalMode::Stderr,
