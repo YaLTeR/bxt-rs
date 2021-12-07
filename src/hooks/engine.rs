@@ -140,8 +140,6 @@ pub static Cmd_AddMallocCommand: Pointer<
         // 6153
         pattern!(55 8B EC 56 57 8B 7D ?? 57 E8 ?? ?? ?? ?? 8A 08),
         // 4554
-        pattern!(56 57 8B 7C 24 ?? 57 E8 ?? ?? ?? ?? 8A 08),
-        // 1600
         pattern!(56 57 8B 7C 24 ?? 57 E8 ?? ?? ?? ?? 8A 08 83 C4 04 84 C9 74 ?? 57 68 ?? ?? ?? ?? E8 ?? ?? ?? ?? 83 C4 08 5F ?? C3),
     ]),
     null_mut(),
@@ -977,8 +975,6 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(0) => cmd_functions.set(marker, ptr.by_offset(marker, 43)),
         // 4554
         Some(1) => cmd_functions.set(marker, ptr.by_offset(marker, 40)),
-        // 1600
-        Some(2) => cmd_functions.set(marker, ptr.by_offset(marker, 40)),
         _ => (),
     }
 
