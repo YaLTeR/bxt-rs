@@ -270,8 +270,8 @@ pub static Host_FilterTime: Pointer<unsafe extern "C" fn(c_float) -> c_int> =
             pattern!(55 8B EC 83 E4 F8 83 EC 08 D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? DF E0 F6 C4 41),
             // 3248
             pattern!(55 8B EC 83 E4 F8 83 EC 08 D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? DF E0 25 00 41 00 00),
-            // 1600
-            pattern!(55 8B EC 83 E4 F8 83 EC 08 D9 45),
+            // 1712
+            pattern!(55 8B EC 83 E4 F8 83 EC 08 D9 45 08 DC 05 ?? ?? ?? ?? A1 ?? ?? ?? ?? 85 C0 DD 1D ?? ?? ?? ?? 0F 85 E1 00 00 00),
         ]),
         my_Host_FilterTime as _,
     );
@@ -295,7 +295,9 @@ pub static Host_NextDemo: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
         // 6153
         pattern!(55 8B EC 81 EC 00 04 00 00 83 3D ?? ?? ?? ?? FF),
         // 4554
-        pattern!(A1 ?? ?? ?? ?? 81 EC 00 04 00 00 83 F8 FF),
+        pattern!(A1 ?? ?? ?? ?? 81 EC 00 04 00 00 83 F8 FF 0F 84 87 00 00 00),
+        // 1712
+        pattern!(A1 ?? ?? ?? ?? 81 EC 00 04 00 00 83 F8 FF 0F 84 82 00 00 00),
     ]),
     my_Host_NextDemo as _,
 );
@@ -319,9 +321,11 @@ pub static Host_Tell_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_pattern
         // 6153
         pattern!(55 8B EC 83 EC 40 A1 ?? ?? ?? ?? 56),
         // 4554
-        pattern!(A1 ?? ?? ?? ?? 83 EC 40 83 F8 01 56 75 0A E8),
+        pattern!(A1 ?? ?? ?? ?? 83 EC 40 83 F8 01 56 75 0A E8 ?? ?? ?? ?? ?? 83 C4 40 C3 E8 ?? ?? ?? ?? 83 F8 03 0F 8C 7A 01 00 00),
         // 3248
         pattern!(A1 ?? ?? ?? ?? 83 EC 40 83 F8 01 56 75 09),
+        // 1712
+        pattern!(A1 ?? ?? ?? ?? 83 EC 40 83 F8 01 56 75 0A E8 ?? ?? ?? ?? ?? 83 C4 40 C3 E8 ?? ?? ?? ?? 83 F8 03 0F 8C 82 01 00 00),
     ]),
     null_mut(),
 );
@@ -570,6 +574,8 @@ pub static V_ApplyShake: Pointer<unsafe extern "C" fn(*mut c_float, *mut c_float
             pattern!(55 8B EC 8D 45 ?? 8D 4D ?? 50 8D 55 ?? 51 52 FF 15 ?? ?? ?? ?? 8B 45 ?? 83 C4 0C),
             // 4554
             pattern!(8D 44 24 ?? 8D 4C 24 ?? 50 8D 54 24 ?? 51 52 FF 15 ?? ?? ?? ?? 8B 44 24 ?? 83 C4 0C),
+            // 1712
+            pattern!(8B 44 24 ?? 85 C0 74 ?? 8B 4C 24 ?? 50),
         ]),
         my_V_ApplyShake as _,
     );
@@ -1028,10 +1034,10 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
             host_frametime.set(marker, ptr.by_offset(marker, 67));
             realtime.set(marker, ptr.by_offset(marker, 73));
         }
-        // 1600
+        // 1712
         Some(3) => {
-            host_frametime.set(marker, ptr.by_offset(marker, 13));
-            realtime.set(marker, ptr.by_offset(marker, 19));
+            host_frametime.set(marker, ptr.by_offset(marker, 363));
+            realtime.set(marker, ptr.by_offset(marker, 14));
         }
         _ => (),
     }
@@ -1046,6 +1052,11 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 4554
         Some(1) => {
             Cbuf_InsertText.set(marker, ptr.by_relative_call(marker, 137));
+            cls_demos.set(marker, ptr.by_offset(marker, 1));
+        }
+        // 1712
+        Some(2) => {
+            Cbuf_InsertText.set(marker, ptr.by_relative_call(marker, 132));
             cls_demos.set(marker, ptr.by_offset(marker, 1));
         }
         _ => (),
@@ -1067,6 +1078,11 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(2) => {
             Cmd_Argc.set(marker, ptr.by_relative_call(marker, 24));
             Cmd_Argv.set(marker, ptr.by_relative_call(marker, 143));
+        }
+        // 1712
+        Some(3) => {
+            Cmd_Argc.set(marker, ptr.by_relative_call(marker, 25));
+            Cmd_Argv.set(marker, ptr.by_relative_call(marker, 151));
         }
         _ => (),
     }
@@ -1106,6 +1122,10 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 4554
         Some(1) => {
             Cbuf_AddText.set_if_empty(marker, ptr.by_relative_call(marker, 475));
+        }
+        // 1712
+        Some(2) => {
+            Cbuf_AddText.set_if_empty(marker, ptr.by_relative_call(marker, 301));
         }
         _ => (),
     }
