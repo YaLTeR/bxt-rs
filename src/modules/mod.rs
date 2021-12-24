@@ -16,6 +16,7 @@ pub mod cvars;
 use cvars::CVar;
 
 pub mod capture;
+pub mod comment_overflow_fix;
 pub mod demo_playback;
 pub mod fade_remove;
 pub mod force_fov;
@@ -59,6 +60,7 @@ pub trait Module: Sync {
 pub static MODULES: &[&dyn Module] = &[
     &capture::Capture,
     &commands::Commands,
+    &comment_overflow_fix::CommentOverflowFix,
     &cvars::CVars,
     &demo_playback::DemoPlayback,
     &fade_remove::FadeRemove,

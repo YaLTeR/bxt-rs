@@ -39,8 +39,24 @@ pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::emp
     ]),
     null_mut(),
 );
+pub static Cbuf_AddFilteredText: Pointer<unsafe extern "C" fn(*const c_char)> =
+    Pointer::empty_patterns(
+        b"Cbuf_AddFilteredText\0",
+        Patterns(&[]),
+        my_Cbuf_AddFilteredText as _,
+    );
 pub static Cbuf_AddText: Pointer<unsafe extern "C" fn(*const c_char)> =
-    Pointer::empty(b"Cbuf_AddText\0");
+    Pointer::empty_patterns(b"Cbuf_AddText\0", Patterns(&[]), my_Cbuf_AddText as _);
+pub static Cbuf_AddTextToBuffer: Pointer<unsafe extern "C" fn(*const c_char, *mut c_void)> =
+    Pointer::empty_patterns(
+        b"Cbuf_AddTextToBuffer\0",
+        // To find, search for "Cbuf_AddTextToBuffer: overflow".
+        Patterns(&[
+            // 8684
+            pattern!(55 8B EC 56 57 8B 7D ?? 57 E8 ?? ?? ?? ?? 8B 75),
+        ]),
+        my_Cbuf_AddTextToBuffer as _,
+    );
 pub static Cbuf_InsertText: Pointer<unsafe extern "C" fn(*const c_char)> =
     Pointer::empty(b"Cbuf_InsertText\0");
 pub static CL_Disconnect: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
@@ -634,7 +650,9 @@ pub static Z_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_p
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &build_number,
+    &Cbuf_AddFilteredText,
     &Cbuf_AddText,
+    &Cbuf_AddTextToBuffer,
     &Cbuf_InsertText,
     &CL_Disconnect,
     &CL_GameDir_f,
@@ -1676,9 +1694,33 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
+            let text = comment_overflow_fix::strip_prefix_comments(text);
+
             tas_recording::on_cbuf_addtext(marker, text);
 
             Cbuf_AddText.get(marker)(text);
+        })
+    }
+
+    #[export_name = "Cbuf_AddFilteredText"]
+    pub unsafe extern "C" fn my_Cbuf_AddFilteredText(text: *const c_char) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            let text = comment_overflow_fix::strip_prefix_comments(text);
+
+            Cbuf_AddFilteredText.get(marker)(text);
+        })
+    }
+
+    #[export_name = "Cbuf_AddTextToBuffer"]
+    pub unsafe extern "C" fn my_Cbuf_AddTextToBuffer(text: *const c_char, buffer: *mut c_void) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            let text = comment_overflow_fix::strip_prefix_comments(text);
+
+            Cbuf_AddTextToBuffer.get(marker)(text, buffer);
         })
     }
 
