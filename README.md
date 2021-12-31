@@ -1,13 +1,15 @@
 # bxt-rs
 
-A few speedrunning and TAS-related tools for Half-Life and mods. Current features:
+A few speedrunning and TAS-related tools for Half-Life and mods. Current features include:
 
 - Video recording (a successor to [hl-capture](https://github.com/YaLTeR/hl-capture)).
 - `bxt_hud_scale` to upscale the HUD for high-resolution video recording.
-- `bxt_force_fov` to override FOV when `default_fov` doesn't work.
 - Commands to play many demos at once (`bxt_play_run`).
-- A useful subset of `bxt_taslog` when you can't use the one from the original Bunnymod XT.
-- `bxt_fade_remove`, `bxt_shake_remove`, `bxt_novis`, `bxt_wallhack`, `bxt_skybox_remove`.
+- `bxt_force_fov` to override FOV when `default_fov` doesn't work.
+- Fixes for command buffer overflow on BXT demos, sound RNG and un-stuck non-determinism for TASes.
+- A useful subset of `bxt_tas_log`, including RNG state dumping, when you can't use the one from the original Bunnymod XT.
+- `bxt_fade_remove`, `bxt_shake_remove`, `bxt_skybox_remove`, `bxt_novis`, `bxt_wallhack`.
+- Mostly-working recording real-time gameplay into a `.hltas` script.
 
 Started as an experiment to re-architecture Bunnymod XT from scratch with the benefit of hindsight.
 
@@ -33,7 +35,7 @@ To run bxt-rs together with the original Bunnymod XT (e.g. for capturing TASes) 
 
 To use video recording you need FFmpeg. On Linux, install it from your package manager. On Windows, download a static FFmpeg build (e.g. [this one](https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z)) and extract `ffmpeg.exe` into the Half-Life folder (the folder that has `hl.exe`).
 
-If the video looks glitched or the game crashes when starting recording (happens on some Windows AMD GPU setups):
+If the video looks glitched or the game crashes when starting recording (happens on some Windows AMD GPU setups and on some NVIDIA driver versions):
 
 1. Update your GPU driver.
 1. If the problem still occurs, try `_bxt_cap_force_fallback 1`.
@@ -66,4 +68,4 @@ You can uncomment the right line in `.cargo/config` to avoid writing `--target` 
 
 ## License
 
-Currently GPL v3 or later.
+GPL v3 or later.
