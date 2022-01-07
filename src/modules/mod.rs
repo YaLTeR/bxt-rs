@@ -31,6 +31,7 @@ pub mod tas_logging;
 pub mod tas_recording;
 pub mod tas_rng_fix;
 pub mod tas_server_time_fix;
+pub mod triangle_drawing;
 pub mod wallhack;
 
 /// Trait for getting module information.
@@ -77,5 +78,6 @@ pub static MODULES: &[&dyn Module] = &[
     &tas_recording::TasRecording,
     &tas_rng_fix::TasRngFix,
     &tas_server_time_fix::TasServerTimeFix,
+    &triangle_drawing::TriangleDrawing,
     &wallhack::Wallhack,
 ];

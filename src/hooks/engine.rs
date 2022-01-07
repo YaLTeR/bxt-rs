@@ -17,6 +17,7 @@ use crate::ffi::com_model::{mleaf_s, model_s};
 use crate::ffi::command::cmd_function_s;
 use crate::ffi::cvar::cvar_s;
 use crate::ffi::playermove::playermove_s;
+use crate::ffi::triangleapi::triangleapi_s;
 use crate::ffi::usercmd::usercmd_s;
 #[cfg(windows)]
 use crate::hooks::opengl32;
@@ -102,6 +103,14 @@ pub static ClientDLL_DemoUpdateClientData: Pointer<unsafe extern "C" fn(*mut c_v
             pattern!(51 DD 05 ?? ?? ?? ?? 56),
         ]),
         my_ClientDLL_DemoUpdateClientData as _,
+    );
+pub static ClientDLL_DrawTransparentTriangles: Pointer<unsafe extern "C" fn()> =
+    Pointer::empty_patterns(
+        b"ClientDLL_DrawTransparentTriangles\0",
+        // To find, search for "HUD_DrawTransparentTriangles". This sets the HUD_DrawTransparentTriangles pointer in
+        // cl_funcs; the larger function calling the pointer is ClientDLL_DrawTransparentTriangles().
+        Patterns(&[]),
+        my_ClientDLL_DrawTransparentTriangles as _,
     );
 pub static ClientDLL_HudRedraw: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
     b"ClientDLL_HudRedraw\0",
@@ -586,6 +595,7 @@ pub static Sys_VID_FlipScreen_old: Pointer<unsafe extern "system" fn(*mut c_void
         ]),
         my_Sys_VID_FlipScreen_old as _,
     );
+pub static tri: Pointer<*const triangleapi_s> = Pointer::empty(b"tri\0");
 pub static V_ApplyShake: Pointer<unsafe extern "C" fn(*mut c_float, *mut c_float, c_float)> =
     Pointer::empty_patterns(
         b"V_ApplyShake\0",
@@ -666,6 +676,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &CL_GameDir_f,
     &CL_Move,
     &ClientDLL_DemoUpdateClientData,
+    &ClientDLL_DrawTransparentTriangles,
     &ClientDLL_HudRedraw,
     &ClientDLL_HudVidInit,
     &ClientDLL_UpdateClientData,
@@ -724,6 +735,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &SV_Frame,
     &Sys_VID_FlipScreen,
     &Sys_VID_FlipScreen_old,
+    &tri,
     &V_ApplyShake,
     &V_FadeAlpha,
     &VideoMode_IsWindowed,
@@ -1778,6 +1790,17 @@ pub mod exported {
             );
 
             tas_rng_fix::on_s_start_dynamic_sound_end(marker);
+        })
+    }
+
+    #[export_name = "ClientDLL_DrawTransparentTriangles"]
+    pub unsafe extern "C" fn my_ClientDLL_DrawTransparentTriangles() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            ClientDLL_DrawTransparentTriangles.get(marker)();
+
+            triangle_drawing::on_draw_transparent_triangles(marker);
         })
     }
 

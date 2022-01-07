@@ -17,4 +17,5 @@ pub mod physent;
 pub mod playermove;
 pub mod pmplane;
 pub mod pmtrace;
+pub mod triangleapi;
 pub mod usercmd;
