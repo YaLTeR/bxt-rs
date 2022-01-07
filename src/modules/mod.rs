@@ -23,6 +23,7 @@ pub mod force_fov;
 pub mod hud_scale;
 pub mod module_list;
 pub mod novis;
+pub mod player_movement_tracing;
 pub mod rng_set;
 pub mod shake_remove;
 pub mod skybox_remove;
@@ -68,6 +69,7 @@ pub static MODULES: &[&dyn Module] = &[
     &hud_scale::HudScale,
     &module_list::ModuleList,
     &novis::NoVis,
+    &player_movement_tracing::PlayerMovementTracing,
     &rng_set::RngSet,
     &shake_remove::ShakeRemove,
     &skybox_remove::SkyboxRemove,

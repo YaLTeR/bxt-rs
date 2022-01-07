@@ -233,6 +233,7 @@ pub static GL_BeginRendering: Pointer<
     null_mut(),
 );
 pub static gEntityInterface: Pointer<*mut DllFunctions> = Pointer::empty(b"gEntityInterface\0");
+pub static g_svmove: Pointer<*mut playermove_s> = Pointer::empty(b"g_svmove\0");
 pub static Key_Event: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer::empty_patterns(
     b"Key_Event\0",
     // To find, search for "ctrl-alt-del pressed".
@@ -402,6 +403,7 @@ pub static Mem_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty
 pub static paintbuffer: Pointer<*mut [portable_samplepair_t; 1026]> =
     Pointer::empty(b"paintbuffer\0");
 pub static paintedtime: Pointer<*mut c_int> = Pointer::empty(b"paintedtime\0");
+pub static pmove: Pointer<*mut *mut playermove_s> = Pointer::empty(b"pmove\0");
 pub static ran1: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
     b"ran1\0",
     // Find RandomLong(). The function it calls in the loop is ran1().
@@ -543,6 +545,12 @@ pub static S_TransferStereo16: Pointer<unsafe extern "C" fn(c_int)> = Pointer::e
 pub static scr_fov_value: Pointer<*mut c_float> = Pointer::empty(b"scr_fov_value\0");
 pub static shm: Pointer<*mut *mut dma_t> = Pointer::empty(b"shm\0");
 pub static sv: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
+pub static sv_areanodes: Pointer<*mut c_void> = Pointer::empty(b"sv_areanodes\0");
+pub static SV_AddLinksToPM: Pointer<unsafe extern "C" fn(*mut c_void, *const [f32; 3])> =
+    Pointer::empty(b"SV_AddLinksToPM\0");
+pub static SV_AddLinksToPM_: Pointer<
+    unsafe extern "C" fn(*mut c_void, *mut [f32; 3], *mut [f32; 3]),
+> = Pointer::empty(b"SV_AddLinksToPM_\0");
 pub static SV_Frame: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"SV_Frame\0",
     // To find, search for "%s timed out". It is used in SV_CheckTimeouts(), which is called by
@@ -676,6 +684,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &frametime_remainder,
     &GL_BeginRendering,
     &gEntityInterface,
+    &g_svmove,
     &Key_Event,
     &LoadEntityDLLs,
     &Mod_LeafPVS,
@@ -692,6 +701,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Mem_Free,
     &paintbuffer,
     &paintedtime,
+    &pmove,
     &ran1,
     &ran1_iy,
     &ran1_iv,
@@ -708,6 +718,9 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &scr_fov_value,
     &shm,
     &sv,
+    &sv_areanodes,
+    &SV_AddLinksToPM,
+    &SV_AddLinksToPM_,
     &SV_Frame,
     &Sys_VID_FlipScreen,
     &Sys_VID_FlipScreen_old,
@@ -1765,6 +1778,21 @@ pub mod exported {
             );
 
             tas_rng_fix::on_s_start_dynamic_sound_end(marker);
+        })
+    }
+
+    #[export_name = "SV_AddLinksToPM_"]
+    pub unsafe extern "C" fn my_SV_AddLinksToPM_(
+        node: *mut c_void,
+        mins: *mut [f32; 3],
+        maxs: *mut [f32; 3],
+    ) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            player_movement_tracing::maybe_adjust_distance_limit(marker, mins, maxs);
+
+            SV_AddLinksToPM_.get(marker)(node, mins, maxs);
         })
     }
 }
