@@ -3,7 +3,6 @@ use std::f32::consts::{FRAC_PI_2, PI, TAU};
 use arrayvec::ArrayVec;
 use glam::{Vec2, Vec3, Vec3Swizzles};
 use hltas::types::*;
-use ordered_float::OrderedFloat;
 use tap::{Pipe, Tap};
 
 use super::*;
@@ -360,19 +359,10 @@ impl<S: Step> Step for Strafe<S> {
 
                 // Don't test adjacent M_U values to make it faster (also vectorial strafing won't
                 // have this either).
-                //
-                // return [-1, 0, 1]
-                return [0]
-                    .iter()
-                    .map(|offset| {
-                        input.yaw = ((yaw_u + offset) & 0xFFFF) as f32 * U_RAD;
-                        self.0
-                            .simulate(tracer, parameters, frame_bulk, state.clone(), input)
-                    })
-                    .max_by_key(|(state, _input)| {
-                        OrderedFloat(state.player.vel.xy().length_squared())
-                    })
-                    .unwrap();
+                input.yaw = (yaw_u & 0xFFFF) as f32 * U_RAD;
+                return self
+                    .0
+                    .simulate(tracer, parameters, frame_bulk, state, input);
             }
         }
 
