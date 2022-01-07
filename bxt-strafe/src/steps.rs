@@ -298,6 +298,23 @@ fn max_accel_theta(parameters: Parameters, state: &State) -> f32 {
     0.
 }
 
+fn max_angle_theta(parameters: Parameters, state: &State) -> f32 {
+    let accel = if state.place == Place::Ground {
+        parameters.accelerate
+    } else {
+        parameters.air_accelerate
+    };
+
+    let accel_speed = accel * state.wish_speed * parameters.ent_friction * parameters.frame_time;
+    let speed = state.player.vel.xy().length();
+
+    if accel_speed >= speed {
+        PI
+    } else {
+        (-accel_speed / speed).acos()
+    }
+}
+
 fn normalize_rad(mut angle: f32) -> f32 {
     angle %= TAU;
 
@@ -325,6 +342,12 @@ fn max_accel_into_yaw_theta(parameters: Parameters, state: &State, yaw: f32) -> 
     }
 }
 
+fn max_angle_into_yaw_theta(parameters: Parameters, state: &State, yaw: f32) -> f32 {
+    let vel_yaw = state.player.vel.y.atan2(state.player.vel.x);
+    let theta = max_angle_theta(parameters, state);
+    theta.copysign(normalize_rad(yaw - vel_yaw))
+}
+
 pub struct Strafe<S>(pub S);
 
 impl<S: Step> Step for Strafe<S> {
@@ -337,17 +360,26 @@ impl<S: Step> Step for Strafe<S> {
         mut input: Input,
     ) -> (State, Input) {
         if state.place != Place::Water {
-            if let Some(AutoMovement::Strafe(StrafeSettings {
-                type_: StrafeType::MaxAccel,
-                dir,
-            })) = frame_bulk.auto_actions.movement
+            if let Some(AutoMovement::Strafe(StrafeSettings { type_, dir })) =
+                frame_bulk.auto_actions.movement
             {
-                let theta = match dir {
-                    StrafeDir::Left => max_accel_theta(parameters, &state),
-                    StrafeDir::Right => -max_accel_theta(parameters, &state),
-                    StrafeDir::Yaw(yaw) => {
-                        max_accel_into_yaw_theta(parameters, &state, yaw.to_radians())
-                    }
+                let theta = match type_ {
+                    StrafeType::MaxAccel => match dir {
+                        StrafeDir::Left => max_accel_theta(parameters, &state),
+                        StrafeDir::Right => -max_accel_theta(parameters, &state),
+                        StrafeDir::Yaw(yaw) => {
+                            max_accel_into_yaw_theta(parameters, &state, yaw.to_radians())
+                        }
+                        _ => 0.,
+                    },
+                    StrafeType::MaxAngle => match dir {
+                        StrafeDir::Left => max_angle_theta(parameters, &state),
+                        StrafeDir::Right => -max_angle_theta(parameters, &state),
+                        StrafeDir::Yaw(yaw) => {
+                            max_angle_into_yaw_theta(parameters, &state, yaw.to_radians())
+                        }
+                        _ => 0.,
+                    },
                     _ => 0.,
                 };
 
