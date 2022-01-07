@@ -692,6 +692,26 @@ impl<S: Step> Step for LeaveGround<S> {
                     todo!()
                 }
 
+                if state.prev_frame_input.duck {
+                    return do_nothing;
+                }
+
+                if state.player.ducking {
+                    // If the player is already ducking, try to unduck first.
+                    input.duck = false;
+                    let do_action = self
+                        .0
+                        .simulate(tracer, parameters, frame_bulk, state, input);
+
+                    if do_action.0.player.ducking {
+                        // Unducking didn't work, so do nothing.
+                        return do_nothing;
+                    } else {
+                        // Unducking worked, we'll try to ducktap next frame.`q`
+                        return do_action;
+                    }
+                }
+
                 input.duck = true;
                 let do_action = self
                     .0
