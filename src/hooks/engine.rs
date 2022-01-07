@@ -16,6 +16,7 @@ use rust_hawktracer::*;
 use crate::ffi::com_model::{mleaf_s, model_s};
 use crate::ffi::command::cmd_function_s;
 use crate::ffi::cvar::cvar_s;
+use crate::ffi::edict::edict_s;
 use crate::ffi::playermove::playermove_s;
 use crate::ffi::triangleapi::triangleapi_s;
 use crate::ffi::usercmd::usercmd_s;
@@ -554,6 +555,7 @@ pub static S_TransferStereo16: Pointer<unsafe extern "C" fn(c_int)> = Pointer::e
 pub static scr_fov_value: Pointer<*mut c_float> = Pointer::empty(b"scr_fov_value\0");
 pub static shm: Pointer<*mut *mut dma_t> = Pointer::empty(b"shm\0");
 pub static sv: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
+pub static svs: Pointer<*mut server_static_s> = Pointer::empty(b"svs\0");
 pub static sv_areanodes: Pointer<*mut c_void> = Pointer::empty(b"sv_areanodes\0");
 pub static SV_AddLinksToPM: Pointer<unsafe extern "C" fn(*mut c_void, *const [f32; 3])> =
     Pointer::empty(b"SV_AddLinksToPM\0");
@@ -729,6 +731,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &scr_fov_value,
     &shm,
     &sv,
+    &svs,
     &sv_areanodes,
     &SV_AddLinksToPM,
     &SV_AddLinksToPM_,
@@ -807,6 +810,20 @@ pub struct client_static_s_demos {
     pub demos: [[c_char; 16]; 32],
     pub demorecording: c_int,
     pub demoplayback: c_int,
+}
+
+#[repr(C)]
+pub struct server_static_s {
+    pub dll_initialized: c_int,
+    pub clients: *mut client_s,
+    pub num_clients: c_int,
+}
+
+#[repr(C)]
+pub struct client_s {
+    // TODO: replace static padding with dynamic offset.
+    _padding: [u8; 19076],
+    edict: *mut edict_s,
 }
 
 #[allow(clippy::upper_case_acronyms)]
@@ -944,6 +961,16 @@ pub unsafe fn get_resolution(marker: MainThreadMarker) -> (i32, i32) {
         let mut height = 0;
         VideoMode_GetCurrentVideoMode.get(marker)(&mut width, &mut height, null_mut());
         (width, height)
+    }
+}
+
+pub unsafe fn player_edict(marker: MainThreadMarker) -> Option<NonNull<edict_s>> {
+    // SAFETY: we're not calling any engine functions while the reference is alive.
+    let svs_ = &*svs.get_opt(marker)?;
+    if svs_.num_clients == 0 || svs_.clients.is_null() {
+        None
+    } else {
+        NonNull::new((*svs_.clients).edict)
     }
 }
 

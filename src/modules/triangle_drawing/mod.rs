@@ -23,6 +23,8 @@ pub unsafe fn on_draw_transparent_triangles(marker: MainThreadMarker) {
 
     // TODO: set white texture.
 
+    tas_editor::draw(marker, &tri);
+
     // Required for the WON DLLs.
     tri.render_mode(triangle_api::RenderMode::Normal);
 }

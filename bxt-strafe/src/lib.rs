@@ -1,0 +1,498 @@
+use arrayvec::ArrayVec;
+use glam::Vec3;
+use hltas::types::*;
+
+mod steps;
+use steps::*;
+
+/// Result of a trace operation.
+#[derive(Debug, Clone, Copy)]
+pub struct TraceResult {
+    pub all_solid: bool,
+    pub start_solid: bool,
+    pub fraction: f32,
+    pub end_pos: Vec3,
+    pub plane_normal: Vec3,
+    pub entity: i32,
+}
+
+/// Collision hull type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hull {
+    /// Standing player.
+    Standing,
+    /// Ducked player.
+    Ducked,
+    /// Point-sized hull, as in tracing a line.
+    Point,
+}
+
+/// The game world's tracing function.
+pub trait Trace {
+    /// Traces a line from `start` to `end` according to `hull` and returns the outcome.
+    fn trace(&self, start: Vec3, end: Vec3, hull: Hull) -> TraceResult;
+}
+
+/// Player data.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Player {
+    /// Position.
+    pub pos: Vec3,
+    /// Velocity.
+    pub vel: Vec3,
+    /// Base velocity (e.g. when the player is on a moving conveyor belt).
+    pub base_vel: Vec3,
+    /// Whether the player is fully ducking.
+    pub ducking: bool,
+    /// Whether the player is in process of ducking down.
+    pub in_duck_animation: bool,
+    /// Ducking animation timer.
+    pub duck_time: i32,
+}
+
+impl Player {
+    /// Returns the collision hull to use for tracing for this player state.
+    fn hull(&self) -> Hull {
+        if self.ducking {
+            Hull::Ducked
+        } else {
+            Hull::Standing
+        }
+    }
+}
+
+/// Movement parameters.
+#[derive(Debug, Clone, Copy)]
+pub struct Parameters {
+    pub frame_time: f32,
+    pub max_velocity: f32,
+    pub max_speed: f32,
+    pub stop_speed: f32,
+    pub friction: f32,
+    pub edge_friction: f32,
+    pub ent_friction: f32,
+    pub accelerate: f32,
+    pub air_accelerate: f32,
+    pub gravity: f32,
+    pub ent_gravity: f32,
+    pub step_size: f32,
+    pub bounce: f32,
+}
+
+/// The type of player's position in the world.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Place {
+    /// The player is on the ground.
+    Ground,
+    /// The player is in the air.
+    Air,
+    /// The player is underwater.
+    Water,
+}
+
+/// Final input that the game will receive.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Input {
+    pub jump: bool,
+    pub duck: bool,
+    pub use_: bool,
+
+    pub yaw: f32,
+    pub forward: f32,
+    pub side: f32,
+}
+
+/// The state updated and acted upon by the simulation.
+///
+/// To simulate the next frame, call [`State::simulate()`] on the previous state.
+#[derive(Debug, Clone)]
+pub struct State {
+    player: Player,
+    place: Place,
+    wish_speed: f32,
+    prev_frame_input: Input,
+    jumped: bool,
+    move_traces: ArrayVec<TraceResult, 4>,
+}
+
+impl State {
+    /// Returns the player data.
+    pub fn player(&self) -> Player {
+        self.player
+    }
+}
+
+impl State {
+    pub fn new<T: Trace>(tracer: &T, parameters: Parameters, player: Player) -> Self {
+        let mut rv = Self {
+            player,
+            place: Place::Air,
+            wish_speed: parameters.max_speed,
+            prev_frame_input: Input::default(),
+            jumped: false,
+            move_traces: ArrayVec::new(),
+        };
+
+        rv.update_place(tracer);
+
+        rv
+    }
+
+    /// Simulates one frame and returns the next `State` and the final `Input`.
+    pub fn simulate<T: Trace>(
+        self,
+        tracer: &T,
+        parameters: Parameters,
+        frame_bulk: &FrameBulk,
+    ) -> (Self, Input) {
+        let chain = ResetFields(JumpBug(LeaveGround(DuckBeforeCollision(Duck(Use(Jump(
+            Friction(Strafe(Move)),
+        )))))));
+        chain.simulate(tracer, parameters, frame_bulk, self, Input::default())
+    }
+
+    fn update_place<T: Trace>(&mut self, tracer: &T) {
+        self.place = Place::Air;
+
+        if self.player.vel.z > 180. {
+            return;
+        }
+
+        let tr = tracer.trace(
+            self.player.pos,
+            self.player.pos - Vec3::new(0., 0., 2.),
+            self.player.hull(),
+        );
+        if tr.entity == -1 || tr.plane_normal.z < 0.7 {
+            return;
+        }
+
+        self.place = Place::Ground;
+        if !tr.start_solid && !tr.all_solid {
+            self.player.pos = tr.end_pos;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::num::NonZeroU32;
+
+    use ncollide3d::na::{self, Isometry3, Unit, Vector3};
+    use ncollide3d::query::{time_of_impact, DefaultTOIDispatcher, TOIStatus, TOI};
+    use ncollide3d::shape::{Cuboid, Plane};
+    use proptest::prelude::*;
+
+    use super::*;
+
+    #[derive(Debug, Clone)]
+    struct World {
+        floor: Plane<f32>,
+    }
+
+    impl World {
+        fn new() -> Self {
+            Self {
+                floor: Plane::new(Unit::new_normalize(Vector3::z())),
+            }
+        }
+    }
+
+    fn default_parameters() -> Parameters {
+        Parameters {
+            frame_time: 0.010000001,
+            max_velocity: 2000.,
+            max_speed: 320.,
+            stop_speed: 100.,
+            friction: 4.,
+            edge_friction: 2.,
+            ent_friction: 1.,
+            accelerate: 10.,
+            air_accelerate: 10.,
+            gravity: 800.,
+            ent_gravity: 1.,
+            step_size: 18.,
+            bounce: 1.,
+        }
+    }
+
+    fn default_player() -> Player {
+        Player {
+            pos: Vec3::ZERO,
+            vel: Vec3::ZERO,
+            base_vel: Vec3::ZERO,
+            ducking: false,
+            in_duck_animation: false,
+            duck_time: 0,
+        }
+    }
+
+    impl Trace for World {
+        fn trace(&self, start: Vec3, end: Vec3, hull: Hull) -> TraceResult {
+            let half_height = match hull {
+                Hull::Standing => 36.,
+                Hull::Ducked => 18.,
+                Hull::Point => unimplemented!(),
+            };
+
+            let player = Cuboid::new(Vector3::new(16., 16., half_height));
+            let player_pos = Isometry3::translation(start.x, start.y, start.z + half_height);
+            let vel = end - start;
+            let player_vel = Vector3::new(vel.x, vel.y, vel.z);
+
+            let toi = time_of_impact(
+                &DefaultTOIDispatcher,
+                &Isometry3::translation(0., 0., 0.),
+                &na::zero(),
+                &self.floor,
+                &player_pos,
+                &player_vel,
+                &player,
+                1.,
+                0.,
+            )
+            .unwrap();
+
+            if let Some(TOI {
+                toi,
+                normal1,
+                status,
+                ..
+            }) = toi
+            {
+                let penetrating = status == TOIStatus::Penetrating;
+
+                TraceResult {
+                    all_solid: penetrating,
+                    start_solid: penetrating,
+                    fraction: toi,
+                    end_pos: start + (end - start) * toi * 0.999,
+                    plane_normal: Vec3::new(normal1.x, normal1.y, normal1.z),
+                    entity: 0,
+                }
+            } else {
+                TraceResult {
+                    all_solid: false,
+                    start_solid: false,
+                    fraction: 1.,
+                    end_pos: end,
+                    plane_normal: Vec3::ZERO,
+                    entity: -1,
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn stand_still_on_ground() {
+        let world = World::new();
+        let parameters = default_parameters();
+        let player = Player {
+            pos: Vec3::ZERO,
+            ..default_player()
+        };
+        let state = State::new(&world, parameters, player);
+
+        let new_state = state
+            .clone()
+            .simulate(
+                &world,
+                parameters,
+                &FrameBulk::with_frame_time("0.010000001".to_owned()),
+            )
+            .0;
+
+        assert_eq!(state.player, new_state.player);
+    }
+
+    #[test]
+    fn snap_to_ground_from_one_unit() {
+        let world = World::new();
+        let parameters = default_parameters();
+        let player = Player {
+            pos: Vec3::new(0., 0., 1.),
+            ..default_player()
+        };
+        let state = State::new(&world, parameters, player);
+
+        let state = state
+            .simulate(
+                &world,
+                parameters,
+                &FrameBulk::with_frame_time("0.010000001".to_owned()),
+            )
+            .0;
+
+        assert!(state.player.pos.z.abs() < 1e-5);
+    }
+
+    #[test]
+    fn no_snap_to_ground_if_too_high() {
+        let world = World::new();
+        let parameters = default_parameters();
+        let player = Player {
+            pos: Vec3::new(0., 0., 2.1),
+            ..default_player()
+        };
+        let state = State::new(&world, parameters, player);
+
+        let state = state
+            .simulate(
+                &world,
+                parameters,
+                &FrameBulk::with_frame_time("0.010000001".to_owned()),
+            )
+            .0;
+
+        assert!(state.player.pos.z.abs() >= 1e-5);
+    }
+
+    #[test]
+    fn autojump_works() {
+        let world = World::new();
+        let parameters = default_parameters();
+        let player = Player {
+            pos: Vec3::new(0., 0., 2.01),
+            ..default_player()
+        };
+        let state = State::new(&world, parameters, player);
+
+        let frame_bulk = FrameBulk {
+            frame_count: NonZeroU32::new(2).unwrap(),
+            auto_actions: AutoActions {
+                leave_ground_action: Some(LeaveGroundAction {
+                    speed: LeaveGroundActionSpeed::Any,
+                    times: Times::UnlimitedWithinFrameBulk,
+                    type_: LeaveGroundActionType::Jump,
+                }),
+                ..Default::default()
+            },
+            ..FrameBulk::with_frame_time("0.010000001".to_owned())
+        };
+
+        let (state, input) = state.simulate(&world, parameters, &frame_bulk);
+        assert!(!input.jump);
+        assert_eq!(state.place, Place::Ground);
+
+        let (state, input) = state.simulate(&world, parameters, &frame_bulk);
+        assert!(input.jump);
+        assert_eq!(state.place, Place::Air);
+    }
+
+    fn arbitrary_auto_movement() -> impl Strategy<Value = AutoMovement> {
+        prop_oneof![
+            any::<f32>().prop_map(AutoMovement::SetYaw),
+            prop_oneof![
+                Just(StrafeDir::Left),
+                Just(StrafeDir::Right),
+                any::<f32>().prop_map(StrafeDir::Yaw)
+            ]
+            .prop_map(|dir| AutoMovement::Strafe(StrafeSettings {
+                type_: StrafeType::MaxAccel,
+                dir
+            }))
+        ]
+    }
+
+    fn arbitrary_leave_ground_action() -> impl Strategy<Value = LeaveGroundAction> {
+        (
+            prop_oneof![
+                Just(LeaveGroundActionSpeed::Any),
+                Just(LeaveGroundActionSpeed::Optimal),
+            ],
+            prop_oneof![
+                Just(LeaveGroundActionType::Jump),
+                Just(LeaveGroundActionType::DuckTap { zero_ms: false }),
+            ],
+        )
+            .prop_map(|(speed, type_)| LeaveGroundAction {
+                speed,
+                times: Times::UnlimitedWithinFrameBulk,
+                type_,
+            })
+    }
+
+    prop_compose! {
+        fn arbitrary_auto_actions()(
+            movement in prop::option::of(arbitrary_auto_movement()),
+            leave_ground_action in prop::option::of(arbitrary_leave_ground_action()),
+            jump_bug in prop::option::of(Just(hltas::types::JumpBug { times: Times::UnlimitedWithinFrameBulk }))
+        ) -> AutoActions {
+            AutoActions {
+                movement,
+                leave_ground_action,
+                jump_bug,
+                ..Default::default()
+            }
+        }
+    }
+
+    prop_compose! {
+        fn arbitrary_frame_bulk()(
+            auto_actions in arbitrary_auto_actions(),
+            frame_count in 1u32..,
+        ) -> FrameBulk {
+            FrameBulk {
+                auto_actions,
+                frame_count: NonZeroU32::new(frame_count).unwrap(),
+                ..FrameBulk::with_frame_time("0.010000001".to_owned())
+            }
+        }
+    }
+
+    prop_compose! {
+        fn arbitrary_player()(
+            pos in (-50000f32..50000., -50000f32..50000., 0f32..50000.).prop_map(|(x, y, z)| Vec3::new(x, y, z)),
+            vel in (-50000f32..50000., -50000f32..50000., -50000f32..50000.).prop_map(|(x, y, z)| Vec3::new(x, y, z)),
+            base_vel in (-50000f32..50000., -50000f32..50000., -50000f32..50000.).prop_map(|(x, y, z)| Vec3::new(x, y, z)),
+            ducking in any::<bool>(),
+            in_duck_animation in any::<bool>(),
+            duck_time in 0..1000,
+        ) -> Player {
+            Player { pos, vel, base_vel, ducking, in_duck_animation, duck_time }
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn simulation_does_not_panic(
+            frame_bulk in arbitrary_frame_bulk(),
+            player in arbitrary_player(),
+            steps in 1..100,
+        ) {
+            let world = World::new();
+            let parameters = default_parameters();
+
+            let mut state = State::new(&world, parameters, player);
+            for _ in 0..steps {
+                state = state.simulate(&world, parameters, &frame_bulk).0;
+            }
+        }
+
+        #[test]
+        fn player_eventually_reaches_zero_velocity(
+            // Smaller values for faster convergence.
+            pos in (-50000f32..50000., -50000f32..50000., 0f32..500.).prop_map(|(x, y, z)| Vec3::new(x, y, z)),
+            vel in (-50000f32..50000., -50000f32..50000., -500f32..500.).prop_map(|(x, y, z)| Vec3::new(x, y, z)),
+            ducking in any::<bool>(),
+        ) {
+            let world = World::new();
+            let parameters = default_parameters();
+            let player = Player {
+                pos, vel, ducking, ..default_player()
+            };
+
+            let frame_bulk = FrameBulk::with_frame_time("0.010000001".to_owned());
+
+            let mut state = State::new(&world, parameters, player);
+            for _ in 0..1000 {
+                state = state.simulate(&world, parameters, &frame_bulk).0;
+                if state.player.vel == Vec3::ZERO {
+                    break;
+                }
+            }
+
+            prop_assert_eq!(state.player.vel, Vec3::ZERO);
+        }
+    }
+}

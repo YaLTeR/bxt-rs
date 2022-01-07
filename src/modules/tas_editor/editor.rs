@@ -1,0 +1,394 @@
+use std::error::Error;
+use std::io::Write;
+use std::num::NonZeroU32;
+use std::result::Result;
+use std::str::FromStr;
+
+use bxt_strafe::{Parameters, State, Trace};
+use glam::Vec3Swizzles;
+use hltas::types::{AutoMovement, FrameBulk, Line, StrafeDir, StrafeSettings, StrafeType};
+use hltas::HLTAS;
+use rand::distributions::Uniform;
+use rand::prelude::Distribution;
+use rand::Rng;
+
+use crate::modules::triangle_drawing::triangle_api::{Primitive, RenderMode};
+use crate::modules::triangle_drawing::TriangleApi;
+
+/// A movement frame.
+#[derive(Debug, Clone)]
+pub struct Frame {
+    /// Parameters used for simulating this frame.
+    pub parameters: Parameters,
+
+    /// Final state after this frame.
+    pub state: State,
+}
+
+pub struct Editor {
+    /// The first part of the script that we're not editing.
+    prefix: HLTAS,
+
+    /// The script being edited.
+    hltas: HLTAS,
+
+    /// Movement frames, starting from the initial frame.
+    frames: Vec<Frame>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Variable {
+    PosX,
+    PosY,
+    PosZ,
+    VelX,
+    VelY,
+    VelZ,
+    Speed,
+}
+
+impl Variable {
+    fn get(self, state: &State) -> f32 {
+        match self {
+            Variable::PosX => state.player().pos.x,
+            Variable::PosY => state.player().pos.y,
+            Variable::PosZ => state.player().pos.z,
+            Variable::VelY => state.player().vel.x,
+            Variable::VelZ => state.player().vel.y,
+            Variable::VelX => state.player().vel.z,
+            Variable::Speed => state.player().vel.xy().length(),
+        }
+    }
+}
+
+impl FromStr for Variable {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "pos.x" => Ok(Self::PosX),
+            "pos.y" => Ok(Self::PosY),
+            "pos.z" => Ok(Self::PosZ),
+            "vel.x" => Ok(Self::VelX),
+            "vel.y" => Ok(Self::VelY),
+            "vel.z" => Ok(Self::VelZ),
+            "speed" => Ok(Self::Speed),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    Maximize,
+    Minimize,
+}
+
+impl Direction {
+    fn is_better(self, new_value: f32, old_value: f32) -> bool {
+        match self {
+            Direction::Maximize => new_value > old_value,
+            Direction::Minimize => new_value < old_value,
+        }
+    }
+}
+
+impl FromStr for Direction {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "minimize" => Ok(Self::Minimize),
+            "maximize" => Ok(Self::Maximize),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptimizationGoal {
+    pub variable: Variable,
+    pub direction: Direction,
+}
+
+impl OptimizationGoal {
+    fn is_better(self, new_state: &State, old_state: &State) -> bool {
+        self.direction
+            .is_better(self.variable.get(new_state), self.variable.get(old_state))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConstraintType {
+    GreaterThan,
+    LessThan,
+}
+
+impl FromStr for ConstraintType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            ">" => Ok(Self::GreaterThan),
+            "<" => Ok(Self::LessThan),
+            _ => Err(()),
+        }
+    }
+}
+
+impl ConstraintType {
+    fn is_valid(self, value: f32, constraint: f32) -> bool {
+        match self {
+            ConstraintType::GreaterThan => value > constraint,
+            ConstraintType::LessThan => value < constraint,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Constraint {
+    pub variable: Variable,
+    pub type_: ConstraintType,
+    pub constraint: f32,
+}
+
+impl Constraint {
+    fn is_valid(self, state: &State) -> bool {
+        self.type_
+            .is_valid(self.variable.get(state), self.constraint)
+    }
+}
+
+trait HLTASExt {
+    /// Returns the line index and the repeat for the given `frame`.
+    ///
+    /// Returns [`None`] if `frame` is bigger than the number of frames in the [`HLTAS`].
+    fn line_and_repeat_at_frame(&self, frame: usize) -> Option<(usize, u32)>;
+
+    /// Splits the [`HLTAS`] at `frame` if needed and returns a reference to the frame bulk that
+    /// starts at `frame`.
+    ///
+    /// Returns [`None`] if `frame` is bigger than the number of frames in the [`HLTAS`].
+    fn split_at_frame(&mut self, frame: usize) -> Option<&mut FrameBulk>;
+
+    /// Splits the [`HLTAS`] at `frame` if needed and returns a reference to the frame bulk that
+    /// starts at `frame` and lasts a single repeat.
+    ///
+    /// Returns [`None`] if `frame` is bigger than the number of frames in the [`HLTAS`].
+    fn split_single_at_frame(&mut self, frame: usize) -> Option<&mut FrameBulk>;
+}
+
+impl HLTASExt for HLTAS {
+    fn line_and_repeat_at_frame(&self, frame: usize) -> Option<(usize, u32)> {
+        self.lines
+            .iter()
+            .enumerate()
+            .filter_map(|(l, line)| {
+                if let Line::FrameBulk(frame_bulk) = line {
+                    Some((l, frame_bulk))
+                } else {
+                    None
+                }
+            })
+            .flat_map(|(l, frame_bulk)| (0..frame_bulk.frame_count.get()).map(move |r| (l, r)))
+            .nth(frame)
+    }
+
+    fn split_at_frame(&mut self, frame: usize) -> Option<&mut FrameBulk> {
+        let (l, r) = self.line_and_repeat_at_frame(frame)?;
+
+        let mut frame_bulk = if let Line::FrameBulk(frame_bulk) = &mut self.lines[l] {
+            frame_bulk
+        } else {
+            unreachable!()
+        };
+
+        let index = if r == 0 {
+            // The frame bulk already starts here.
+            l
+        } else {
+            let mut new_frame_bulk = frame_bulk.clone();
+            new_frame_bulk.frame_count = NonZeroU32::new(frame_bulk.frame_count.get() - r).unwrap();
+            frame_bulk.frame_count = NonZeroU32::new(r).unwrap();
+
+            self.lines.insert(l + 1, Line::FrameBulk(new_frame_bulk));
+
+            l + 1
+        };
+
+        if let Line::FrameBulk(frame_bulk) = &mut self.lines[index] {
+            Some(frame_bulk)
+        } else {
+            unreachable!()
+        }
+    }
+
+    fn split_single_at_frame(&mut self, frame: usize) -> Option<&mut FrameBulk> {
+        self.split_at_frame(frame + 1);
+        self.split_at_frame(frame)
+    }
+}
+
+impl Editor {
+    pub fn new(mut hltas: HLTAS, first_frame: usize, initial_frame: Frame) -> Self {
+        let (l, _r) = hltas.line_and_repeat_at_frame(first_frame).unwrap();
+
+        let mut prefix = hltas.clone();
+        prefix.lines.truncate(l);
+
+        hltas.lines = hltas.lines[l..].to_vec();
+
+        Self {
+            prefix,
+            hltas,
+            frames: vec![initial_frame],
+        }
+    }
+
+    pub fn draw(&self, tri: &TriangleApi) {
+        tri.render_mode(RenderMode::TransColor);
+        tri.color(1., 1., 1., 1.);
+
+        tri.begin(Primitive::Lines);
+
+        for pair in self.frames.windows(2) {
+            let (prev, next) = (&pair[0], &pair[1]);
+
+            tri.vertex(prev.state.player().pos);
+            tri.vertex(next.state.player().pos);
+        }
+
+        tri.end();
+    }
+
+    /// Marks all frames starting from `frame` as stale, causing their re-simulation.
+    fn mark_as_stale(&mut self, frame: usize) {
+        self.frames.truncate(frame + 1);
+    }
+
+    pub fn save<W: Write>(&mut self, writer: W) -> Result<(), Box<dyn Error>> {
+        let len = self.prefix.lines.len();
+        self.prefix.lines.extend(self.hltas.lines.iter().cloned());
+        let rv = self.prefix.to_writer(writer);
+        self.prefix.lines.truncate(len);
+        Ok(rv?)
+    }
+
+    pub fn simulate_all<T: Trace>(&mut self, tracer: &T) {
+        let mut frame = 0;
+        for line in &self.hltas.lines {
+            if let Line::FrameBulk(frame_bulk) = line {
+                for repeat in 0..frame_bulk.frame_count.get() {
+                    frame += 1;
+
+                    if frame < self.frames.len() {
+                        continue;
+                    }
+
+                    let Frame {
+                        state,
+                        mut parameters,
+                    } = self
+                        .frames
+                        .last()
+                        .expect("there should always be at least one state (initial)")
+                        .clone();
+
+                    // Only set frame-time on the first repeat since subsequent repeats inherit it.
+                    if repeat == 0 {
+                        // TODO: move the truncation to bxt-strafe and add frame-time remainder
+                        // handling to it?
+                        parameters.frame_time =
+                            (frame_bulk.frame_time.parse::<f32>().unwrap_or(0.) * 1000.).trunc()
+                                / 1000.;
+                    }
+
+                    let (state, _input) = state.clone().simulate(tracer, parameters, frame_bulk);
+
+                    self.frames.push(Frame { state, parameters });
+                }
+            }
+
+            if frame < self.frames.len() {
+                continue;
+            }
+
+            match line {
+                Line::FrameBulk(_) => (),
+                Line::Save(_) => (),
+                Line::SharedSeed(_) => (),
+                Line::Buttons(_) => (),
+                Line::LGAGSTMinSpeed(_) => (),
+                Line::Reset { non_shared_seed: _ } => (),
+                Line::Comment(_) => (),
+                Line::VectorialStrafing(_) => (),
+                Line::VectorialStrafingConstraints(_) => (),
+                Line::Change(_) => (),
+                Line::TargetYawOverride(_) => (),
+            }
+        }
+    }
+
+    pub fn optimize<T: Trace>(
+        &mut self,
+        tracer: &T,
+        frames: usize,
+        random_frames_to_change: usize,
+        goal: OptimizationGoal,
+        constraint: Option<Constraint>,
+    ) {
+        self.simulate_all(tracer);
+
+        let mut best_hltas = self.hltas.clone();
+        let mut best_state = self.frames.last().unwrap().state.clone();
+
+        let mut high = self.frames.len() - 1;
+        if frames > 0 {
+            high = high.min(frames);
+        }
+
+        let between = Uniform::from(0..high);
+        let mut rng = rand::thread_rng();
+        // Do several attempts per optimize() call.
+        for _ in 0..20 {
+            // Change several frames.
+            for _ in 0..random_frames_to_change {
+                // Pick a random frame.
+                let frame = between.sample(&mut rng);
+                // Split it into its own frame bulk.
+                let frame_bulk = self.hltas.split_single_at_frame(frame).unwrap();
+                // Change it to left or right max-acceleration strafing.
+                frame_bulk.auto_actions.movement = Some(AutoMovement::Strafe(StrafeSettings {
+                    type_: StrafeType::MaxAccel,
+                    dir: if rng.gen::<bool>() {
+                        StrafeDir::Left
+                    } else {
+                        StrafeDir::Right
+                    },
+                }));
+
+                self.mark_as_stale(frame);
+            }
+
+            let valid_frames = self.frames.len() - 1;
+            // Simulate the result.
+            self.simulate_all(tracer);
+
+            // Check if we got an improvement.
+            let state = &self.frames.last().unwrap().state;
+            if constraint.map(|c| c.is_valid(state)).unwrap_or(true)
+                && goal.is_better(state, &best_state)
+            {
+                best_hltas = self.hltas.clone();
+                best_state = state.clone();
+                eprintln!("found new best value: {}", goal.variable.get(&best_state));
+            } else {
+                // Restore the script before the changes.
+                self.hltas = best_hltas.clone();
+                self.mark_as_stale(valid_frames);
+            }
+        }
+    }
+}
+
+// proptest: after simulating, self.frames.len() = frame count + 1
