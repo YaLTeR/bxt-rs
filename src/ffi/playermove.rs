@@ -4,11 +4,27 @@ use std::mem::{align_of, size_of};
 use std::os::raw::*;
 use std::ptr::null;
 
+use bitflags::bitflags;
+
 use crate::ffi::edict;
 use crate::ffi::physent::physent_s;
 use crate::ffi::pmplane::pmplane_t;
 use crate::ffi::pmtrace::pmtrace_s;
 use crate::ffi::usercmd::usercmd_s;
+
+bitflags! {
+    pub struct TraceFlags: c_int {
+        const PM_NORMAL = 0;
+        const PM_STUDIO_IGNORE = 1;
+        const PM_STUDIO_BOX = 1 << 1;
+        const PM_GLASS_IGNORE = 1 << 2;
+        const PM_WORLD_ONLY = 1 << 3;
+    }
+}
+
+pub const PM_TRACELINE_PHYSENTONLY: TraceLineFlag = 0;
+pub const PM_TRACELINE_ANYVISIBLE: TraceLineFlag = 1;
+pub type TraceLineFlag = c_int;
 
 #[repr(C)]
 pub struct playermove_s {
@@ -80,126 +96,100 @@ pub struct playermove_s {
     pub player_mins: [[f32; 3]; 4usize],
     pub player_maxs: [[f32; 3]; 4usize],
     pub PM_Info_ValueForKey:
-        Option<unsafe extern "C" fn(s: *const c_char, key: *const c_char) -> *const c_char>,
-    pub PM_Particle: Option<
+        unsafe extern "C" fn(s: *const c_char, key: *const c_char) -> *const c_char,
+    pub PM_Particle:
         unsafe extern "C" fn(origin: *mut f32, color: c_int, life: f32, zpos: c_int, zvel: c_int),
-    >,
-    pub PM_TestPlayerPosition:
-        Option<unsafe extern "C" fn(pos: *mut f32, ptrace: *mut pmtrace_s) -> c_int>,
-    pub Con_NPrintf: Option<unsafe extern "C" fn(idx: c_int, fmt: *mut c_char, ...)>,
-    pub Con_DPrintf: Option<unsafe extern "C" fn(fmt: *mut c_char, ...)>,
-    pub Con_Printf: Option<unsafe extern "C" fn(fmt: *mut c_char, ...)>,
-    pub Sys_FloatTime: Option<unsafe extern "C" fn() -> f64>,
-    pub PM_StuckTouch: Option<unsafe extern "C" fn(hitent: c_int, ptraceresult: *mut pmtrace_s)>,
-    pub PM_PointContents:
-        Option<unsafe extern "C" fn(p: *mut f32, truecontents: *mut c_int) -> c_int>,
-    pub PM_TruePointContents: Option<unsafe extern "C" fn(p: *mut f32) -> c_int>,
+    pub PM_TestPlayerPosition: unsafe extern "C" fn(pos: *mut f32, ptrace: *mut pmtrace_s) -> c_int,
+    pub Con_NPrintf: unsafe extern "C" fn(idx: c_int, fmt: *mut c_char, ...),
+    pub Con_DPrintf: unsafe extern "C" fn(fmt: *mut c_char, ...),
+    pub Con_Printf: unsafe extern "C" fn(fmt: *mut c_char, ...),
+    pub Sys_FloatTime: unsafe extern "C" fn() -> f64,
+    pub PM_StuckTouch: unsafe extern "C" fn(hitent: c_int, ptraceresult: *mut pmtrace_s),
+    pub PM_PointContents: unsafe extern "C" fn(p: *mut f32, truecontents: *mut c_int) -> c_int,
+    pub PM_TruePointContents: unsafe extern "C" fn(p: *mut f32) -> c_int,
     pub PM_HullPointContents:
-        Option<unsafe extern "C" fn(hull: *mut c_void, num: c_int, p: *mut f32) -> c_int>,
-    pub PM_PlayerTrace: Option<
-        unsafe extern "C" fn(
-            start: *mut f32,
-            end: *mut f32,
-            traceFlags: c_int,
-            ignore_pe: c_int,
-        ) -> pmtrace_s,
-    >,
-    pub PM_TraceLine: Option<
-        unsafe extern "C" fn(
-            start: *mut f32,
-            end: *mut f32,
-            flags: c_int,
-            usehulll: c_int,
-            ignore_pe: c_int,
-        ) -> *mut pmtrace_s,
-    >,
-    pub RandomLong: Option<unsafe extern "C" fn(lLow: c_int, lHigh: c_int) -> c_int>,
-    pub RandomFloat: Option<unsafe extern "C" fn(flLow: f32, flHigh: f32) -> f32>,
-    pub PM_GetModelType: Option<unsafe extern "C" fn(mod_: *mut c_void) -> c_int>,
-    pub PM_GetModelBounds:
-        Option<unsafe extern "C" fn(mod_: *mut c_void, mins: *mut f32, maxs: *mut f32)>,
-    pub PM_HullForBsp:
-        Option<unsafe extern "C" fn(pe: *mut physent_s, offset: *mut f32) -> *mut c_void>,
-    pub PM_TraceModel: Option<
-        unsafe extern "C" fn(
-            pEnt: *mut physent_s,
-            start: *mut f32,
-            end: *mut f32,
-            trace: *mut c_void,
-        ) -> f32,
-    >,
-    pub COM_FileSize: Option<unsafe extern "C" fn(filename: *mut c_char) -> c_int>,
-    pub COM_LoadFile: Option<
-        unsafe extern "C" fn(
-            path: *mut c_char,
-            usehunk: c_int,
-            pLength: *mut c_int,
-        ) -> *mut c_uchar,
-    >,
-    pub COM_FreeFile: Option<unsafe extern "C" fn(buffer: *mut c_void)>,
-    pub memfgets: Option<
-        unsafe extern "C" fn(
-            pMemFile: *mut c_uchar,
-            fileSize: c_int,
-            pFilePos: *mut c_int,
-            pBuffer: *mut c_char,
-            bufferSize: c_int,
-        ) -> *mut c_char,
-    >,
+        unsafe extern "C" fn(hull: *mut c_void, num: c_int, p: *mut f32) -> c_int,
+    pub PM_PlayerTrace: unsafe extern "C" fn(
+        start: *const f32,
+        end: *const f32,
+        traceFlags: TraceFlags,
+        ignore_pe: c_int,
+    ) -> pmtrace_s,
+    pub PM_TraceLine: unsafe extern "C" fn(
+        start: *const f32,
+        end: *const f32,
+        flags: TraceLineFlag,
+        usehulll: c_int,
+        ignore_pe: c_int,
+    ) -> *mut pmtrace_s,
+    pub RandomLong: unsafe extern "C" fn(lLow: c_int, lHigh: c_int) -> c_int,
+    pub RandomFloat: unsafe extern "C" fn(flLow: f32, flHigh: f32) -> f32,
+    pub PM_GetModelType: unsafe extern "C" fn(mod_: *mut c_void) -> c_int,
+    pub PM_GetModelBounds: unsafe extern "C" fn(mod_: *mut c_void, mins: *mut f32, maxs: *mut f32),
+    pub PM_HullForBsp: unsafe extern "C" fn(pe: *mut physent_s, offset: *mut f32) -> *mut c_void,
+    pub PM_TraceModel: unsafe extern "C" fn(
+        pEnt: *mut physent_s,
+        start: *mut f32,
+        end: *mut f32,
+        trace: *mut c_void,
+    ) -> f32,
+    pub COM_FileSize: unsafe extern "C" fn(filename: *mut c_char) -> c_int,
+    pub COM_LoadFile: unsafe extern "C" fn(
+        path: *mut c_char,
+        usehunk: c_int,
+        pLength: *mut c_int,
+    ) -> *mut c_uchar,
+    pub COM_FreeFile: unsafe extern "C" fn(buffer: *mut c_void),
+    pub memfgets: unsafe extern "C" fn(
+        pMemFile: *mut c_uchar,
+        fileSize: c_int,
+        pFilePos: *mut c_int,
+        pBuffer: *mut c_char,
+        bufferSize: c_int,
+    ) -> *mut c_char,
     pub runfuncs: u32,
-    pub PM_PlaySound: Option<
-        unsafe extern "C" fn(
-            channel: c_int,
-            sample: *const c_char,
-            volume: f32,
-            attenuation: f32,
-            fFlags: c_int,
-            pitch: c_int,
-        ),
-    >,
-    pub PM_TraceTexture: Option<
+    pub PM_PlaySound: unsafe extern "C" fn(
+        channel: c_int,
+        sample: *const c_char,
+        volume: f32,
+        attenuation: f32,
+        fFlags: c_int,
+        pitch: c_int,
+    ),
+    pub PM_TraceTexture:
         unsafe extern "C" fn(ground: c_int, vstart: *mut f32, vend: *mut f32) -> *const c_char,
-    >,
-    pub PM_PlaybackEventFull: Option<
-        unsafe extern "C" fn(
-            flags: c_int,
-            clientindex: c_int,
-            eventindex: c_ushort,
-            delay: f32,
-            origin: *mut f32,
-            angles: *mut f32,
-            fparam1: f32,
-            fparam2: f32,
-            iparam1: c_int,
-            iparam2: c_int,
-            bparam1: c_int,
-            bparam2: c_int,
-        ),
-    >,
-    pub PM_PlayerTraceEx: Option<
-        unsafe extern "C" fn(
-            start: *mut f32,
-            end: *mut f32,
-            traceFlags: c_int,
-            pfnIgnore: Option<unsafe extern "C" fn(pe: *mut physent_s) -> c_int>,
-        ) -> pmtrace_s,
-    >,
-    pub PM_TestPlayerPositionEx: Option<
-        unsafe extern "C" fn(
-            pos: *mut f32,
-            ptrace: *mut pmtrace_s,
-            pfnIgnore: Option<unsafe extern "C" fn(pe: *mut physent_s) -> c_int>,
-        ) -> c_int,
-    >,
-    pub PM_TraceLineEx: Option<
-        unsafe extern "C" fn(
-            start: *mut f32,
-            end: *mut f32,
-            flags: c_int,
-            usehulll: c_int,
-            pfnIgnore: Option<unsafe extern "C" fn(pe: *mut physent_s) -> c_int>,
-        ) -> *mut pmtrace_s,
-    >,
+    pub PM_PlaybackEventFull: unsafe extern "C" fn(
+        flags: c_int,
+        clientindex: c_int,
+        eventindex: c_ushort,
+        delay: f32,
+        origin: *mut f32,
+        angles: *mut f32,
+        fparam1: f32,
+        fparam2: f32,
+        iparam1: c_int,
+        iparam2: c_int,
+        bparam1: c_int,
+        bparam2: c_int,
+    ),
+    pub PM_PlayerTraceEx: unsafe extern "C" fn(
+        start: *const f32,
+        end: *const f32,
+        traceFlags: TraceFlags,
+        pfnIgnore: unsafe extern "C" fn(pe: *mut physent_s) -> c_int,
+    ) -> pmtrace_s,
+    pub PM_TestPlayerPositionEx: unsafe extern "C" fn(
+        pos: *mut f32,
+        ptrace: *mut pmtrace_s,
+        pfnIgnore: unsafe extern "C" fn(pe: *mut physent_s) -> c_int,
+    ) -> c_int,
+    pub PM_TraceLineEx: unsafe extern "C" fn(
+        start: *const f32,
+        end: *const f32,
+        flags: TraceLineFlag,
+        usehulll: c_int,
+        pfnIgnore: unsafe extern "C" fn(pe: *mut physent_s) -> c_int,
+    ) -> *mut pmtrace_s,
 }
 
 #[cfg(target_arch = "x86")]

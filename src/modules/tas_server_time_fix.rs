@@ -36,8 +36,8 @@ pub fn on_pm_move_start(marker: MainThreadMarker, ppmove: *mut playermove_s) {
     }
 
     unsafe {
-        ORIGINAL_DATA.set(marker, Some((ppmove, (*ppmove).Sys_FloatTime.unwrap())));
-        (*ppmove).Sys_FloatTime = Some(my_Sys_FloatTime);
+        ORIGINAL_DATA.set(marker, Some((ppmove, (*ppmove).Sys_FloatTime)));
+        (*ppmove).Sys_FloatTime = my_Sys_FloatTime;
     }
 }
 
@@ -45,8 +45,9 @@ pub fn on_pm_move_end(marker: MainThreadMarker, ppmove: *mut playermove_s) {
     if let Some((ppmove_, sys_floattime)) = ORIGINAL_DATA.get(marker) {
         unsafe {
             // Sanity checks.
-            if ppmove == ppmove_ && (*ppmove).Sys_FloatTime == Some(my_Sys_FloatTime) {
-                (*ppmove).Sys_FloatTime = Some(sys_floattime);
+            #[allow(clippy::fn_address_comparisons)]
+            if ppmove == ppmove_ && (*ppmove).Sys_FloatTime == my_Sys_FloatTime {
+                (*ppmove).Sys_FloatTime = sys_floattime;
                 ORIGINAL_DATA.set(marker, None);
             }
         }
