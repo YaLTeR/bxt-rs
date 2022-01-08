@@ -15,12 +15,12 @@ impl Tracer {
     /// # Safety
     ///
     /// Player-movement tracing must be safe to do over the entire lifetime of this struct.
-    pub unsafe fn new(marker: MainThreadMarker) -> Option<Self> {
+    pub unsafe fn new(marker: MainThreadMarker, remove_distance_limit: bool) -> Option<Self> {
         if !player_movement_tracing::PlayerMovementTracing.is_enabled(marker) {
             return None;
         }
 
-        player_movement_tracing::maybe_ensure_server_tracing(marker, true);
+        player_movement_tracing::maybe_ensure_server_tracing(marker, remove_distance_limit);
 
         Some(Self { marker })
     }

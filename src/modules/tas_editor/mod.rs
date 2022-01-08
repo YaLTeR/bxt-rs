@@ -43,6 +43,7 @@ impl Module for TasEditor {
         static CVARS: &[&CVar] = &[
             &BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE,
             &BXT_TAS_OPTIM_FRAMES,
+            &BXT_TAS_OPTIM_SIMULATION_ACCURACY,
             &BXT_TAS_OPTIM_CONSTRAINT_VALUE,
             &BXT_TAS_OPTIM_CONSTRAINT_TYPE,
             &BXT_TAS_OPTIM_CONSTRAINT_VARIABLE,
@@ -71,6 +72,9 @@ static CONSTRAINT: MainThreadCell<Option<Constraint>> = MainThreadCell::new(None
 static BXT_TAS_OPTIM_FRAMES: CVar = CVar::new(b"bxt_tas_optim_frames\0", b"0\0");
 static BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE: CVar =
     CVar::new(b"bxt_tas_optim_random_frames_to_change\0", b"3\0");
+
+static BXT_TAS_OPTIM_SIMULATION_ACCURACY: CVar =
+    CVar::new(b"bxt_tas_optim_simulation_accuracy\0", b"0\0");
 
 static BXT_TAS_OPTIM_VARIABLE: CVar = CVar::new(b"bxt_tas_optim_variable\0", b"pos.x\0");
 static BXT_TAS_OPTIM_DIRECTION: CVar = CVar::new(b"bxt_tas_optim_direction\0", b"maximize\0");
@@ -167,7 +171,7 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
     };
 
     // TODO: this is unsafe outside of gameplay.
-    let tracer = unsafe { Tracer::new(marker) }.unwrap();
+    let tracer = unsafe { Tracer::new(marker, false) }.unwrap();
 
     let initial_frame = Frame {
         state: State::new(&tracer, parameters, player),
@@ -335,7 +339,9 @@ unsafe fn player_data(marker: MainThreadMarker) -> Option<Player> {
 pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     if let Some(editor) = &mut *EDITOR.borrow_mut(marker) {
         // SAFETY: if we have access to TriangleApi, it's safe to do player tracing too.
-        let tracer = unsafe { Tracer::new(marker) }.unwrap();
+        let tracer =
+            unsafe { Tracer::new(marker, BXT_TAS_OPTIM_SIMULATION_ACCURACY.as_bool(marker)) }
+                .unwrap();
 
         if OPTIMIZE.get(marker) {
             editor.optimize(
