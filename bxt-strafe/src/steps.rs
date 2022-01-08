@@ -368,18 +368,24 @@ impl<S: Step> Step for Strafe<S> {
                     _ => 0.,
                 };
 
-                input.forward = state.wish_speed;
-                input.side = 0.;
-
                 let vel_yaw = state.player.vel.y.atan2(state.player.vel.x);
-                let yaw_u = ((vel_yaw + theta) * INV_U_RAD) as i32;
 
-                // Don't test adjacent M_U values to make it faster (also vectorial strafing won't
-                // have this either).
-                input.yaw = (yaw_u & 0xFFFF) as f32 * U_RAD;
-                return self
-                    .0
-                    .simulate(tracer, parameters, frame_bulk, state, input);
+                assert!(
+                    parameters.max_speed <= vct::MAX_SPEED_CAP,
+                    "max_speed {} is larger than the maximum allowed value {}",
+                    parameters.max_speed,
+                    vct::MAX_SPEED_CAP
+                );
+
+                // TODO: target_yaw velocity_lock
+                let camera_yaw = angle_mod_rad(vel_yaw);
+                let entry = vct::get_static()
+                    .read()
+                    .find_best((vel_yaw + theta) - camera_yaw);
+
+                input.yaw = camera_yaw;
+                input.forward = entry.forward as f32;
+                input.side = entry.side as f32;
             }
         }
 

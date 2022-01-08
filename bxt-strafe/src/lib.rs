@@ -7,6 +7,8 @@ use hltas::types::*;
 mod steps;
 use steps::*;
 
+mod vct;
+
 /// Result of a trace operation.
 #[derive(Debug, Clone, Copy)]
 pub struct TraceResult {
@@ -189,6 +191,10 @@ fn normalize_rad(mut angle: f32) -> f32 {
     } else {
         angle
     }
+}
+
+fn angle_mod_rad(angle: f32) -> f32 {
+    ((angle * INV_U_RAD) as i32 & 0xFFFF) as f32 * U_RAD
 }
 
 #[cfg(test)]
