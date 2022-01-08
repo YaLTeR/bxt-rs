@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use bxt_strafe::{Parameters, State, Trace};
 use glam::Vec3Swizzles;
-use hltas::types::{AutoMovement, FrameBulk, Line, StrafeDir, StrafeSettings, StrafeType};
+use hltas::types::*;
 use hltas::HLTAS;
 use rand::distributions::Uniform;
 use rand::prelude::Distribution;
@@ -353,21 +353,9 @@ impl Editor {
         for _ in 0..20 {
             // Change several frames.
             for _ in 0..random_frames_to_change {
-                // Pick a random frame.
+                // Pick a random frame and mutate it.
                 let frame = between.sample(&mut rng);
-                // Split it into its own frame bulk.
-                let frame_bulk = self.hltas.split_single_at_frame(frame).unwrap();
-                // Change it to left or right max-acceleration strafing.
-                frame_bulk.auto_actions.movement = Some(AutoMovement::Strafe(StrafeSettings {
-                    type_: StrafeType::MaxAccel,
-                    dir: if rng.gen::<bool>() {
-                        StrafeDir::Left
-                    } else {
-                        StrafeDir::Right
-                    },
-                }));
-
-                self.mark_as_stale(frame);
+                self.mutate_frame(&mut rng, frame);
             }
 
             let valid_frames = self.frames.len() - 1;
@@ -388,6 +376,61 @@ impl Editor {
                 self.mark_as_stale(valid_frames);
             }
         }
+    }
+
+    fn mutate_frame<R: Rng>(&mut self, rng: &mut R, frame: usize) {
+        // Split it into its own frame bulk.
+        let frame_bulk = self.hltas.split_single_at_frame(frame).unwrap();
+
+        mutate_frame_bulk(rng, frame_bulk);
+
+        self.mark_as_stale(frame);
+    }
+}
+
+fn mutate_frame_bulk<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
+    frame_bulk.auto_actions.movement = Some(AutoMovement::Strafe(StrafeSettings {
+        type_: if rng.gen::<f32>() < 0.1 {
+            StrafeType::MaxAngle
+        } else {
+            StrafeType::MaxAccel
+        },
+        dir: if rng.gen::<bool>() {
+            StrafeDir::Left
+        } else {
+            StrafeDir::Right
+        },
+    }));
+
+    if rng.gen::<f32>() < 0.05 {
+        frame_bulk.action_keys.use_ = !frame_bulk.action_keys.use_;
+    }
+
+    if rng.gen::<f32>() < 0.1 {
+        let p = rng.gen::<f32>();
+        frame_bulk.auto_actions.leave_ground_action = if p < 1. / 3. {
+            None
+        } else if p < 2. / 3. {
+            Some(LeaveGroundAction {
+                speed: if rng.gen::<bool>() {
+                    LeaveGroundActionSpeed::Any
+                } else {
+                    LeaveGroundActionSpeed::Optimal
+                },
+                times: Times::UnlimitedWithinFrameBulk,
+                type_: LeaveGroundActionType::DuckTap { zero_ms: false },
+            })
+        } else {
+            Some(LeaveGroundAction {
+                speed: if rng.gen::<bool>() {
+                    LeaveGroundActionSpeed::Any
+                } else {
+                    LeaveGroundActionSpeed::Optimal
+                },
+                times: Times::UnlimitedWithinFrameBulk,
+                type_: LeaveGroundActionType::Jump,
+            })
+        };
     }
 }
 
