@@ -344,13 +344,13 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                 .unwrap();
 
         if OPTIMIZE.get(marker) {
-            editor.optimize(
+            editor.optimize_genetic(
                 &tracer,
                 BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
-                BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
                 GOAL.get(marker),
                 CONSTRAINT.get(marker),
             );
+            OPTIMIZE.set(marker, false);
         }
 
         // Make sure the state is ready for drawing.

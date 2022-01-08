@@ -5,9 +5,20 @@ use std::result::Result;
 use std::str::FromStr;
 
 use bxt_strafe::{Parameters, State, Trace};
+use genevo::ga::genetic_algorithm;
+use genevo::genetic::FitnessFunction;
+use genevo::operator::{GeneticOperator, MutationOp};
+use genevo::population::Population;
+use genevo::prelude::*;
+use genevo::recombination::discrete::SinglePointCrossBreeder;
+use genevo::reinsertion::elitist::ElitistReinserter;
+use genevo::selection::proportionate::RouletteWheelSelector;
+use genevo::selection::truncation::MaximizeSelector;
+use genevo::types::fmt::Display;
 use glam::Vec3Swizzles;
 use hltas::types::*;
 use hltas::HLTAS;
+use parking_lot::Mutex;
 use rand::distributions::Uniform;
 use rand::prelude::Distribution;
 use rand::Rng;
@@ -115,6 +126,15 @@ impl OptimizationGoal {
     fn is_better(self, new_state: &State, old_state: &State) -> bool {
         self.direction
             .is_better(self.variable.get(new_state), self.variable.get(old_state))
+    }
+
+    fn fitness(self, state: &State) -> f32 {
+        let value = self.variable.get(state);
+
+        match self.direction {
+            Direction::Maximize => value,
+            Direction::Minimize => -value,
+        }
     }
 }
 
@@ -376,6 +396,254 @@ impl Editor {
                 self.mark_as_stale(valid_frames);
             }
         }
+    }
+
+    pub fn optimize_genetic<T: Trace + Clone>(
+        &mut self,
+        tracer: &T,
+        frames: usize,
+        goal: OptimizationGoal,
+        constraint: Option<Constraint>,
+    ) {
+        self.simulate_all(tracer);
+
+        let mut high = self.frames.len() - 1;
+        if frames > 0 {
+            high = high.min(frames);
+        }
+
+        let between = Uniform::from(0..high);
+        let mut rng = rand::thread_rng();
+
+        #[derive(Debug, Clone, Copy, PartialEq)]
+        struct SimpleFrame {
+            auto_actions: AutoActions,
+            action_keys: ActionKeys,
+        }
+
+        impl From<&FrameBulk> for SimpleFrame {
+            fn from(frame_bulk: &FrameBulk) -> Self {
+                SimpleFrame {
+                    auto_actions: frame_bulk.auto_actions,
+                    action_keys: frame_bulk.action_keys,
+                }
+            }
+        }
+
+        type ScriptGenotype = Vec<SimpleFrame>;
+
+        #[derive(Clone)]
+        struct FitnessCalc<'a, T: Trace + Clone> {
+            original_frame_bulks: Vec<FrameBulk>,
+            tracer: &'a Mutex<&'a T>,
+            parameters: Parameters,
+            initial_state: State,
+            goal: OptimizationGoal,
+            constraint: Option<Constraint>,
+        }
+
+        impl<'a, T: Trace + Clone> std::fmt::Debug for FitnessCalc<'a, T> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_struct("FitnessCalc")
+                    .field("original_frame_bulks", &self.original_frame_bulks)
+                    .field("parameters", &self.parameters)
+                    .field("initial_state", &self.initial_state)
+                    .field("goal", &self.goal)
+                    .field("constraint", &self.constraint)
+                    .finish()
+            }
+        }
+
+        unsafe impl<'a, T: Trace + Clone> Sync for FitnessCalc<'a, T> {}
+
+        impl<'a, T: Trace + Clone> FitnessFunction<ScriptGenotype, i64> for FitnessCalc<'a, T> {
+            fn fitness_of(&self, genotype: &ScriptGenotype) -> i64 {
+                let mut parameters = self.parameters;
+                let mut state = self.initial_state.clone();
+
+                let tracer = self.tracer.lock();
+
+                for (simple_frame, frame_bulk) in genotype.iter().zip(&self.original_frame_bulks) {
+                    let mut frame_bulk = frame_bulk.clone();
+
+                    frame_bulk.auto_actions = simple_frame.auto_actions;
+                    frame_bulk.action_keys = simple_frame.action_keys;
+
+                    parameters.frame_time =
+                        (frame_bulk.frame_time.parse::<f32>().unwrap_or(0.) * 1000.).trunc()
+                            / 1000.;
+
+                    state = state.simulate(*tracer, parameters, &frame_bulk).0;
+                }
+
+                if !self.constraint.map(|c| c.is_valid(&state)).unwrap_or(true) {
+                    return self.lowest_possible_fitness();
+                }
+
+                (self.goal.fitness(&state) as f64 * 100_000.) as i64 + 16_384_000_000
+            }
+
+            fn average(&self, values: &[i64]) -> i64 {
+                (values.iter().sum::<i64>() as f32 / values.len() as f32 + 0.5).floor() as i64
+            }
+
+            fn highest_possible_fitness(&self) -> i64 {
+                32_768_000_000
+            }
+
+            fn lowest_possible_fitness(&self) -> i64 {
+                0
+            }
+        }
+
+        #[derive(Debug, Clone)]
+        struct Mutator {
+            between: Uniform<usize>,
+        }
+
+        impl GeneticOperator for Mutator {
+            fn name() -> String {
+                "Script-Genotype-Mutation".to_owned()
+            }
+        }
+
+        impl MutationOp<ScriptGenotype> for Mutator {
+            fn mutate<R>(&self, mut genome: ScriptGenotype, rng: &mut R) -> ScriptGenotype
+            where
+                R: Rng + Sized,
+            {
+                for _ in 0..6 {
+                    let index = self.between.sample(rng);
+                    let frame = &mut genome[index];
+
+                    let mut frame_bulk = FrameBulk {
+                        auto_actions: frame.auto_actions,
+                        action_keys: frame.action_keys,
+                        ..FrameBulk::with_frame_time(String::new())
+                    };
+                    mutate_frame_bulk(rng, &mut frame_bulk);
+
+                    *frame = (&frame_bulk).into();
+                }
+
+                genome
+            }
+        }
+
+        for frame in 0..self.frames.len() {
+            self.hltas.split_at_frame(frame);
+        }
+
+        let frame_bulks: Vec<_> = self
+            .hltas
+            .lines
+            .iter()
+            .filter_map(|line| {
+                if let Line::FrameBulk(frame_bulk) = line {
+                    Some(frame_bulk)
+                } else {
+                    None
+                }
+            })
+            .cloned()
+            .collect();
+
+        let mut individuals = vec![frame_bulks.iter().map(Into::into).collect()];
+        for _ in 0..199 {
+            let mut frame_bulks = frame_bulks.clone();
+            for _ in 0..6 {
+                let frame = between.sample(&mut rng);
+                mutate_frame_bulk(&mut rng, &mut frame_bulks[frame]);
+            }
+            individuals.push(frame_bulks.into_iter().map(|f| (&f).into()).collect())
+        }
+
+        let fitness_function = FitnessCalc {
+            original_frame_bulks: frame_bulks,
+            tracer: &Mutex::new(tracer),
+            parameters: self.frames[0].parameters,
+            initial_state: self.frames[0].state.clone(),
+            goal,
+            constraint,
+        };
+
+        println!(
+            "Initial fitness: {}",
+            fitness_function.fitness_of(&individuals[0])
+        );
+
+        let initial_population: Population<ScriptGenotype> =
+            Population::with_individuals(individuals);
+
+        let mut sim = genevo::prelude::simulate(
+            genetic_algorithm()
+                .with_evaluation(fitness_function.clone())
+                // .with_selection(MaximizeSelector::new(0.7, 3))
+                .with_selection(RouletteWheelSelector::new(0.7, 3))
+                .with_crossover(SinglePointCrossBreeder::new())
+                .with_mutation(Mutator { between })
+                .with_reinsertion(ElitistReinserter::new(fitness_function, false, 0.7))
+                .with_initial_population(initial_population)
+                .build(),
+        )
+        .until(GenerationLimit::new(20))
+        .build();
+
+        loop {
+            match sim.step() {
+                Ok(SimResult::Intermediate(step)) => {
+                    let evaluated_population = step.result.evaluated_population;
+                    let best_solution = step.result.best_solution;
+                    println!(
+                        "Step: generation: {}, average_fitness: {}, \
+                     best fitness: {}, duration: {}, processing_time: {}",
+                        step.iteration,
+                        evaluated_population.average_fitness(),
+                        best_solution.solution.fitness,
+                        step.duration.fmt(),
+                        step.processing_time.fmt()
+                    );
+                }
+                Ok(SimResult::Final(step, processing_time, duration, stop_reason)) => {
+                    let best_solution = step.result.best_solution;
+                    println!("{}", stop_reason);
+                    println!(
+                        "Final result after {}: generation: {}, \
+                         best solution with fitness {} found in generation {}, processing_time: {}",
+                        duration.fmt(),
+                        step.iteration,
+                        best_solution.solution.fitness,
+                        best_solution.generation,
+                        processing_time.fmt()
+                    );
+
+                    for (frame_bulk, simple_frame) in self
+                        .hltas
+                        .lines
+                        .iter_mut()
+                        .filter_map(|line| {
+                            if let Line::FrameBulk(frame_bulk) = line {
+                                Some(frame_bulk)
+                            } else {
+                                None
+                            }
+                        })
+                        .zip(best_solution.solution.genome.into_iter())
+                    {
+                        frame_bulk.auto_actions = simple_frame.auto_actions;
+                        frame_bulk.action_keys = simple_frame.action_keys;
+                    }
+
+                    break;
+                }
+                Err(err) => {
+                    error!("{}", err);
+                    break;
+                }
+            }
+        }
+
+        self.mark_as_stale(0);
     }
 
     fn mutate_frame<R: Rng>(&mut self, rng: &mut R, frame: usize) {
