@@ -85,6 +85,10 @@ impl Vct {
             self.add_combinations(scaled_f, scaled_s);
         }
 
+        // Add 0 and PI / 4 angles omitted in the loop above.
+        self.add_combinations(0, 2047);
+        self.add_combinations(2047, 2047);
+
         self.entries.sort_unstable_by_key(|entry| entry.angle);
     }
 
