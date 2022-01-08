@@ -71,7 +71,7 @@ static CONSTRAINT: MainThreadCell<Option<Constraint>> = MainThreadCell::new(None
 
 static BXT_TAS_OPTIM_FRAMES: CVar = CVar::new(b"bxt_tas_optim_frames\0", b"0\0");
 static BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE: CVar =
-    CVar::new(b"bxt_tas_optim_random_frames_to_change\0", b"3\0");
+    CVar::new(b"bxt_tas_optim_random_frames_to_change\0", b"6\0");
 
 static BXT_TAS_OPTIM_SIMULATION_ACCURACY: CVar =
     CVar::new(b"bxt_tas_optim_simulation_accuracy\0", b"0\0");
