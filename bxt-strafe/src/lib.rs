@@ -1,3 +1,5 @@
+use std::f32::consts::{PI, TAU};
+
 use arrayvec::ArrayVec;
 use glam::Vec3;
 use hltas::types::*;
@@ -171,6 +173,21 @@ impl State {
         if !tr.start_solid && !tr.all_solid {
             self.player.pos = tr.end_pos;
         }
+    }
+}
+
+const U_RAD: f32 = PI / 32768.;
+const INV_U_RAD: f32 = 32768. / PI;
+
+fn normalize_rad(mut angle: f32) -> f32 {
+    angle %= TAU;
+
+    if angle >= PI {
+        angle - TAU
+    } else if angle < -PI {
+        angle + TAU
+    } else {
+        angle
     }
 }
 

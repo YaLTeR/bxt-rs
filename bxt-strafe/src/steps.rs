@@ -1,4 +1,4 @@
-use std::f32::consts::{FRAC_PI_2, PI, TAU};
+use std::f32::consts::{FRAC_PI_2, PI};
 
 use arrayvec::ArrayVec;
 use glam::{Vec2, Vec3, Vec3Swizzles};
@@ -314,21 +314,6 @@ fn max_angle_theta(parameters: Parameters, state: &State) -> f32 {
         (-accel_speed / speed).acos()
     }
 }
-
-fn normalize_rad(mut angle: f32) -> f32 {
-    angle %= TAU;
-
-    if angle >= PI {
-        angle - TAU
-    } else if angle < -PI {
-        angle + TAU
-    } else {
-        angle
-    }
-}
-
-const U_RAD: f32 = PI / 32768.;
-const INV_U_RAD: f32 = 32768. / PI;
 
 fn max_accel_into_yaw_theta(parameters: Parameters, state: &State, yaw: f32) -> f32 {
     let vel_yaw = state.player.vel.y.atan2(state.player.vel.x);
