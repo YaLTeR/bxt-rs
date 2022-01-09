@@ -365,6 +365,7 @@ impl<S: Step> Step for Strafe<S> {
                         }
                         _ => 0.,
                     },
+                    StrafeType::MaxDeccel => PI,
                     _ => 0.,
                 };
 
