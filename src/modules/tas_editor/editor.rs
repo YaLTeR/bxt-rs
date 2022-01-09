@@ -386,6 +386,121 @@ impl Editor {
 
         self.mark_as_stale(frame);
     }
+
+    pub fn minimize<T: Trace>(&mut self, tracer: &T) {
+        // Remove unused keys and actions.
+        let mut state = self.frames[0].state.clone();
+        let mut parameters = self.frames[0].parameters;
+        let mut preferred_leave_ground_action_type = LeaveGroundActionType::Jump;
+
+        for line in &mut self.hltas.lines {
+            if let Line::FrameBulk(frame_bulk) = line {
+                if let Some(action) = frame_bulk.auto_actions.leave_ground_action {
+                    preferred_leave_ground_action_type = action.type_;
+                }
+
+                parameters.frame_time =
+                    (frame_bulk.frame_time.parse::<f32>().unwrap_or(0.) * 1000.).trunc() / 1000.;
+
+                let simulate = |frame_bulk: &FrameBulk| {
+                    let mut state_new = state.clone();
+                    for _ in 0..frame_bulk.frame_count.get() {
+                        state_new = state_new.clone().simulate(tracer, parameters, frame_bulk).0;
+                    }
+                    state_new
+                };
+
+                let mut state_original = simulate(frame_bulk);
+
+                if frame_bulk.action_keys.use_ {
+                    frame_bulk.action_keys.use_ = false;
+                    let state_new = simulate(frame_bulk);
+                    if state_original.player() == state_new.player() {
+                        state_original = state_new;
+                    } else {
+                        frame_bulk.action_keys.use_ = true;
+                    }
+                }
+
+                if let Some(action) = frame_bulk.auto_actions.leave_ground_action {
+                    frame_bulk.auto_actions.leave_ground_action = Some(LeaveGroundAction {
+                        speed: LeaveGroundActionSpeed::Optimal,
+                        times: Times::UnlimitedWithinFrameBulk,
+                        type_: preferred_leave_ground_action_type,
+                    });
+                    let state_new = simulate(frame_bulk);
+                    if state_original.player() == state_new.player() {
+                        state_original = state_new;
+                    } else {
+                        frame_bulk.auto_actions.leave_ground_action = Some(action);
+                    }
+                }
+
+                state = state_original;
+            }
+
+            match line {
+                Line::FrameBulk(_) => (),
+                Line::Save(_) => (),
+                Line::SharedSeed(_) => (),
+                Line::Buttons(_) => (),
+                Line::LGAGSTMinSpeed(_) => (),
+                Line::Reset { non_shared_seed: _ } => (),
+                Line::Comment(_) => (),
+                Line::VectorialStrafing(_) => (),
+                Line::VectorialStrafingConstraints(_) => (),
+                Line::Change(_) => (),
+                Line::TargetYawOverride(_) => (),
+            }
+        }
+
+        // Join split frame bulks.
+        let mut i = 0;
+        let lines = &self.hltas.lines;
+        let mut new_lines = Vec::new();
+
+        while i < lines.len() {
+            match &lines[i] {
+                Line::FrameBulk(frame_bulk) => {
+                    let mut frame_bulk = frame_bulk.clone();
+
+                    let mut j = i;
+                    loop {
+                        j += 1;
+                        if j == lines.len() {
+                            break;
+                        }
+
+                        match &lines[j] {
+                            Line::FrameBulk(next_frame_bulk) => {
+                                let frame_count = frame_bulk.frame_count;
+                                frame_bulk.frame_count = next_frame_bulk.frame_count;
+                                if &frame_bulk == next_frame_bulk {
+                                    frame_bulk.frame_count = NonZeroU32::new(
+                                        frame_count.get() + next_frame_bulk.frame_count.get(),
+                                    )
+                                    .unwrap();
+                                } else {
+                                    frame_bulk.frame_count = frame_count;
+                                    break;
+                                }
+                            }
+                            _ => break,
+                        }
+                    }
+
+                    new_lines.push(Line::FrameBulk(frame_bulk));
+                    i = j;
+                }
+                line => {
+                    new_lines.push(line.clone());
+                    i += 1;
+                }
+            }
+        }
+
+        self.hltas.lines = new_lines;
+    }
 }
 
 fn mutate_frame_bulk<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {

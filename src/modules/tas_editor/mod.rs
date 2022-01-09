@@ -35,6 +35,7 @@ impl Module for TasEditor {
             &BXT_TAS_OPTIM_RUN,
             &BXT_TAS_OPTIM_STOP,
             &BXT_TAS_OPTIM_SAVE,
+            &BXT_TAS_OPTIM_MINIMIZE,
         ];
         COMMANDS
     }
@@ -318,6 +319,28 @@ fn optim_save(marker: MainThreadMarker) {
         con_print(
             marker,
             "There's nothing to save. Call _bxt_tas_optim_init first!\n",
+        );
+    }
+}
+
+static BXT_TAS_OPTIM_MINIMIZE: Command = Command::new(
+    b"bxt_tas_optim_minimize\0",
+    handler!(
+        "Usage: bxt_tas_optim_minimize\n \
+          Minimizes the optimized script.\n",
+        optim_minimize as fn(_)
+    ),
+);
+
+fn optim_minimize(marker: MainThreadMarker) {
+    if let Some(editor) = &mut *EDITOR.borrow_mut(marker) {
+        // TODO: this is unsafe outside of gameplay.
+        let tracer = unsafe { Tracer::new(marker, false) }.unwrap();
+        editor.minimize(&tracer);
+    } else {
+        con_print(
+            marker,
+            "There's nothing to minimize. Call _bxt_tas_optim_init first!\n",
         );
     }
 }
