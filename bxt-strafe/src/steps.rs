@@ -501,6 +501,67 @@ impl<S: Step> Step for Use<S> {
     }
 }
 
+pub struct DuckBeforeGround<S>(pub S);
+
+impl<S: Step> Step for DuckBeforeGround<S> {
+    fn simulate<T: Trace>(
+        &self,
+        tracer: &T,
+        parameters: Parameters,
+        frame_bulk: &FrameBulk,
+        state: State,
+        mut input: Input,
+    ) -> (State, Input) {
+        let do_nothing = self
+            .0
+            .simulate(tracer, parameters, frame_bulk, state.clone(), input);
+
+        if let Some(hltas::types::DuckBeforeGround {
+            times: Times::UnlimitedWithinFrameBulk,
+        }) = frame_bulk.auto_actions.duck_before_ground
+        {
+            if input.duck {
+                // Duck is already pressed.
+                return do_nothing;
+            }
+
+            if do_nothing.0.player.ducking {
+                // We will duck anyway.
+                return do_nothing;
+            }
+
+            if state.place == Place::Ground {
+                // Already on ground.
+                return do_nothing;
+            }
+
+            input.duck = true;
+            let do_action = self
+                .0
+                .simulate(tracer, parameters, frame_bulk, state, input);
+
+            if !do_action.0.player.ducking {
+                // We couldn't duck instantly.
+                return do_nothing;
+            }
+
+            if do_nothing.0.place == Place::Ground {
+                // We ended up on ground after doing nothing, so duck.
+                return do_action;
+            }
+
+            for tr_nothing in &do_nothing.0.move_traces {
+                if tr_nothing.plane_normal.z >= 0.7 {
+                    // We hit a ground plane along the doing nothing movement, so duck.
+                    return do_action;
+                }
+            }
+        }
+
+        do_nothing
+    }
+}
+
 pub struct DuckBeforeCollision<S>(pub S);
 
 impl<S: Step> Step for DuckBeforeCollision<S> {

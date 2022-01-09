@@ -149,9 +149,9 @@ impl State {
         parameters: Parameters,
         frame_bulk: &FrameBulk,
     ) -> (Self, Input) {
-        let chain = ResetFields(JumpBug(LeaveGround(DuckBeforeCollision(Duck(Use(Jump(
-            Friction(Strafe(Move)),
-        )))))));
+        let chain = ResetFields(JumpBug(LeaveGround(DuckBeforeCollision(DuckBeforeGround(
+            Duck(Use(Jump(Friction(Strafe(Move))))),
+        )))));
         chain.simulate(tracer, parameters, frame_bulk, self, Input::default())
     }
 
