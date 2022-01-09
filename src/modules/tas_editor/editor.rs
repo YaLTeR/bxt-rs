@@ -514,13 +514,19 @@ impl Editor {
 }
 
 fn mutate_frame_bulk<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
+    let p = rng.gen::<f32>();
+    let strafe_type = if p < 0.01 {
+        StrafeType::MaxDeccel
+    } else if p < 0.1 {
+        StrafeType::MaxAngle
+    } else {
+        StrafeType::MaxAccel
+    };
     frame_bulk.auto_actions.movement = Some(AutoMovement::Strafe(StrafeSettings {
-        type_: if rng.gen::<f32>() < 0.1 {
-            StrafeType::MaxAngle
-        } else {
-            StrafeType::MaxAccel
-        },
-        dir: if rng.gen::<bool>() {
+        type_: strafe_type,
+        dir: if strafe_type == StrafeType::MaxDeccel {
+            StrafeDir::Best
+        } else if rng.gen::<bool>() {
             StrafeDir::Left
         } else {
             StrafeDir::Right
