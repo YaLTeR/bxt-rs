@@ -19,6 +19,10 @@ impl Module for TriangleDrawing {
 }
 
 pub unsafe fn on_draw_transparent_triangles(marker: MainThreadMarker) {
+    if !TriangleDrawing.is_enabled(marker) {
+        return;
+    }
+
     let tri = TriangleApi::new(&*engine::tri.get(marker));
 
     // TODO: set white texture.
