@@ -611,7 +611,7 @@ pub static Sys_VID_FlipScreen_old: Pointer<unsafe extern "system" fn(*mut c_void
         my_Sys_VID_FlipScreen_old as _,
     );
 pub static tri: Pointer<*const triangleapi_s> = Pointer::empty(b"tri\0");
-pub static V_ApplyShake: Pointer<unsafe extern "C" fn(*mut c_float, *mut c_float, c_float)> =
+pub static V_ApplyShake: Pointer<unsafe extern "C" fn(*mut [f32; 3], *mut [f32; 3], c_float)> =
     Pointer::empty_patterns(
         b"V_ApplyShake\0",
         // To find, search for "ScreenShake". This is ClientDLL_Init(), near the bottom there are
@@ -1503,8 +1503,8 @@ pub mod exported {
 
     #[export_name = "V_ApplyShake"]
     pub unsafe extern "C" fn my_V_ApplyShake(
-        origin: *mut c_float,
-        angles: *mut c_float,
+        origin: *mut [f32; 3],
+        angles: *mut [f32; 3],
         factor: c_float,
     ) {
         abort_on_panic(move || {
