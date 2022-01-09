@@ -110,7 +110,10 @@ pub static ClientDLL_DrawTransparentTriangles: Pointer<unsafe extern "C" fn()> =
         b"ClientDLL_DrawTransparentTriangles\0",
         // To find, search for "HUD_DrawTransparentTriangles". This sets the HUD_DrawTransparentTriangles pointer in
         // cl_funcs; the larger function calling the pointer is ClientDLL_DrawTransparentTriangles().
-        Patterns(&[]),
+        Patterns(&[
+            // 8684
+            pattern!(A1 ?? ?? ?? ?? 85 C0 74 ?? FF D0 6A 00 FF 15 ?? ?? ?? ?? 59 C3 90 90 90 90 90 90 90 90 90 90 90 A1 ?? ?? ?? ?? 85 C0 74 ?? FF E0),
+        ]),
         my_ClientDLL_DrawTransparentTriangles as _,
     );
 pub static ClientDLL_HudRedraw: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
@@ -562,6 +565,16 @@ pub static SV_AddLinksToPM: Pointer<unsafe extern "C" fn(*mut c_void, *const [f3
 pub static SV_AddLinksToPM_: Pointer<
     unsafe extern "C" fn(*mut c_void, *mut [f32; 3], *mut [f32; 3]),
 > = Pointer::empty(b"SV_AddLinksToPM_\0");
+pub static SV_ExecuteClientMessage: Pointer<unsafe extern "C" fn(*mut c_void)> =
+    Pointer::empty_patterns(
+        b"SV_ExecuteClientMessage\0",
+        // To find, search for "SV_ReadClientMessage: badread".
+        Patterns(&[
+            // 8684
+            pattern!(55 8B EC 8B 0D ?? ?? ?? ?? 56 8B 75 ?? C7 05 ?? ?? ?? ?? 00 00 00 00),
+        ]),
+        null_mut(),
+    );
 pub static SV_Frame: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"SV_Frame\0",
     // To find, search for "%s timed out". It is used in SV_CheckTimeouts(), which is called by
@@ -737,6 +750,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &sv_areanodes,
     &SV_AddLinksToPM,
     &SV_AddLinksToPM_,
+    &SV_ExecuteClientMessage,
     &SV_Frame,
     &Sys_VID_FlipScreen,
     &Sys_VID_FlipScreen_old,
@@ -1077,7 +1091,7 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
     match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            // svs.set(marker, ptr.by_offset(marker, 26));
+            svs.set(marker, ptr.by_offset(marker, 26));
             LoadEntityDLLs.set_if_empty(marker, ptr.by_relative_call(marker, 69));
             gEntityInterface.set(marker, ptr.by_offset(marker, 75));
         }
@@ -1225,7 +1239,7 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
     match ptr.pattern_index(marker) {
         // 6153
         Some(0) => {
-            // svs.set(marker, ptr.by_offset(marker, 23));
+            svs.set(marker, ptr.by_offset(marker, 23));
         }
         _ => (),
     }
@@ -1262,6 +1276,20 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         _ => (),
     }
 
+    let ptr = &SV_ExecuteClientMessage;
+    match ptr.pattern_index(marker) {
+        // 8684
+        Some(0) => {
+            client_s_edict_offset.set(
+                marker,
+                ptr.by_offset(marker, 144).map(|ptr| ptr.as_ptr() as usize),
+            );
+            pmove.set(marker, ptr.by_offset(marker, 171));
+            g_svmove.set(marker, ptr.by_offset(marker, 175));
+        }
+        _ => (),
+    }
+
     let ptr = &SV_Frame;
     match ptr.pattern_index(marker) {
         // 6153
@@ -1272,9 +1300,27 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         _ => (),
     }
 
+    let ptr = &ClientDLL_DrawTransparentTriangles;
+    match ptr.pattern_index(marker) {
+        // 8684
+        Some(0) => {
+            tri.set(
+                marker,
+                ptr.by_offset(marker, 15)
+                    .and_then(|ptr| NonNull::new(ptr.as_ptr().sub(4))),
+            );
+        }
+        _ => (),
+    }
+
     for pointer in POINTERS {
         pointer.log(marker);
     }
+
+    debug!(
+        "{:?}: client_s_edict_offset",
+        client_s_edict_offset.get(marker)
+    );
 
     // Hook only Memory_Init() and the rest later, for BXT compatibility.
     maybe_hook(marker, &Memory_Init);
