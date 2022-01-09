@@ -247,7 +247,7 @@ impl Editor {
 
     pub fn draw(&self, tri: &TriangleApi) {
         tri.render_mode(RenderMode::TransColor);
-        tri.color(1., 1., 1., 1.);
+        tri.color(0., 1., 1., 1.);
 
         tri.begin(Primitive::Lines);
 
