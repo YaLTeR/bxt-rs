@@ -436,6 +436,16 @@ impl Editor {
                     }
                 }
 
+                if let Some(action) = frame_bulk.auto_actions.duck_before_ground {
+                    frame_bulk.auto_actions.duck_before_ground = None;
+                    let state_new = simulate(frame_bulk);
+                    if state_original.player() == state_new.player() {
+                        state_original = state_new;
+                    } else {
+                        frame_bulk.auto_actions.duck_before_ground = Some(action);
+                    }
+                }
+
                 state = state_original;
             }
 
@@ -519,6 +529,17 @@ fn mutate_frame_bulk<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
 
     if rng.gen::<f32>() < 0.05 {
         frame_bulk.action_keys.use_ = !frame_bulk.action_keys.use_;
+    }
+
+    if rng.gen::<f32>() < 0.05 {
+        frame_bulk.auto_actions.duck_before_ground =
+            if frame_bulk.auto_actions.duck_before_ground.is_some() {
+                None
+            } else {
+                Some(DuckBeforeGround {
+                    times: Times::UnlimitedWithinFrameBulk,
+                })
+            };
     }
 
     if rng.gen::<f32>() < 0.1 {
