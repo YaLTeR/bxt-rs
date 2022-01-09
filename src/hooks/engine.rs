@@ -668,6 +668,8 @@ pub static Z_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty_p
     null_mut(),
 );
 
+pub static client_s_edict_offset: MainThreadCell<Option<usize>> = MainThreadCell::new(None);
+
 static POINTERS: &[&dyn PointerTrait] = &[
     &build_number,
     &Cbuf_AddFilteredText,
@@ -815,15 +817,8 @@ pub struct client_static_s_demos {
 #[repr(C)]
 pub struct server_static_s {
     pub dll_initialized: c_int,
-    pub clients: *mut client_s,
+    pub clients: *mut c_void,
     pub num_clients: c_int,
-}
-
-#[repr(C)]
-pub struct client_s {
-    // TODO: replace static padding with dynamic offset.
-    _padding: [u8; 19076],
-    edict: *mut edict_s,
 }
 
 #[allow(clippy::upper_case_acronyms)]
@@ -966,11 +961,12 @@ pub unsafe fn get_resolution(marker: MainThreadMarker) -> (i32, i32) {
 
 pub unsafe fn player_edict(marker: MainThreadMarker) -> Option<NonNull<edict_s>> {
     // SAFETY: we're not calling any engine functions while the reference is alive.
+    let offset = client_s_edict_offset.get(marker)?;
     let svs_ = &*svs.get_opt(marker)?;
     if svs_.num_clients == 0 || svs_.clients.is_null() {
         None
     } else {
-        NonNull::new((*svs_.clients).edict)
+        NonNull::new(*svs_.clients.add(offset).cast())
     }
 }
 
@@ -1012,6 +1008,7 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
     idum.set(marker, ran1.by_offset(marker, 2));
     ran1_iy.set(marker, ran1.by_offset(marker, 13));
     ran1_iv.set(marker, ran1.by_offset(marker, 116));
+    client_s_edict_offset.set(marker, Some(19076));
 
     for pointer in POINTERS {
         pointer.log(marker);
