@@ -317,7 +317,7 @@ fn optim_save(marker: MainThreadMarker) {
     } else {
         con_print(
             marker,
-            "There's nothing to optimize. Call _bxt_tas_optim_init first!\n",
+            "There's nothing to save. Call _bxt_tas_optim_init first!\n",
         );
     }
 }
