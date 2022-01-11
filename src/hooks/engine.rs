@@ -564,7 +564,19 @@ pub static SV_AddLinksToPM: Pointer<unsafe extern "C" fn(*mut c_void, *const [f3
     Pointer::empty(b"SV_AddLinksToPM\0");
 pub static SV_AddLinksToPM_: Pointer<
     unsafe extern "C" fn(*mut c_void, *mut [f32; 3], *mut [f32; 3]),
-> = Pointer::empty(b"SV_AddLinksToPM_\0");
+> = Pointer::empty_patterns(
+    b"SV_AddLinksToPM_\0",
+    // To find, search for "SV_AddLinksToPM:  pmove->nummoveent >= MAX_MOVEENTS\n"
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 83 EC 14 8B 4D ?? 53 8B 5D),
+        // 4554
+        pattern!(83 EC 10 53 55 56 57 8B 5C 24),
+        // 3248
+        pattern!(83 EC 10 53 8B 5C 24 ?? 55 56 57),
+    ]),
+    my_SV_AddLinksToPM_ as _,
+);
 pub static SV_ExecuteClientMessage: Pointer<unsafe extern "C" fn(*mut c_void)> =
     Pointer::empty_patterns(
         b"SV_ExecuteClientMessage\0",
@@ -585,6 +597,20 @@ pub static SV_Frame: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     ]),
     my_SV_Frame as _,
 );
+pub static SV_RunCmd: Pointer<unsafe extern "C" fn(*mut usercmd_s, c_int)> =
+    Pointer::empty_patterns(
+        b"SV_RunCmd\0",
+        // To find, find SV_AddLinksToPM_(), go to the referenced caller function,
+        // this is SV_AddLinksToPM(), go to the referenced function once again,
+        // this is SV_RunCmd().
+        Patterns(&[
+            // 8684
+            pattern!(55 8B EC 81 EC ?? ?? ?? ?? 56 57 8B 75 08 B9 0D 00 00 00 8D 7D 84 F3 A5 A1 ?? ?? ?? ?? DD 80 ?? ?? ?? ?? DC 1D ?? ?? ?? ?? DF E0 25 00 41 00 00),
+            // 4554
+            pattern!(55 8B EC 81 EC ?? ?? ?? ?? 56 57 8B 75 08 B9 0D 00 00 00 8D 7D 84 F3 A5 A1 ?? ?? ?? ?? DD 80 ?? ?? ?? ?? DC 1D ?? ?? ?? ?? DF E0 F6 C4 41),
+        ]),
+        null_mut(),
+    );
 pub static Sys_VID_FlipScreen: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"_Z18Sys_VID_FlipScreenv\0",
     // To find, search for "Sys_InitLauncherInterface()". Go into function right after the one that
@@ -752,6 +778,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &SV_AddLinksToPM_,
     &SV_ExecuteClientMessage,
     &SV_Frame,
+    &SV_RunCmd,
     &Sys_VID_FlipScreen,
     &Sys_VID_FlipScreen_old,
     &tri,
@@ -1296,6 +1323,21 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(0) => {
             sv.set(marker, ptr.by_offset(marker, 1));
             host_frametime.set(marker, ptr.by_offset(marker, 11));
+        }
+        _ => (),
+    }
+
+    let ptr = &SV_RunCmd;
+    match ptr.pattern_index(marker) {
+        // 8684
+        Some(0) => {
+            sv_areanodes.set(marker, ptr.by_offset(marker, 2488));
+            SV_AddLinksToPM.set(marker, ptr.by_relative_call(marker, 2493));
+        }
+        // 4554
+        Some(1) => {
+            sv_areanodes.set(marker, ptr.by_offset(marker, 2484));
+            SV_AddLinksToPM.set(marker, ptr.by_relative_call(marker, 2489));
         }
         _ => (),
     }
