@@ -27,7 +27,7 @@ thiserror = "1.0.26"
 byte-slice-cast = "1.0.0"
 crossbeam-channel = "0.5.1"
 git-version = "0.3.5"
-hltas = "0.5.0"
+hltas = { git = "https://github.com/HLTAS/hltas.git" }
 glam = "0.20.2"
 rand = "0.8.4"
 

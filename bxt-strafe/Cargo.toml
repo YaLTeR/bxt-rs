@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 arrayvec = "0.7.2"
 glam = "0.20.2"
-hltas = "0.5.0"
+hltas = { git = "https://github.com/HLTAS/hltas.git" }
 ordered-float = "2.10.0"
 parking_lot = "0.11.2"
 tap = "1.0.1"
