@@ -32,7 +32,7 @@ pub fn fov(marker: MainThreadMarker) -> Option<f32> {
     }
 
     let fov = BXT_FORCE_FOV.as_f32(marker);
-    if fov == 0. {
+    if fov < 1. {
         return None;
     }
 
