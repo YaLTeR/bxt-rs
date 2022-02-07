@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::io::Write;
 use std::num::NonZeroU32;
+use std::rc::Rc;
 use std::result::Result;
 use std::str::FromStr;
 
@@ -8,6 +9,7 @@ use bxt_strafe::{Parameters, State, Trace};
 use glam::Vec3Swizzles;
 use hltas::types::*;
 use hltas::HLTAS;
+use mlua::{Lua, LuaSerdeExt};
 use rand::distributions::Uniform;
 use rand::prelude::Distribution;
 use rand::Rng;
@@ -105,22 +107,87 @@ impl FromStr for Direction {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OptimizationGoal {
-    pub variable: Variable,
-    pub direction: Direction,
+#[derive(Debug)]
+pub enum OptimizationGoal {
+    Console {
+        variable: Variable,
+        direction: Direction,
+    },
+    Lua(Rc<Lua>),
 }
 
 impl OptimizationGoal {
     fn is_better(&self, new_frames: &[Frame], old_frames: &[Frame]) -> bool {
-        self.direction.is_better(
-            self.variable.get(&new_frames.last().unwrap().state),
-            self.variable.get(&old_frames.last().unwrap().state),
-        )
+        match self {
+            OptimizationGoal::Console {
+                variable,
+                direction,
+            } => direction.is_better(
+                variable.get(&new_frames.last().unwrap().state),
+                variable.get(&old_frames.last().unwrap().state),
+            ),
+            OptimizationGoal::Lua(lua) => {
+                let is_better: mlua::Function = lua.globals().get("is_better").unwrap();
+                let args = if lua.globals().get("should_pass_all_frames").unwrap() {
+                    (
+                        lua.to_value(
+                            &new_frames
+                                .iter()
+                                .map(|f| f.state.player())
+                                .collect::<Vec<_>>(),
+                        )
+                        .unwrap(),
+                        lua.to_value(
+                            &old_frames
+                                .iter()
+                                .map(|f| f.state.player())
+                                .collect::<Vec<_>>(),
+                        )
+                        .unwrap(),
+                    )
+                } else {
+                    (
+                        lua.to_value(&new_frames.last().unwrap().state.player())
+                            .unwrap(),
+                        lua.to_value(&old_frames.last().unwrap().state.player())
+                            .unwrap(),
+                    )
+                };
+
+                match is_better.call(args) {
+                    Ok(x) => x,
+                    Err(err) => {
+                        eprintln!("Call to is_better () failed: {err}");
+                        false
+                    }
+                }
+            }
+        }
     }
 
     fn to_string(&self, frames: &[Frame]) -> String {
-        self.variable.get(&frames.last().unwrap().state).to_string()
+        match self {
+            OptimizationGoal::Console { variable, .. } => {
+                variable.get(&frames.last().unwrap().state).to_string()
+            }
+            OptimizationGoal::Lua(lua) => {
+                let to_string: mlua::Function = lua.globals().get("to_string").unwrap();
+                let args = if lua.globals().get("should_pass_all_frames").unwrap() {
+                    lua.to_value(&frames.iter().map(|f| f.state.player()).collect::<Vec<_>>())
+                        .unwrap()
+                } else {
+                    lua.to_value(&frames.last().unwrap().state.player())
+                        .unwrap()
+                };
+                match to_string.call(args) {
+                    Ok(x) => x,
+                    Err(err) => {
+                        eprintln!("Call to to_string () failed: {err}");
+                        "<error>".to_owned()
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -151,19 +218,42 @@ impl ConstraintType {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Constraint {
-    pub variable: Variable,
-    pub type_: ConstraintType,
-    pub constraint: f32,
+#[derive(Debug)]
+pub enum Constraint {
+    Console {
+        variable: Variable,
+        type_: ConstraintType,
+        constraint: f32,
+    },
+    Lua(Rc<Lua>),
 }
 
 impl Constraint {
     fn is_valid(&self, frames: &[Frame]) -> bool {
-        self.type_.is_valid(
-            self.variable.get(&frames.last().unwrap().state),
-            self.constraint,
-        )
+        match self {
+            &Constraint::Console {
+                variable,
+                type_,
+                constraint,
+            } => type_.is_valid(variable.get(&frames.last().unwrap().state), constraint),
+            Constraint::Lua(lua) => {
+                let is_valid: mlua::Function = lua.globals().get("is_valid").unwrap();
+                let args = if lua.globals().get("should_pass_all_frames").unwrap() {
+                    lua.to_value(&frames.iter().map(|f| f.state.player()).collect::<Vec<_>>())
+                        .unwrap()
+                } else {
+                    lua.to_value(&frames.last().unwrap().state.player())
+                        .unwrap()
+                };
+                match is_valid.call(args) {
+                    Ok(x) => x,
+                    Err(err) => {
+                        eprintln!("Call to is_valid () failed: {err}");
+                        false
+                    }
+                }
+            }
+        }
     }
 }
 

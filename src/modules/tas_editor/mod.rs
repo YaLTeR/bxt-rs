@@ -2,10 +2,12 @@
 
 use std::fs::{self, File};
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use bxt_strafe::{Parameters, Player, State};
 use glam::Vec3;
 use hltas::HLTAS;
+use mlua::Lua;
 
 use self::editor::{Constraint, ConstraintType, Direction, Frame, OptimizationGoal, Variable};
 use super::cvars::CVar;
@@ -50,6 +52,7 @@ impl Module for TasEditor {
             &BXT_TAS_OPTIM_CONSTRAINT_VARIABLE,
             &BXT_TAS_OPTIM_DIRECTION,
             &BXT_TAS_OPTIM_VARIABLE,
+            &BXT_TAS_OPTIM_LUA_FILE,
         ];
         CVARS
     }
@@ -64,10 +67,11 @@ impl Module for TasEditor {
 
 static EDITOR: MainThreadRefCell<Option<Editor>> = MainThreadRefCell::new(None);
 static OPTIMIZE: MainThreadCell<bool> = MainThreadCell::new(false);
-static GOAL: MainThreadRefCell<OptimizationGoal> = MainThreadRefCell::new(OptimizationGoal {
-    variable: Variable::PosX,
-    direction: Direction::Maximize,
-});
+static GOAL: MainThreadRefCell<OptimizationGoal> =
+    MainThreadRefCell::new(OptimizationGoal::Console {
+        variable: Variable::PosX,
+        direction: Direction::Maximize,
+    });
 static CONSTRAINT: MainThreadRefCell<Option<Constraint>> = MainThreadRefCell::new(None);
 
 static BXT_TAS_OPTIM_FRAMES: CVar = CVar::new(b"bxt_tas_optim_frames\0", b"0\0");
@@ -84,6 +88,7 @@ static BXT_TAS_OPTIM_CONSTRAINT_VARIABLE: CVar =
 static BXT_TAS_OPTIM_CONSTRAINT_TYPE: CVar = CVar::new(b"bxt_tas_optim_constraint_type\0", b">\0");
 static BXT_TAS_OPTIM_CONSTRAINT_VALUE: CVar =
     CVar::new(b"bxt_tas_optim_constraint_value\0", b"0\0");
+static BXT_TAS_OPTIM_LUA_FILE: CVar = CVar::new(b"bxt_tas_optim_lua_file\0", b"\0");
 
 static BXT_TAS_OPTIM_INIT: Command = Command::new(
     b"_bxt_tas_optim_init\0",
@@ -200,89 +205,138 @@ fn optim_run(marker: MainThreadMarker) {
         return;
     }
 
-    let variable = match BXT_TAS_OPTIM_VARIABLE.to_string(marker).parse::<Variable>() {
-        Ok(x) => x,
-        Err(_) => {
-            con_print(
-                marker,
-                "Could not parse bxt_tas_optim_variable. \
-                Valid values are pos.x, pos.y, pos.z, vel.x, vel.y, vel.z and speed.\n",
-            );
-            return;
+    let mut set_with_lua = false;
+    let lua_path = BXT_TAS_OPTIM_LUA_FILE.to_os_string(marker);
+    if !lua_path.is_empty() {
+        match fs::read_to_string(BXT_TAS_OPTIM_LUA_FILE.to_os_string(marker)) {
+            Ok(code) => {
+                let lua = Lua::new();
+                match lua.load(&code).exec() {
+                    Ok(()) => {
+                        if lua.globals().get::<_, mlua::Function>("is_better").is_ok() {
+                            if lua.globals().get::<_, mlua::Function>("to_string").is_ok() {
+                                if lua.globals().get::<_, mlua::Function>("is_valid").is_ok() {
+                                    let lua = Rc::new(lua);
+                                    *GOAL.borrow_mut(marker) = OptimizationGoal::Lua(lua.clone());
+                                    *CONSTRAINT.borrow_mut(marker) = Some(Constraint::Lua(lua));
+                                    set_with_lua = true;
+                                } else {
+                                    con_print(marker, "Lua code missing is_valid () function.\n");
+                                    return;
+                                }
+                            } else {
+                                con_print(marker, "Lua code missing to_string () function.\n");
+                                return;
+                            }
+                        } else {
+                            con_print(marker, "Lua code missing is_better () function.\n");
+                            return;
+                        }
+                    }
+                    Err(err) => {
+                        con_print(marker, &format!("Error evaluating Lua code: {err}\n"));
+                        return;
+                    }
+                }
+            }
+            Err(err) => {
+                con_print(
+                    marker,
+                    &format!(
+                        "Could not read Lua file `{}`: {err}\n",
+                        lua_path.to_string_lossy()
+                    ),
+                );
+                return;
+            }
         }
-    };
+    }
 
-    let direction = match BXT_TAS_OPTIM_DIRECTION
-        .to_string(marker)
-        .parse::<Direction>()
-    {
-        Ok(x) => x,
-        Err(_) => {
-            con_print(
-                marker,
-                "Could not parse bxt_tas_optim_direction. \
-                Valid values are maximize and minimize.\n",
-            );
-            return;
-        }
-    };
-
-    *GOAL.borrow_mut(marker) = OptimizationGoal::Console {
-        variable,
-        direction,
-    };
-
-    let constraint_variable = BXT_TAS_OPTIM_CONSTRAINT_VARIABLE.to_string(marker);
-    if !constraint_variable.is_empty() {
-        let variable = if let Ok(x) = BXT_TAS_OPTIM_CONSTRAINT_VARIABLE
-            .to_string(marker)
-            .parse::<Variable>()
-        {
-            x
-        } else {
-            con_print(
-                marker,
-                "Could not parse bxt_tas_optim_constraint_variable. \
-                Valid values are \"\" (to disable), pos.x, pos.y, pos.z, vel.x, vel.y, vel.z \
-                and speed.\n",
-            );
-            return;
+    if !set_with_lua {
+        let variable = match BXT_TAS_OPTIM_VARIABLE.to_string(marker).parse::<Variable>() {
+            Ok(x) => x,
+            Err(_) => {
+                con_print(
+                    marker,
+                    "Could not parse bxt_tas_optim_variable. \
+                    Valid values are pos.x, pos.y, pos.z, vel.x, vel.y, vel.z and speed.\n",
+                );
+                return;
+            }
         };
 
-        let type_ = if let Ok(x) = BXT_TAS_OPTIM_CONSTRAINT_TYPE
+        let direction = match BXT_TAS_OPTIM_DIRECTION
             .to_string(marker)
-            .parse::<ConstraintType>()
+            .parse::<Direction>()
         {
-            x
-        } else {
-            con_print(
-                marker,
-                "Could not parse bxt_tas_optim_constraint_type. \
-                Valid values are > and <.\n",
-            );
-            return;
+            Ok(x) => x,
+            Err(_) => {
+                con_print(
+                    marker,
+                    "Could not parse bxt_tas_optim_direction. \
+                    Valid values are maximize and minimize.\n",
+                );
+                return;
+            }
         };
 
-        let constraint = if let Ok(x) = BXT_TAS_OPTIM_CONSTRAINT_VALUE
-            .to_string(marker)
-            .parse::<f32>()
-        {
-            x
-        } else {
-            con_print(
-                marker,
-                "Could not parse bxt_tas_optim_constraint_value as a number.\n",
-            );
-            return;
-        };
-
-        *CONSTRAINT.borrow_mut(marker) = Some(Constraint::Console {
+        *GOAL.borrow_mut(marker) = OptimizationGoal::Console {
             variable,
-            type_,
-            constraint,
-        });
-    } else {
-        *CONSTRAINT.borrow_mut(marker) = None;
+            direction,
+        };
+
+        let constraint_variable = BXT_TAS_OPTIM_CONSTRAINT_VARIABLE.to_string(marker);
+        if !constraint_variable.is_empty() {
+            let variable = if let Ok(x) = BXT_TAS_OPTIM_CONSTRAINT_VARIABLE
+                .to_string(marker)
+                .parse::<Variable>()
+            {
+                x
+            } else {
+                con_print(
+                    marker,
+                    "Could not parse bxt_tas_optim_constraint_variable. \
+                    Valid values are \"\" (to disable), pos.x, pos.y, pos.z, vel.x, vel.y, vel.z \
+                    and speed.\n",
+                );
+                return;
+            };
+
+            let type_ = if let Ok(x) = BXT_TAS_OPTIM_CONSTRAINT_TYPE
+                .to_string(marker)
+                .parse::<ConstraintType>()
+            {
+                x
+            } else {
+                con_print(
+                    marker,
+                    "Could not parse bxt_tas_optim_constraint_type. \
+                    Valid values are > and <.\n",
+                );
+                return;
+            };
+
+            let constraint = if let Ok(x) = BXT_TAS_OPTIM_CONSTRAINT_VALUE
+                .to_string(marker)
+                .parse::<f32>()
+            {
+                x
+            } else {
+                con_print(
+                    marker,
+                    "Could not parse bxt_tas_optim_constraint_value as a number.\n",
+                );
+                return;
+            };
+
+            *CONSTRAINT.borrow_mut(marker) = Some(Constraint::Console {
+                variable,
+                type_,
+                constraint,
+            });
+        } else {
+            *CONSTRAINT.borrow_mut(marker) = None;
+        }
     }
 
     OPTIMIZE.set(marker, true);
