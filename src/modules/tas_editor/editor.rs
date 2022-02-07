@@ -386,6 +386,16 @@ impl Editor {
     }
 
     fn mutate_frame<R: Rng>(&mut self, rng: &mut R, frame: usize) {
+        if frame > 0 {
+            let l = self.hltas.line_and_repeat_at_frame(frame).unwrap().0;
+            let frame_bulk = self.hltas.split_at_frame(frame).unwrap();
+            if l == 0 {
+                // If we split the first frame bulk, empty out the console command (which contains
+                // optim init and TAS editor commands).
+                frame_bulk.console_command = None;
+            }
+        }
+
         // Split it into its own frame bulk.
         let frame_bulk = self.hltas.split_single_at_frame(frame).unwrap();
 
