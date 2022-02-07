@@ -34,6 +34,12 @@ jobs:
             features: profiling
             os: windows-2019
 
+          # rust-hawktracer fails to build with explicit -m32 on the CI.
+          - features: profiling
+            os: ubuntu-20.04
+          - features: 'vulkan-debug,profiling'
+            os: ubuntu-20.04
+
           - rust: beta
             features: vulkan-debug
           - rust: beta
