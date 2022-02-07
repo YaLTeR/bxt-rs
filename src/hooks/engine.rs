@@ -492,19 +492,6 @@ pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
     ]),
     my_R_SetFrustum as _,
 );
-pub static RandomLong: Pointer<unsafe extern "C" fn(c_int, c_int) -> c_int> =
-    Pointer::empty_patterns(
-        b"RandomLong\0",
-        // Find S_StartDynamicSound(). The last function call, which has (0, variable) arguments, is
-        // RandomLong().
-        Patterns(&[
-            // 6153
-            pattern!(55 8B EC 53 8D 45),
-            // 4554
-            pattern!(8D 44 24 ?? 57 8D 4C 24 ?? 50 51 FF 15 ?? ?? ?? ?? 8B 7C 24),
-        ]),
-        my_RandomLong as _,
-    );
 pub static ReleaseEntityDlls: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"ReleaseEntityDlls\0",
     // Find Host_Shutdown(). It has a Mem_Free() if. The 3-rd function above that if is
@@ -526,19 +513,6 @@ pub static S_PaintChannels: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empt
         pattern!(A1 ?? ?? ?? ?? 55 8B 6C 24),
     ]),
     my_S_PaintChannels as _,
-);
-pub static S_StartDynamicSound: Pointer<
-    unsafe extern "C" fn(c_int, c_int, *mut c_void, *mut c_void, f32, f32, c_int, c_int),
-> = Pointer::empty_patterns(
-    b"S_StartDynamicSound\0",
-    // To find, search for "S_StartDynamicSound".
-    Patterns(&[
-        // 6153
-        pattern!(55 8B EC 83 EC 48 A1 ?? ?? ?? ?? 53),
-        // 4554
-        pattern!(83 EC 48 A1 ?? ?? ?? ?? 53 55 56 85 C0 57),
-    ]),
-    my_S_StartDynamicSound as _,
 );
 pub static S_TransferStereo16: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
     b"S_TransferStereo16\0",
@@ -761,13 +735,11 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &ran1_iv,
     &realtime,
     &R_SetFrustum,
-    &RandomLong,
     &ReleaseEntityDlls,
     &R_Clear,
     &R_DrawSequentialPoly,
     &R_DrawSkyBox,
     &S_PaintChannels,
-    &S_StartDynamicSound,
     &S_TransferStereo16,
     &scr_fov_value,
     &shm,
@@ -1858,50 +1830,6 @@ pub mod exported {
             let text = comment_overflow_fix::strip_prefix_comments(text);
 
             Cbuf_AddTextToBuffer.get(marker)(text, buffer);
-        })
-    }
-
-    #[export_name = "RandomLong"]
-    pub unsafe extern "C" fn my_RandomLong(low: c_int, high: c_int) -> c_int {
-        abort_on_panic(move || {
-            let marker = MainThreadMarker::new();
-
-            if tas_rng_fix::should_skip_random_long(marker) {
-                return low;
-            }
-
-            RandomLong.get(marker)(low, high)
-        })
-    }
-
-    #[export_name = "S_StartDynamicSound"]
-    pub unsafe extern "C" fn my_S_StartDynamicSound(
-        entnum: c_int,
-        entchannel: c_int,
-        sfx: *mut c_void,
-        origin: *mut c_void,
-        fvol: f32,
-        attenuation: f32,
-        flags: c_int,
-        pitch: c_int,
-    ) {
-        abort_on_panic(move || {
-            let marker = MainThreadMarker::new();
-
-            tas_rng_fix::on_s_start_dynamic_sound_start(marker);
-
-            S_StartDynamicSound.get(marker)(
-                entnum,
-                entchannel,
-                sfx,
-                origin,
-                fvol,
-                attenuation,
-                flags,
-                pitch,
-            );
-
-            tas_rng_fix::on_s_start_dynamic_sound_end(marker);
         })
     }
 

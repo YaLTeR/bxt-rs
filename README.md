@@ -6,7 +6,7 @@ A few speedrunning and TAS-related tools for Half-Life and mods. Current feature
 - `bxt_hud_scale` to upscale the HUD for high-resolution video recording.
 - Commands to play many demos at once (`bxt_play_run`).
 - `bxt_force_fov` to override FOV when `default_fov` doesn't work.
-- Fixes for command buffer overflow on BXT demos, sound RNG and un-stuck non-determinism for TASes.
+- Fixes for command buffer overflow on BXT demos and un-stuck non-determinism for TASes.
 - A useful subset of `bxt_tas_log`, including RNG state dumping, when you can't use the one from the original Bunnymod XT.
 - `bxt_fade_remove`, `bxt_shake_remove`, `bxt_skybox_remove`, `bxt_novis`, `bxt_wallhack`.
 - Mostly-working recording real-time gameplay into a `.hltas` script.
