@@ -112,13 +112,15 @@ pub struct OptimizationGoal {
 }
 
 impl OptimizationGoal {
-    fn is_better(self, new_state: &State, old_state: &State) -> bool {
-        self.direction
-            .is_better(self.variable.get(new_state), self.variable.get(old_state))
+    fn is_better(&self, new_frames: &[Frame], old_frames: &[Frame]) -> bool {
+        self.direction.is_better(
+            self.variable.get(&new_frames.last().unwrap().state),
+            self.variable.get(&old_frames.last().unwrap().state),
+        )
     }
 
-    fn to_string(&self, state: &State) -> String {
-        self.variable.get(state).to_string()
+    fn to_string(&self, frames: &[Frame]) -> String {
+        self.variable.get(&frames.last().unwrap().state).to_string()
     }
 }
 
@@ -157,9 +159,11 @@ pub struct Constraint {
 }
 
 impl Constraint {
-    fn is_valid(self, state: &State) -> bool {
-        self.type_
-            .is_valid(self.variable.get(state), self.constraint)
+    fn is_valid(&self, frames: &[Frame]) -> bool {
+        self.type_.is_valid(
+            self.variable.get(&frames.last().unwrap().state),
+            self.constraint,
+        )
     }
 }
 
@@ -344,7 +348,7 @@ impl Editor {
         self.simulate_all(tracer);
 
         let mut best_hltas = self.hltas.clone();
-        let mut best_state = self.frames.last().unwrap().state.clone();
+        let mut best_frames = self.frames.clone();
 
         let mut high = self.frames.len() - 1;
         if frames > 0 {
@@ -367,13 +371,12 @@ impl Editor {
             self.simulate_all(tracer);
 
             // Check if we got an improvement.
-            let state = &self.frames.last().unwrap().state;
-            if constraint.map(|c| c.is_valid(state)).unwrap_or(true)
-                && goal.is_better(state, &best_state)
+            if constraint.map(|c| c.is_valid(&self.frames)).unwrap_or(true)
+                && goal.is_better(&self.frames, &best_frames)
             {
                 best_hltas = self.hltas.clone();
-                best_state = state.clone();
-                eprintln!("found new best value: {}", goal.to_string(&best_state));
+                best_frames = self.frames.clone();
+                eprintln!("found new best value: {}", goal.to_string(&best_frames));
             } else {
                 // Restore the script before the changes.
                 self.hltas = best_hltas.clone();
