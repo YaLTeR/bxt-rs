@@ -3,5 +3,10 @@
 #target = "i686-pc-windows-msvc"
 #target = "i686-pc-windows-gnu"
 
+[env]
+# Required for mlua to cross-compile properly.
+CFLAGS = "-m32"
+LDFLAGS = "-m32"
+
 [target."i686-pc-windows-msvc"]
 rustflags = ["-C", "target-feature=+crt-static"]
