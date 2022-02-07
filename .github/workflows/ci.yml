@@ -147,6 +147,12 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Install dependencies
+        if: matrix.os == 'ubuntu-20.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install libc6-dev-i386
+
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
