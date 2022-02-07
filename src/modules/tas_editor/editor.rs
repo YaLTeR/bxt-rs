@@ -116,6 +116,10 @@ impl OptimizationGoal {
         self.direction
             .is_better(self.variable.get(new_state), self.variable.get(old_state))
     }
+
+    fn to_string(&self, state: &State) -> String {
+        self.variable.get(state).to_string()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -369,7 +373,7 @@ impl Editor {
             {
                 best_hltas = self.hltas.clone();
                 best_state = state.clone();
-                eprintln!("found new best value: {}", goal.variable.get(&best_state));
+                eprintln!("found new best value: {}", goal.to_string(&best_state));
             } else {
                 // Restore the script before the changes.
                 self.hltas = best_hltas.clone();
