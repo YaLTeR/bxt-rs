@@ -347,6 +347,10 @@ impl Editor {
     ) {
         self.simulate_all(tracer);
 
+        if self.frames.len() == 1 {
+            return;
+        }
+
         let mut best_hltas = self.hltas.clone();
         let mut best_frames = self.frames.clone();
 
