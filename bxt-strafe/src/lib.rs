@@ -3,6 +3,7 @@ use std::f32::consts::{PI, TAU};
 use arrayvec::ArrayVec;
 use glam::Vec3;
 use hltas::types::*;
+use serde::{Deserialize, Serialize};
 
 mod steps;
 use steps::*;
@@ -10,7 +11,7 @@ use steps::*;
 mod vct;
 
 /// Result of a trace operation.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct TraceResult {
     pub all_solid: bool,
     pub start_solid: bool,
@@ -38,7 +39,7 @@ pub trait Trace {
 }
 
 /// Player data.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Player {
     /// Position.
     pub pos: Vec3,
@@ -66,7 +67,7 @@ impl Player {
 }
 
 /// Movement parameters.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Parameters {
     pub frame_time: f32,
     pub max_velocity: f32,
@@ -84,7 +85,7 @@ pub struct Parameters {
 }
 
 /// The type of player's position in the world.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Place {
     /// The player is on the ground.
     Ground,
@@ -95,7 +96,7 @@ pub enum Place {
 }
 
 /// Final input that the game will receive.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct Input {
     pub jump: bool,
     pub duck: bool,
@@ -109,7 +110,7 @@ pub struct Input {
 /// The state updated and acted upon by the simulation.
 ///
 /// To simulate the next frame, call [`State::simulate()`] on the previous state.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct State {
     player: Player,
     place: Place,

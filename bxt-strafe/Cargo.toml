@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-arrayvec = "0.7.2"
-glam = "0.20.2"
+arrayvec = { version = "0.7.2", features = ["serde"] }
+glam = { version = "0.20.2", features = ["serde"] }
 hltas = { git = "https://github.com/HLTAS/hltas.git" }
 ordered-float = "2.10.0"
 parking_lot = "0.11.2"
+serde = { version = "1.0.133", features = ["derive"] }
 tap = "1.0.1"
 
 [dev-dependencies]
