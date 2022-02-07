@@ -64,11 +64,11 @@ impl Module for TasEditor {
 
 static EDITOR: MainThreadRefCell<Option<Editor>> = MainThreadRefCell::new(None);
 static OPTIMIZE: MainThreadCell<bool> = MainThreadCell::new(false);
-static GOAL: MainThreadCell<OptimizationGoal> = MainThreadCell::new(OptimizationGoal {
+static GOAL: MainThreadRefCell<OptimizationGoal> = MainThreadRefCell::new(OptimizationGoal {
     variable: Variable::PosX,
     direction: Direction::Maximize,
 });
-static CONSTRAINT: MainThreadCell<Option<Constraint>> = MainThreadCell::new(None);
+static CONSTRAINT: MainThreadRefCell<Option<Constraint>> = MainThreadRefCell::new(None);
 
 static BXT_TAS_OPTIM_FRAMES: CVar = CVar::new(b"bxt_tas_optim_frames\0", b"0\0");
 static BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE: CVar =
@@ -200,34 +200,37 @@ fn optim_run(marker: MainThreadMarker) {
         return;
     }
 
-    if let Ok(variable) = BXT_TAS_OPTIM_VARIABLE.to_string(marker).parse::<Variable>() {
-        let mut goal = GOAL.get(marker);
-        goal.variable = variable;
-        GOAL.set(marker, goal);
-    } else {
-        con_print(
-            marker,
-            "Could not parse bxt_tas_optim_variable. \
-            Valid values are pos.x, pos.y, pos.z, vel.x, vel.y, vel.z and speed.\n",
-        );
-        return;
-    }
+    let variable = match BXT_TAS_OPTIM_VARIABLE.to_string(marker).parse::<Variable>() {
+        Ok(x) => x,
+        Err(_) => {
+            con_print(
+                marker,
+                "Could not parse bxt_tas_optim_variable. \
+                Valid values are pos.x, pos.y, pos.z, vel.x, vel.y, vel.z and speed.\n",
+            );
+            return;
+        }
+    };
 
-    if let Ok(direction) = BXT_TAS_OPTIM_DIRECTION
+    let direction = match BXT_TAS_OPTIM_DIRECTION
         .to_string(marker)
         .parse::<Direction>()
     {
-        let mut goal = GOAL.get(marker);
-        goal.direction = direction;
-        GOAL.set(marker, goal);
-    } else {
-        con_print(
-            marker,
-            "Could not parse bxt_tas_optim_direction. \
-            Valid values are maximize and minimize.\n",
-        );
-        return;
-    }
+        Ok(x) => x,
+        Err(_) => {
+            con_print(
+                marker,
+                "Could not parse bxt_tas_optim_direction. \
+                Valid values are maximize and minimize.\n",
+            );
+            return;
+        }
+    };
+
+    *GOAL.borrow_mut(marker) = OptimizationGoal::Console {
+        variable,
+        direction,
+    };
 
     let constraint_variable = BXT_TAS_OPTIM_CONSTRAINT_VARIABLE.to_string(marker);
     if !constraint_variable.is_empty() {
@@ -273,16 +276,13 @@ fn optim_run(marker: MainThreadMarker) {
             return;
         };
 
-        CONSTRAINT.set(
-            marker,
-            Some(Constraint {
-                variable,
-                type_,
-                constraint,
-            }),
-        );
+        *CONSTRAINT.borrow_mut(marker) = Some(Constraint::Console {
+            variable,
+            type_,
+            constraint,
+        });
     } else {
-        CONSTRAINT.set(marker, None);
+        *CONSTRAINT.borrow_mut(marker) = None;
     }
 
     OPTIMIZE.set(marker, true);
@@ -371,8 +371,8 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                 &tracer,
                 BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
                 BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
-                GOAL.get(marker),
-                CONSTRAINT.get(marker),
+                &*GOAL.borrow(marker),
+                CONSTRAINT.borrow(marker).as_ref(),
             );
         }
 

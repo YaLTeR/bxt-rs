@@ -342,8 +342,8 @@ impl Editor {
         tracer: &T,
         frames: usize,
         random_frames_to_change: usize,
-        goal: OptimizationGoal,
-        constraint: Option<Constraint>,
+        goal: &OptimizationGoal,
+        constraint: Option<&Constraint>,
     ) {
         self.simulate_all(tracer);
 
