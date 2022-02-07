@@ -7,6 +7,8 @@
 # Required for mlua to cross-compile properly.
 CFLAGS = "-m32"
 LDFLAGS = "-m32"
+# Required for rust-hawktracer to compile when LDFLAGS has -m32.
+CXXFLAGS = "-m32"
 
 [target."i686-pc-windows-msvc"]
 rustflags = ["-C", "target-feature=+crt-static"]
