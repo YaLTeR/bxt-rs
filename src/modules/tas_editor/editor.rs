@@ -644,10 +644,17 @@ fn mutate_frame_bulk<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
         },
     }));
 
+    mutate_action_keys(rng, frame_bulk);
+    mutate_auto_actions(rng, frame_bulk);
+}
+
+fn mutate_action_keys<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
     if rng.gen::<f32>() < 0.05 {
         frame_bulk.action_keys.use_ = !frame_bulk.action_keys.use_;
     }
+}
 
+fn mutate_auto_actions<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
     if rng.gen::<f32>() < 0.05 {
         frame_bulk.auto_actions.duck_before_ground =
             if frame_bulk.auto_actions.duck_before_ground.is_some() {
