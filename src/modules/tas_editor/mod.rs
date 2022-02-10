@@ -45,6 +45,7 @@ impl Module for TasEditor {
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[
             &BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE,
+            &BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES,
             &BXT_TAS_OPTIM_FRAMES,
             &BXT_TAS_OPTIM_SIMULATION_ACCURACY,
             &BXT_TAS_OPTIM_CONSTRAINT_VALUE,
@@ -77,6 +78,8 @@ static CONSTRAINT: MainThreadRefCell<Option<Constraint>> = MainThreadRefCell::ne
 static BXT_TAS_OPTIM_FRAMES: CVar = CVar::new(b"bxt_tas_optim_frames\0", b"0\0");
 static BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE: CVar =
     CVar::new(b"bxt_tas_optim_random_frames_to_change\0", b"6\0");
+static BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES: CVar =
+    CVar::new(b"bxt_tas_optim_change_single_frames\0", b"0\0");
 
 static BXT_TAS_OPTIM_SIMULATION_ACCURACY: CVar =
     CVar::new(b"bxt_tas_optim_simulation_accuracy\0", b"0\0");
@@ -425,6 +428,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                 &tracer,
                 BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
                 BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
+                BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
                 &*GOAL.borrow(marker),
                 CONSTRAINT.borrow(marker).as_ref(),
             );

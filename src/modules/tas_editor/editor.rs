@@ -13,6 +13,7 @@ use mlua::{Lua, LuaSerdeExt};
 use rand::distributions::Uniform;
 use rand::prelude::Distribution;
 use rand::Rng;
+use tap::{Conv, Pipe, TryConv};
 
 use crate::modules::triangle_drawing::triangle_api::{Primitive, RenderMode};
 use crate::modules::triangle_drawing::TriangleApi;
@@ -432,6 +433,7 @@ impl Editor {
         tracer: &T,
         frames: usize,
         random_frames_to_change: usize,
+        change_single_frames: bool,
         goal: &OptimizationGoal,
         constraint: Option<&Constraint>,
     ) {
@@ -455,9 +457,16 @@ impl Editor {
         for _ in 0..20 {
             // Change several frames.
             for _ in 0..random_frames_to_change {
-                // Pick a random frame and mutate it.
-                let frame = between.sample(&mut rng);
-                self.mutate_frame(&mut rng, frame);
+                let stale_frame = if change_single_frames {
+                    // Pick a random frame and mutate it.
+                    let frame = between.sample(&mut rng);
+                    self.mutate_frame(&mut rng, frame);
+                    frame
+                } else {
+                    mutate_single_frame_bulk(&mut self.hltas, &mut rng)
+                };
+
+                self.mark_as_stale(stale_frame);
             }
 
             let valid_frames = self.frames.len() - 1;
@@ -646,6 +655,157 @@ fn mutate_frame_bulk<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
 
     mutate_action_keys(rng, frame_bulk);
     mutate_auto_actions(rng, frame_bulk);
+}
+
+fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
+    let count = hltas
+        .lines
+        .iter()
+        .filter(|line| matches!(line, Line::FrameBulk(..)))
+        .count();
+
+    let index = rng.gen_range(0..count);
+
+    let frame_bulk = hltas
+        .lines
+        .iter_mut()
+        .filter_map(|line| {
+            if let Line::FrameBulk(frame_bulk) = line {
+                Some(frame_bulk)
+            } else {
+                None
+            }
+        })
+        .nth(index)
+        .unwrap();
+
+    if let Some(AutoMovement::Strafe(StrafeSettings { type_, dir, .. })) =
+        frame_bulk.auto_actions.movement.as_mut()
+    {
+        // Mutate strafe type.
+        let p = rng.gen::<f32>();
+        *type_ = if p < 0.01 {
+            StrafeType::MaxDeccel
+        } else if p < 0.1 {
+            StrafeType::MaxAngle
+        } else {
+            StrafeType::MaxAccel
+        };
+
+        // Mutate strafe direction.
+        match dir {
+            StrafeDir::Yaw(yaw) => {
+                *yaw += if rng.gen::<f32>() < 0.05 {
+                    rng.gen_range(-180f32..180f32)
+                } else {
+                    rng.gen_range(-1f32..1f32)
+                };
+            }
+            StrafeDir::LeftRight(count) | StrafeDir::RightLeft(count) => {
+                *count = NonZeroU32::new(
+                    (count.get().conv::<i64>() + rng.gen_range(-10..10))
+                        .max(1)
+                        .min(u32::MAX.into())
+                        .try_conv()
+                        .unwrap(),
+                )
+                .unwrap();
+            }
+            _ => (),
+        }
+    }
+
+    mutate_action_keys(rng, frame_bulk);
+    mutate_auto_actions(rng, frame_bulk);
+
+    // Mutate frame count.
+    if index + 1 < count {
+        let next_frame_bulk = hltas
+            .lines
+            .iter_mut()
+            .filter_map(|line| {
+                if let Line::FrameBulk(frame_bulk) = line {
+                    Some(frame_bulk)
+                } else {
+                    None
+                }
+            })
+            .nth(index + 1)
+            .unwrap();
+
+        // Can't go below frame count of 1 on the next frame bulk.
+        let max_frame_count_difference = (next_frame_bulk.frame_count.get() - 1)
+            .conv::<i64>()
+            .min(10);
+
+        // Can't go above frame count of u32::MAX on the next frame bulk.
+        let min_frame_count_difference =
+            (next_frame_bulk.frame_count.get().conv::<i64>() - u32::MAX.conv::<i64>()).max(-10);
+
+        let frame_count_difference_range = min_frame_count_difference..max_frame_count_difference;
+
+        let frame_bulk = hltas
+            .lines
+            .iter_mut()
+            .filter_map(|line| {
+                if let Line::FrameBulk(frame_bulk) = line {
+                    Some(frame_bulk)
+                } else {
+                    None
+                }
+            })
+            .nth(index)
+            .unwrap();
+
+        let difference = frame_bulk.frame_count.pipe_ref_mut(|count| {
+            let orig_count = count.get();
+
+            *count = NonZeroU32::new(
+                (count.get().conv::<i64>() + rng.gen_range(frame_count_difference_range))
+                    .max(1)
+                    .min(u32::MAX.into())
+                    .try_conv()
+                    .unwrap(),
+            )
+            .unwrap();
+
+            orig_count.conv::<i64>() - count.get().conv::<i64>()
+        });
+
+        let next_frame_bulk = hltas
+            .lines
+            .iter_mut()
+            .filter_map(|line| {
+                if let Line::FrameBulk(frame_bulk) = line {
+                    Some(frame_bulk)
+                } else {
+                    None
+                }
+            })
+            .nth(index + 1)
+            .unwrap();
+
+        next_frame_bulk.frame_count.pipe_ref_mut(|count| {
+            *count = NonZeroU32::new((count.get().conv::<i64>() + difference).try_conv().unwrap())
+                .unwrap()
+        });
+    }
+
+    let frame = hltas
+        .lines
+        .iter_mut()
+        .filter_map(|line| {
+            if let Line::FrameBulk(frame_bulk) = line {
+                Some(frame_bulk)
+            } else {
+                None
+            }
+        })
+        .take(index)
+        .map(|frame_bulk| frame_bulk.frame_count.get().try_conv::<usize>().unwrap())
+        .sum();
+
+    frame
 }
 
 fn mutate_action_keys<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
