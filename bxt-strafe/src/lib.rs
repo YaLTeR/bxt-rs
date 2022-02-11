@@ -82,6 +82,7 @@ pub struct Parameters {
     pub ent_gravity: f32,
     pub step_size: f32,
     pub bounce: f32,
+    pub bhop_cap: bool,
 }
 
 /// The type of player's position in the world.
@@ -237,6 +238,7 @@ mod tests {
             ent_gravity: 1.,
             step_size: 18.,
             bounce: 1.,
+            bhop_cap: false,
         }
     }
 

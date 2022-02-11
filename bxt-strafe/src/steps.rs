@@ -472,6 +472,17 @@ impl<S: Step> Step for Jump<S> {
     ) -> (State, Input) {
         if input.jump && !state.prev_frame_input.jump && state.place == Place::Ground {
             state.jumped = true;
+
+            if parameters.bhop_cap {
+                let max_scaled_speed = 1.7 * parameters.max_speed;
+                if max_scaled_speed > 0. {
+                    let speed = state.player.vel.length();
+                    if speed > max_scaled_speed {
+                        state.player.vel *= (max_scaled_speed / speed) * 0.65;
+                    }
+                }
+            }
+
             state.player.vel.z = (2f32 * 800. * 45.).sqrt();
             state.player.vel = clamp_velocity(state.player.vel, parameters.max_velocity);
             state.update_place(tracer);

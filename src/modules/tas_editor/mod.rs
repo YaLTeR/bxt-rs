@@ -176,6 +176,7 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
             ent_gravity: 1.,
             step_size: get_cvar_f32(marker, "sv_stepsize").unwrap_or(18.),
             bounce: get_cvar_f32(marker, "sv_bounce").unwrap_or(1.),
+            bhop_cap: get_cvar_f32(marker, "bxt_bhopcap").unwrap_or(0.) != 0.,
         }
     };
 
