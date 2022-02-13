@@ -710,6 +710,26 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
                         .unwrap(),
                 )
                 .unwrap();
+
+                if rng.gen::<f32>() < 0.05 {
+                    // Invert the strafe dir.
+                    let count = *count;
+                    *dir = if matches!(*dir, StrafeDir::LeftRight(_)) {
+                        StrafeDir::RightLeft(count)
+                    } else {
+                        StrafeDir::LeftRight(count)
+                    };
+                }
+            }
+            StrafeDir::Left | StrafeDir::Right => {
+                if rng.gen::<f32>() < 0.05 {
+                    // Invert the strafe dir.
+                    *dir = if *dir == StrafeDir::Left {
+                        StrafeDir::Right
+                    } else {
+                        StrafeDir::Left
+                    };
+                }
             }
             _ => (),
         }
