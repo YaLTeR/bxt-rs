@@ -119,6 +119,9 @@ pub struct State {
     prev_frame_input: Input,
     jumped: bool,
     move_traces: ArrayVec<TraceResult, 4>,
+    // Number of frames for [`StrafeDir::LeftRight`] or [`StrafeDir::RightLeft`] which goes from `0`
+    // to `count - 1`.
+    strafe_cycle_frame_count: u32,
 }
 
 impl State {
@@ -137,6 +140,7 @@ impl State {
             prev_frame_input: Input::default(),
             jumped: false,
             move_traces: ArrayVec::new(),
+            strafe_cycle_frame_count: 0,
         };
 
         rv.update_place(tracer);

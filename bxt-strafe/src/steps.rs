@@ -341,7 +341,7 @@ impl<S: Step> Step for Strafe<S> {
         tracer: &T,
         parameters: Parameters,
         frame_bulk: &FrameBulk,
-        state: State,
+        mut state: State,
         mut input: Input,
     ) -> (State, Input) {
         if state.place != Place::Water {
@@ -355,6 +355,24 @@ impl<S: Step> Step for Strafe<S> {
                         StrafeDir::Yaw(yaw) => {
                             max_accel_into_yaw_theta(parameters, &state, yaw.to_radians())
                         }
+                        StrafeDir::LeftRight(count) | StrafeDir::RightLeft(count) => {
+                            if state.strafe_cycle_frame_count >= count.get() * 2 {
+                                state.strafe_cycle_frame_count = 0;
+                            }
+
+                            let turn_other_way = (state.strafe_cycle_frame_count / count.get()) > 0;
+                            state.strafe_cycle_frame_count += 1;
+
+                            let mut angle = max_accel_theta(parameters, &state);
+                            if matches!(dir, StrafeDir::RightLeft(_)) {
+                                angle = -angle;
+                            }
+                            if turn_other_way {
+                                angle = -angle;
+                            }
+
+                            angle
+                        }
                         _ => 0.,
                     },
                     StrafeType::MaxAngle => match dir {
@@ -362,6 +380,24 @@ impl<S: Step> Step for Strafe<S> {
                         StrafeDir::Right => -max_angle_theta(parameters, &state),
                         StrafeDir::Yaw(yaw) => {
                             max_angle_into_yaw_theta(parameters, &state, yaw.to_radians())
+                        }
+                        StrafeDir::LeftRight(count) | StrafeDir::RightLeft(count) => {
+                            if state.strafe_cycle_frame_count >= count.get() * 2 {
+                                state.strafe_cycle_frame_count = 0;
+                            }
+
+                            let turn_other_way = (state.strafe_cycle_frame_count / count.get()) > 0;
+                            state.strafe_cycle_frame_count += 1;
+
+                            let mut angle = max_angle_theta(parameters, &state);
+                            if matches!(dir, StrafeDir::RightLeft(_)) {
+                                angle = -angle;
+                            }
+                            if turn_other_way {
+                                angle = -angle;
+                            }
+
+                            angle
                         }
                         _ => 0.,
                     },
@@ -453,6 +489,16 @@ impl<S: Step> Step for ResetFields<S> {
         state.wish_speed = parameters.max_speed;
         state.jumped = false;
         state.move_traces = ArrayVec::new();
+
+        if !matches!(
+            frame_bulk.auto_actions.movement,
+            Some(AutoMovement::Strafe(StrafeSettings {
+                dir: StrafeDir::LeftRight(_) | StrafeDir::RightLeft(_),
+                ..
+            }))
+        ) {
+            state.strafe_cycle_frame_count = 0;
+        }
 
         self.0
             .simulate(tracer, parameters, frame_bulk, state, input)
