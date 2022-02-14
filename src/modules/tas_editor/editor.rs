@@ -428,6 +428,8 @@ impl Editor {
         }
     }
 
+    // Yes I know this is not the best structured code at the moment...
+    #[allow(clippy::too_many_arguments)]
     pub fn optimize<T: Trace>(
         &mut self,
         tracer: &T,
@@ -436,6 +438,7 @@ impl Editor {
         change_single_frames: bool,
         goal: &OptimizationGoal,
         constraint: Option<&Constraint>,
+        mut on_improvement: impl FnMut(&str),
     ) {
         self.simulate_all(tracer);
 
@@ -479,7 +482,7 @@ impl Editor {
             {
                 best_hltas = self.hltas.clone();
                 best_frames = self.frames.clone();
-                eprintln!("found new best value: {}", goal.to_string(&best_frames));
+                on_improvement(&goal.to_string(&best_frames));
             } else {
                 // Restore the script before the changes.
                 self.hltas = best_hltas.clone();

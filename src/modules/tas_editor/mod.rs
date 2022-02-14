@@ -432,6 +432,9 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                 BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
                 &*GOAL.borrow(marker),
                 CONSTRAINT.borrow(marker).as_ref(),
+                |value| {
+                    con_print(marker, &format!("Found new best value: {value}\n"));
+                },
             );
         }
 
