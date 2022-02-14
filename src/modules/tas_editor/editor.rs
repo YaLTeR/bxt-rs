@@ -37,6 +37,9 @@ pub struct Editor {
 
     /// Movement frames, starting from the initial frame.
     frames: Vec<Frame>,
+
+    /// Movement frames from the last mutation, starting from the initial frame.
+    last_mutation_frames: Option<Vec<Frame>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -341,6 +344,7 @@ impl Editor {
             prefix,
             hltas,
             frames: vec![initial_frame],
+            last_mutation_frames: None,
         }
     }
 
@@ -355,6 +359,17 @@ impl Editor {
 
             tri.vertex(prev.state.player().pos);
             tri.vertex(next.state.player().pos);
+        }
+
+        if let Some(frames) = &self.last_mutation_frames {
+            tri.color(0., 0.5, 0.5, 1.);
+
+            for pair in frames.windows(2) {
+                let (prev, next) = (&pair[0], &pair[1]);
+
+                tri.vertex(prev.state.player().pos);
+                tri.vertex(next.state.player().pos);
+            }
         }
 
         tri.end();
@@ -457,7 +472,7 @@ impl Editor {
         let between = Uniform::from(0..high);
         let mut rng = rand::thread_rng();
         // Do several attempts per optimize() call.
-        for _ in 0..20 {
+        for i in 0..20 {
             // Change several frames.
             for _ in 0..random_frames_to_change {
                 let stale_frame = if change_single_frames {
@@ -484,6 +499,10 @@ impl Editor {
                 best_frames = self.frames.clone();
                 on_improvement(&goal.to_string(&best_frames));
             } else {
+                if i == 19 {
+                    self.last_mutation_frames = Some(self.frames.clone());
+                }
+
                 // Restore the script before the changes.
                 self.hltas = best_hltas.clone();
                 self.mark_as_stale(valid_frames);
