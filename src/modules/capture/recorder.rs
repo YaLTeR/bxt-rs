@@ -370,7 +370,7 @@ impl Recorder {
         self.height
     }
 
-    pub fn time_base(&self) -> f64 {
+    pub fn frame_time(&self) -> f64 {
         self.time_base
     }
 

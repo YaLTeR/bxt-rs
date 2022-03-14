@@ -399,9 +399,9 @@ pub unsafe fn on_host_filter_time(marker: MainThreadMarker) -> bool {
         return false;
     }
 
-    *engine::host_frametime.get(marker) = recorder.time_base();
+    *engine::host_frametime.get(marker) = recorder.frame_time();
     let realtime = engine::realtime.get(marker);
-    *realtime += recorder.time_base();
+    *realtime += recorder.frame_time();
 
     true
 }
