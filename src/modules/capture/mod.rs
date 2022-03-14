@@ -28,6 +28,7 @@ impl Module for Capture {
             &BXT_CAP_FPS,
             &BXT_CAP_VOLUME,
             &BXT_CAP_SOUND_EXTRA,
+            &BXT_CAP_SLOWDOWN,
             &BXT_CAP_FORCE_FALLBACK,
             &BXT_CAP_OVERRIDE_FFMPEG_ARGS,
         ];
@@ -65,6 +66,7 @@ pub type ExternalObject = *mut std::os::raw::c_void;
 static BXT_CAP_FPS: CVar = CVar::new(b"bxt_cap_fps\0", b"60\0");
 static BXT_CAP_SOUND_EXTRA: CVar = CVar::new(b"bxt_cap_sound_extra\0", b"0\0");
 static BXT_CAP_VOLUME: CVar = CVar::new(b"bxt_cap_volume\0", b"0.4\0");
+static BXT_CAP_SLOWDOWN: CVar = CVar::new(b"bxt_cap_slowdown\0", b"1\0");
 static BXT_CAP_FORCE_FALLBACK: CVar = CVar::new(b"_bxt_cap_force_fallback\0", b"0\0");
 static BXT_CAP_OVERRIDE_FFMPEG_ARGS: CVar = CVar::new(b"_bxt_cap_override_ffmpeg_args\0", b"\0");
 
@@ -232,6 +234,7 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
     // Initialize the recording if needed.
     if let State::Starting(ref filename) = *state {
         let fps = BXT_CAP_FPS.as_u64(marker).max(1);
+        let slowdown = BXT_CAP_SLOWDOWN.as_f32(marker).max(0.1) as f64;
 
         let capture_type = if HAVE_REQUIRED_GL_EXTENSIONS.get(marker)
             && !BXT_CAP_FORCE_FALLBACK.as_bool(marker)
@@ -269,6 +272,7 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
             width,
             height,
             fps,
+            slowdown,
             capture_type,
             filename,
             custom_ffmpeg_args,

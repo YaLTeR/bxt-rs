@@ -20,6 +20,9 @@ pub struct Recorder {
     /// The target time base.
     time_base: f64,
 
+    /// The slowdown factor. For example, `2` means two times slower.
+    slowdown: f64,
+
     /// Difference, in video frames, between how much time passed in-game and how much video we
     /// output.
     video_remainder: f64,
@@ -87,6 +90,7 @@ impl Recorder {
         width: i32,
         height: i32,
         fps: u64,
+        slowdown: f64,
         mut capture_type: CaptureType,
         filename: &str,
         custom_ffmpeg_args: Option<&[&str]>,
@@ -153,6 +157,7 @@ impl Recorder {
             width,
             height,
             time_base,
+            slowdown,
             video_remainder: 0.,
             sound_remainder: 0.,
             opengl: None,
@@ -306,8 +311,8 @@ impl Recorder {
     }
 
     pub fn time_passed(&mut self, time: f64) {
-        self.video_remainder += time / self.time_base;
-        self.sound_remainder += time;
+        self.video_remainder += time / self.time_base * self.slowdown;
+        self.sound_remainder += time * self.slowdown;
 
         if let CaptureType::Vulkan(_) = self.capture_type {
             unsafe {
@@ -371,7 +376,7 @@ impl Recorder {
     }
 
     pub fn frame_time(&self) -> f64 {
-        self.time_base
+        self.time_base / self.slowdown
     }
 
     pub fn capture_type(&self) -> &CaptureType {
