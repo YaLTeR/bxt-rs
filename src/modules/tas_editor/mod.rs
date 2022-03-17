@@ -169,11 +169,15 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
             stop_speed: get_cvar_f32(marker, "sv_stopspeed").unwrap_or(100.),
             friction: get_cvar_f32(marker, "sv_friction").unwrap_or(4.),
             edge_friction: get_cvar_f32(marker, "edgefriction").unwrap_or(2.),
-            ent_friction: 1.,
+            ent_friction: engine::player_edict(marker)
+                .map(|x| x.as_ref().v.friction)
+                .unwrap_or(1.),
             accelerate: get_cvar_f32(marker, "sv_accelerate").unwrap_or(10.),
             air_accelerate: get_cvar_f32(marker, "sv_airaccelerate").unwrap_or(10.),
             gravity: get_cvar_f32(marker, "sv_gravity").unwrap_or(800.),
-            ent_gravity: 1.,
+            ent_gravity: engine::player_edict(marker)
+                .map(|x| x.as_ref().v.gravity)
+                .unwrap_or(1.),
             step_size: get_cvar_f32(marker, "sv_stepsize").unwrap_or(18.),
             bounce: get_cvar_f32(marker, "sv_bounce").unwrap_or(1.),
             bhop_cap: get_cvar_f32(marker, "bxt_bhopcap").unwrap_or(0.) != 0.,
