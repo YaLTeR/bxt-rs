@@ -153,7 +153,7 @@ pub fn to_cstring_lossy(s: &str) -> CString {
         return s;
     }
 
-    CString::new(s.replace("\x00", "\\x00")).unwrap()
+    CString::new(s.replace('\x00', "\\x00")).unwrap()
 }
 
 #[cfg(test)]
