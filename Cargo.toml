@@ -33,6 +33,9 @@ rand = "0.8.4"
 tap = "1.0.1"
 mlua = { version = "0.7.3", features = ["luajit", "vendored", "serialize"] }
 
+[patch.crates-io]
+luajit-src = { git = "https://github.com/YaLTeR/luajit-src-rs.git", branch = "build-fixes" }
+
 [target."cfg(windows)".dependencies.simplelog]
 version = "0.10.0"
 default-features = false
