@@ -57,7 +57,9 @@ You can uncomment the right line in `.cargo/config` to avoid writing `--target` 
 
 ### Windows (cross-compiling from Linux)
 
-1. Install MinGW for the 32-bit target. On Ubuntu that's `gcc-mingw-w64-i686`, on Fedora you'll need `mingw32-gcc` and `mingw32-winpthreads-static`.
+MinGW on Ubuntu currently fails to link Rust code. Debian and Fedora work fine.
+
+1. Install MinGW for the 32-bit target. On Debian that's `gcc-mingw-w64-i686`, on Fedora you'll need `mingw32-gcc` and `mingw32-winpthreads-static`.
 1. Install stable Rust (for example, via [rustup](https://rustup.rs/)) with the `i686-pc-windows-gnu` target.
 1. `cargo build --target=i686-pc-windows-gnu`
 
