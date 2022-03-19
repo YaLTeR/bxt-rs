@@ -17,6 +17,7 @@ jobs:
         rust: [stable, beta]
         features: ['', vulkan-debug, profiling, 'vulkan-debug,profiling']
         configuration: [debug, release]
+        cross: [no, yes]
 
         exclude:
           - configuration: release
@@ -25,6 +26,9 @@ jobs:
             features: vulkan-debug
           - configuration: release
             features: 'vulkan-debug,profiling'
+
+          - cross: yes
+            os: windows-2019
 
           # We want only a release profile build, but on Windows hawktracer fails to build on release.
           - configuration: debug
@@ -49,9 +53,19 @@ jobs:
 
         include:
           - os: ubuntu-20.04
+            cross: no
             label: Ubuntu
             target: i686-unknown-linux-gnu
             filename: libbxt_rs.so
+
+          - os: ubuntu-20.04
+            cross: yes
+            label: Debian (cross to Windows)
+            target: i686-pc-windows-gnu
+            filename: bxt_rs.dll
+            cross-dep: gcc-mingw-w64-i686
+            # MinGW on Ubuntu fails to link, so use rust:latest which is based on Debian.
+            container: rust:latest
 
           - os: windows-2019
             label: Windows
@@ -68,6 +82,7 @@ jobs:
 
     name: ${{ matrix.rust }} - ${{ matrix.label }} - ${{ matrix.configuration }} - ${{ matrix.features }}
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
 
     steps:
       - uses: actions/checkout@v2
@@ -78,11 +93,18 @@ jobs:
       # We need the tags for the version string inside bxt-rs
       - run: git fetch --force --tags
 
+      # Install sudo so that the subsequent steps are the same between container and no container.
+      - name: Install sudo
+        if: job.container
+        run: |
+          apt-get update -y
+          apt-get install sudo -y
+
       - name: Install dependencies
         if: matrix.os == 'ubuntu-20.04'
         run: |
-          sudo apt-get update
-          sudo apt-get install libc6-dev-i386 ${{ matrix.profiling-dep }}
+          sudo apt-get update -y
+          sudo apt-get install -y libc6-dev-i386 ${{ matrix.profiling-dep }} ${{ matrix.cross-dep }}
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
@@ -102,25 +124,28 @@ jobs:
 
       - name: Test
         uses: actions-rs/cargo@v1
+        # Testing cross-compiled build requires wine which is large. We test native Windows anyway so no need.
+        if: |
+          !matrix.cross
         with:
           command: test
           args: --target ${{ matrix.target }} ${{ matrix.release-flag }} --features=${{ matrix.features }}
 
       - uses: actions/upload-artifact@v2
-        if: matrix.rust == 'stable' && matrix.features != 'vulkan-debug,profiling'
+        if: matrix.rust == 'stable' && matrix.features != 'vulkan-debug,profiling' && !matrix.cross
         with:
           name: bxt-rs-${{ runner.os }}-${{ matrix.configuration }}-${{ matrix.features }}
           path: target/${{ matrix.target }}/${{ matrix.configuration }}/${{ matrix.filename }}
           if-no-files-found: error
 
       - name: Prepare Release
-        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && matrix.features == ''
+        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && matrix.features == '' && !matrix.cross
         run: |
           cp target/${{ matrix.target }}/${{ matrix.configuration }}/${{ matrix.filename }} ${{ matrix.filename }}
           7z a bxt-rs-${{ runner.os }}.7z ${{ matrix.filename }} COPYING
 
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && matrix.features == ''
+        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && matrix.features == '' && !matrix.cross
         uses: softprops/action-gh-release@v1
         with:
           files: bxt-rs-${{ runner.os }}.7z
