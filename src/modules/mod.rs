@@ -18,6 +18,7 @@ use cvars::CVar;
 pub mod capture;
 pub mod comment_overflow_fix;
 pub mod demo_playback;
+pub mod disable_loading_text;
 pub mod fade_remove;
 pub mod force_fov;
 pub mod hud_scale;
@@ -65,6 +66,7 @@ pub static MODULES: &[&dyn Module] = &[
     &comment_overflow_fix::CommentOverflowFix,
     &cvars::CVars,
     &demo_playback::DemoPlayback,
+    &disable_loading_text::DisableLoadingText,
     &fade_remove::FadeRemove,
     &force_fov::ForceFov,
     &hud_scale::HudScale,
