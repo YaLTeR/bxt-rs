@@ -529,6 +529,17 @@ pub static S_TransferStereo16: Pointer<unsafe extern "C" fn(c_int)> = Pointer::e
     ]),
     my_S_TransferStereo16 as _,
 );
+pub static SCR_DrawLoading: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"SCR_DrawLoading\0",
+    // To find, search for "cz_worldmap" string in Steampipe DLL.
+    // This is SCR_DrawPause. Right below that function is SCR_DrawLoading.
+    // This pattern also works for the pre-Steampipe builds.
+    Patterns(&[
+        // 6153
+        pattern!(A1 ?? ?? ?? ?? 85 C0 74 05 E9 ?? ?? FF FF C3 90),
+    ]),
+    my_SCR_DrawLoading as _,
+);
 pub static scr_fov_value: Pointer<*mut c_float> = Pointer::empty(b"scr_fov_value\0");
 pub static shm: Pointer<*mut *mut dma_t> = Pointer::empty(b"shm\0");
 pub static sv: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
@@ -741,6 +752,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &R_DrawSkyBox,
     &S_PaintChannels,
     &S_TransferStereo16,
+    &SCR_DrawLoading,
     &scr_fov_value,
     &shm,
     &sv,
@@ -1542,6 +1554,19 @@ pub mod exported {
             } else {
                 V_FadeAlpha.get(marker)()
             }
+        })
+    }
+
+    #[export_name = "SCR_DrawLoading"]
+    pub unsafe extern "C" fn my_SCR_DrawLoading() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if disable_loading_text::is_active(marker) {
+                return;
+            }
+
+            SCR_DrawLoading.get(marker)();
         })
     }
 
