@@ -125,27 +125,26 @@ jobs:
       - name: Test
         uses: actions-rs/cargo@v1
         # Testing cross-compiled build requires wine which is large. We test native Windows anyway so no need.
-        if: |
-          !matrix.cross
+        if: matrix.cross == false
         with:
           command: test
           args: --target ${{ matrix.target }} ${{ matrix.release-flag }} --features=${{ matrix.features }}
 
       - uses: actions/upload-artifact@v2
-        if: matrix.rust == 'stable' && matrix.features != 'vulkan-debug,profiling' && !matrix.cross
+        if: matrix.rust == 'stable' && matrix.features != 'vulkan-debug,profiling' && matrix.cross == false
         with:
           name: bxt-rs-${{ runner.os }}-${{ matrix.configuration }}-${{ matrix.features }}
           path: target/${{ matrix.target }}/${{ matrix.configuration }}/${{ matrix.filename }}
           if-no-files-found: error
 
       - name: Prepare Release
-        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && matrix.features == '' && !matrix.cross
+        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && matrix.features == '' && matrix.cross == false
         run: |
           cp target/${{ matrix.target }}/${{ matrix.configuration }}/${{ matrix.filename }} ${{ matrix.filename }}
           7z a bxt-rs-${{ runner.os }}.7z ${{ matrix.filename }} COPYING
 
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && matrix.features == '' && !matrix.cross
+        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && matrix.features == '' && matrix.cross == false
         uses: softprops/action-gh-release@v1
         with:
           files: bxt-rs-${{ runner.os }}.7z
