@@ -356,11 +356,13 @@ impl<S: Step> Step for Strafe<S> {
                             max_accel_into_yaw_theta(parameters, &state, yaw.to_radians())
                         }
                         StrafeDir::LeftRight(count) | StrafeDir::RightLeft(count) => {
-                            if state.strafe_cycle_frame_count >= count.get() * 2 {
+                            let count = count.get().min(u32::MAX / 2);
+
+                            if state.strafe_cycle_frame_count >= count * 2 {
                                 state.strafe_cycle_frame_count = 0;
                             }
 
-                            let turn_other_way = (state.strafe_cycle_frame_count / count.get()) > 0;
+                            let turn_other_way = (state.strafe_cycle_frame_count / count) > 0;
                             state.strafe_cycle_frame_count += 1;
 
                             let mut angle = max_accel_theta(parameters, &state);
@@ -382,11 +384,13 @@ impl<S: Step> Step for Strafe<S> {
                             max_angle_into_yaw_theta(parameters, &state, yaw.to_radians())
                         }
                         StrafeDir::LeftRight(count) | StrafeDir::RightLeft(count) => {
-                            if state.strafe_cycle_frame_count >= count.get() * 2 {
+                            let count = count.get().min(u32::MAX / 2);
+
+                            if state.strafe_cycle_frame_count >= count * 2 {
                                 state.strafe_cycle_frame_count = 0;
                             }
 
-                            let turn_other_way = (state.strafe_cycle_frame_count / count.get()) > 0;
+                            let turn_other_way = (state.strafe_cycle_frame_count / count) > 0;
                             state.strafe_cycle_frame_count += 1;
 
                             let mut angle = max_angle_theta(parameters, &state);
