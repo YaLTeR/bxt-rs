@@ -129,7 +129,7 @@ jobs:
           !matrix.cross
         with:
           command: test
-          args: --target ${{ matrix.target }} ${{ matrix.release-flag }} --features=${{ matrix.features }}
+          args: --all --target ${{ matrix.target }} ${{ matrix.release-flag }} --features=${{ matrix.features }}
 
       - uses: actions/upload-artifact@v2
         if: matrix.rust == 'stable' && matrix.features != 'vulkan-debug,profiling' && !matrix.cross
