@@ -16,3 +16,4 @@ tap = "1.0.1"
 ncollide3d = "0.32.0"
 proptest = "1.0.0"
 proptest-derive = "0.3.0"
+hltas = { git = "https://github.com/HLTAS/hltas.git", features = ["proptest1"] }

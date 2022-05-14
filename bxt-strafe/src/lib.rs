@@ -409,67 +409,6 @@ mod tests {
         assert_eq!(state.place, Place::Air);
     }
 
-    fn arbitrary_auto_movement() -> impl Strategy<Value = AutoMovement> {
-        prop_oneof![
-            any::<f32>().prop_map(AutoMovement::SetYaw),
-            prop_oneof![
-                Just(StrafeDir::Left),
-                Just(StrafeDir::Right),
-                any::<f32>().prop_map(StrafeDir::Yaw)
-            ]
-            .prop_map(|dir| AutoMovement::Strafe(StrafeSettings {
-                type_: StrafeType::MaxAccel,
-                dir
-            }))
-        ]
-    }
-
-    fn arbitrary_leave_ground_action() -> impl Strategy<Value = LeaveGroundAction> {
-        (
-            prop_oneof![
-                Just(LeaveGroundActionSpeed::Any),
-                Just(LeaveGroundActionSpeed::Optimal),
-            ],
-            prop_oneof![
-                Just(LeaveGroundActionType::Jump),
-                Just(LeaveGroundActionType::DuckTap { zero_ms: false }),
-            ],
-        )
-            .prop_map(|(speed, type_)| LeaveGroundAction {
-                speed,
-                times: Times::UnlimitedWithinFrameBulk,
-                type_,
-            })
-    }
-
-    prop_compose! {
-        fn arbitrary_auto_actions()(
-            movement in prop::option::of(arbitrary_auto_movement()),
-            leave_ground_action in prop::option::of(arbitrary_leave_ground_action()),
-            jump_bug in prop::option::of(Just(hltas::types::JumpBug { times: Times::UnlimitedWithinFrameBulk }))
-        ) -> AutoActions {
-            AutoActions {
-                movement,
-                leave_ground_action,
-                jump_bug,
-                ..Default::default()
-            }
-        }
-    }
-
-    prop_compose! {
-        fn arbitrary_frame_bulk()(
-            auto_actions in arbitrary_auto_actions(),
-            frame_count in 1u32..,
-        ) -> FrameBulk {
-            FrameBulk {
-                auto_actions,
-                frame_count: NonZeroU32::new(frame_count).unwrap(),
-                ..FrameBulk::with_frame_time("0.010000001".to_owned())
-            }
-        }
-    }
-
     prop_compose! {
         fn arbitrary_player()(
             pos in (-50000f32..50000., -50000f32..50000., 0f32..50000.).prop_map(|(x, y, z)| Vec3::new(x, y, z)),
@@ -486,15 +425,14 @@ mod tests {
     proptest! {
         #[test]
         fn simulation_does_not_panic(
-            frame_bulk in arbitrary_frame_bulk(),
+            frame_bulks: Vec<FrameBulk>,
             player in arbitrary_player(),
-            steps in 1..100,
         ) {
             let world = World::new();
             let parameters = default_parameters();
 
             let mut state = State::new(&world, parameters, player);
-            for _ in 0..steps {
+            for frame_bulk in frame_bulks {
                 state = state.simulate(&world, parameters, &frame_bulk).0;
             }
         }
