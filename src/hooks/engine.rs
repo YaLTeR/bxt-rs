@@ -534,6 +534,12 @@ pub static SCR_DrawLoading: Pointer<unsafe extern "C" fn()> = Pointer::empty_pat
     // To find, search for "cz_worldmap" string in Steampipe DLL.
     // This is SCR_DrawPause. Right below that function is SCR_DrawLoading.
     // This pattern also works for the pre-Steampipe builds.
+
+    // Another way to find this would be as follows:
+    // To find, search for "transition" string, there is two functions with that string: SCR_BeginLoadingPlaque and SCR_EndLoadingPlaque.
+    // Go to SCR_EndLoadingPlaque, it can be recognized by having much less code than in SCR_BeginLoadingPlaque.
+    // Find second variable inside of that function, it would be scr_drawloading boolean.
+    // Now to references of variable and find other function with shortest code in it, that would be SCR_DrawLoading function.
     Patterns(&[
         // 6153
         pattern!(A1 ?? ?? ?? ?? 85 C0 74 05 E9 ?? ?? FF FF C3 90),
