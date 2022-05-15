@@ -2,7 +2,7 @@
 #![allow(clippy::float_cmp, clippy::type_complexity)]
 
 #[macro_use]
-extern crate log;
+extern crate tracing;
 
 mod ffi;
 mod gl;

@@ -8,8 +8,7 @@ use std::process::abort;
 use std::sync::Once;
 
 use git_version::git_version;
-use log::logger;
-use simplelog::{CombinedLogger, LevelFilter, SharedLogger, TermLogger, WriteLogger};
+use tracing_subscriber::prelude::*;
 
 pub mod marker;
 pub use marker::*;
@@ -31,8 +30,6 @@ pub fn abort_on_panic<R, F: FnOnce() -> R + UnwindSafe>(f: F) -> R {
     match catch_unwind(f) {
         Ok(rv) => rv,
         Err(_) => {
-            logger().flush();
-
             #[cfg(windows)]
             {
                 unsafe {
@@ -56,30 +53,39 @@ pub fn abort_on_panic<R, F: FnOnce() -> R + UnwindSafe>(f: F) -> R {
 fn setup_logging_hooks() {
     env::set_var("RUST_BACKTRACE", "full");
 
-    // Set up logging.
-    let config = simplelog::ConfigBuilder::new()
-        .set_thread_level(LevelFilter::Error)
-        .set_target_level(LevelFilter::Error)
-        .set_location_level(LevelFilter::Off)
-        .set_time_format_str("%F %T%.3f")
-        .set_time_to_local(true)
-        .build();
+    // Only write the message to the terminal (skipping span arguments) so it's less spammy.
+    let term_layer = tracing_subscriber::fmt::layer().fmt_fields(
+        tracing_subscriber::fmt::format::debug_fn(|writer, field, value| {
+            if field.name() == "message" {
+                write!(writer, "{:?}", value)
+            } else {
+                Ok(())
+            }
+        }),
+    );
 
-    let mut logger: Vec<Box<(dyn SharedLogger + 'static)>> = vec![TermLogger::new(
-        LevelFilter::Trace,
-        config.clone(),
-        simplelog::TerminalMode::Stderr,
-        simplelog::ColorChoice::Auto,
-    )];
+    // Disable ANSI colors on Windows as they don't work properly in the legacy console window.
+    // https://github.com/tokio-rs/tracing/issues/445
+    #[cfg(windows)]
+    let term_layer = term_layer.with_ansi(false);
 
-    if let Ok(log_file) = OpenOptions::new()
+    let file_layer = OpenOptions::new()
         .append(true)
         .create(true)
         .open("bxt-rs.log")
-    {
-        logger.push(WriteLogger::new(LevelFilter::Trace, config, log_file));
-    }
-    let _ = CombinedLogger::init(logger);
+        .ok()
+        .map(|file| {
+            tracing_subscriber::fmt::layer()
+                .with_writer(file)
+                .with_ansi(false)
+        });
+
+    tracing_subscriber::registry()
+        .with(file_layer)
+        // Term layer must be last, otherwise the log file will have some ANSI codes:
+        // https://github.com/tokio-rs/tracing/issues/1817
+        .with(term_layer)
+        .init();
 
     // Set up panic and error hooks.
     let builder = color_eyre::config::HookBuilder::new()

@@ -261,7 +261,7 @@ impl<P: Copy> PointerTrait for Pointer<P> {
 
 // Extracted out of monomorphized function according to cargo llvm-lines.
 fn log_pointer(name: &'static [u8], ptr: Option<*const c_void>) {
-    if !log_enabled!(log::Level::Debug) {
+    if !enabled!(tracing::Level::DEBUG) {
         return;
     }
 
