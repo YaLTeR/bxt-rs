@@ -40,6 +40,10 @@ If the video looks glitched or the game crashes when starting recording (happens
 1. Update your GPU driver.
 1. If the problem still occurs, try `_bxt_cap_force_fallback 1`.
 
+### Profiling
+
+Start Half-Life with the `BXT_RS_PROFILE` environment variable set to make bxt-rs output a `trace.json` file in the Half-Life folder. This is a Chrome JSON trace file which you can view in [Perfetto](https://ui.perfetto.dev/) or in `chrome://tracing`.
+
 ## Building
 
 You can uncomment the right line in `.cargo/config` to avoid writing `--target` every time.
