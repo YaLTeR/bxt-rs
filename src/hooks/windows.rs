@@ -31,7 +31,11 @@ pub unsafe extern "system" fn my_LoadLibraryA(file_name: LPCSTR) -> HMODULE {
                 let mut info = zeroed();
                 if K32GetModuleInformation(process, rv, &mut info, size_of_val(&info) as _) != 0 {
                     let marker = MainThreadMarker::new();
-                    engine::find_pointers(marker, info.lpBaseOfDll, info.SizeOfImage as usize);
+                    engine::find_pointers(
+                        marker,
+                        info.lpBaseOfDll.cast(),
+                        info.SizeOfImage as usize,
+                    );
                 }
             }
         }
