@@ -821,7 +821,7 @@ impl<S: Step> Step for LeaveGround<S> {
                         // Unducking didn't work, so do nothing.
                         return do_nothing;
                     } else {
-                        // Unducking worked, we'll try to ducktap next frame.`q`
+                        // Unducking worked, we'll try to ducktap next frame.
                         return do_action;
                     }
                 }
