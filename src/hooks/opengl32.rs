@@ -29,6 +29,7 @@ fn open_library() -> Option<libloading::Library> {
 ///
 /// [`reset_pointers()`] must be called before opengl32.dll is unloaded so the pointers don't go
 /// stale.
+#[instrument(name = "opengl32::find_pointers", skip_all)]
 pub unsafe fn find_pointers(marker: MainThreadMarker) {
     let library = match open_library() {
         Some(library) => library,

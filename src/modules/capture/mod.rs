@@ -3,7 +3,6 @@
 use std::mem;
 
 use color_eyre::eyre::Context;
-use rust_hawktracer::*;
 
 use super::cvars::CVar;
 use super::Module;
@@ -120,7 +119,7 @@ pub fn reset_gl_state(marker: MainThreadMarker) {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum SoundCaptureMode {
     /// Floor time to sample boundary.
     Normal,
@@ -227,7 +226,7 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
         return;
     }
 
-    scoped_tracepoint!(_capture_frame);
+    let _span = info_span!("capture_frame").entered();
 
     let (width, height) = engine::get_resolution(marker);
 
@@ -336,7 +335,7 @@ pub unsafe fn skip_paint_channels(marker: MainThreadMarker) -> bool {
     matches!(*STATE.borrow_mut(marker), State::Recording(_))
 }
 
-#[hawktracer(capture_sound)]
+#[instrument(skip(marker))]
 pub unsafe fn capture_sound(marker: MainThreadMarker, mode: SoundCaptureMode) {
     let end_time = {
         let mut state = STATE.borrow_mut(marker);

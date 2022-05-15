@@ -1,7 +1,6 @@
 use std::ptr::null;
 
 use color_eyre::eyre::{self, eyre, WrapErr};
-use rust_hawktracer::*;
 
 use super::ExternalObject;
 use crate::gl;
@@ -65,7 +64,7 @@ unsafe fn reset_gl_error(gl: &gl::Gl) {
 }
 
 impl OpenGl {
-    #[hawktracer(opengl_capture)]
+    #[instrument(name = "OpenGl::capture", skip_all)]
     pub unsafe fn capture(&self) -> eyre::Result<()> {
         let gl = gl::GL.borrow(self.marker);
         let gl = gl.as_ref().unwrap();
@@ -150,7 +149,7 @@ impl OpenGl {
     }
 }
 
-#[hawktracer(opengl_init)]
+#[instrument(name = "OpenGl::init", skip(marker))]
 pub unsafe fn init(
     marker: MainThreadMarker,
     width: i32,

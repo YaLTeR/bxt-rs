@@ -80,8 +80,23 @@ fn setup_logging_hooks() {
                 .with_ansi(false)
         });
 
+    let profiling_layer = if env::var_os("BXT_RS_PROFILE").is_some() {
+        let (chrome_layer, guard) = tracing_chrome::ChromeLayerBuilder::new()
+            .file("trace.json")
+            .include_args(true)
+            .include_locations(false)
+            .build();
+
+        Box::leak(Box::new(guard));
+
+        Some(chrome_layer)
+    } else {
+        None
+    };
+
     tracing_subscriber::registry()
         .with(file_layer)
+        .with(profiling_layer)
         // Term layer must be last, otherwise the log file will have some ANSI codes:
         // https://github.com/tokio-rs/tracing/issues/1817
         .with(term_layer)
@@ -112,29 +127,6 @@ fn setup_logging_hooks() {
 pub fn ensure_logging_hooks() {
     static ONCE: Once = Once::new();
     ONCE.call_once(setup_logging_hooks);
-}
-
-#[cfg(feature = "profiling")]
-fn setup_profiling() {
-    use rust_hawktracer::*;
-
-    let instance = HawktracerInstance::new();
-    let listener = instance.create_listener(HawktracerListenerType::ToFile {
-        file_path: "trace.bin".into(),
-        buffer_size: 4096,
-    });
-
-    Box::leak(Box::new(listener));
-    Box::leak(Box::new(instance));
-}
-
-#[cfg(not(feature = "profiling"))]
-fn setup_profiling() {}
-
-/// Ensures profiling is initialized.
-pub fn ensure_profiling() {
-    static ONCE: Once = Once::new();
-    ONCE.call_once(setup_profiling);
 }
 
 /// Converts a `CStr` into an `OsString`.

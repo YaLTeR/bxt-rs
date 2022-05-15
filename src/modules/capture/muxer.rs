@@ -3,7 +3,6 @@ use std::io::{self, Write};
 use std::os::windows::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 
-use rust_hawktracer::*;
 use thiserror::Error;
 
 pub struct Muxer {
@@ -20,7 +19,7 @@ pub enum MuxerInitError {
     Other(#[from] io::Error),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PixelFormat {
     I420,
     /// RGB24, vertically flipped (basically, output from glReadPixels).
@@ -97,7 +96,7 @@ fn packet<W: Write>(mut writer: W, startcode: u64, data: &[u8]) -> Result<(), io
 }
 
 impl Muxer {
-    #[hawktracer(muxer_new)]
+    #[instrument(name = "Muxer::new")]
     pub fn new(
         width: u64,
         height: u64,
@@ -226,7 +225,7 @@ impl Muxer {
         })
     }
 
-    #[hawktracer(write_video_frame)]
+    #[instrument(name = "Muxer::write_video_frame", skip_all)]
     pub fn write_video_frame(&mut self, data: &[u8]) -> Result<(), io::Error> {
         const SYNCPOINT_STARTCODE: u64 = 0x4e4be4adeeca4569;
 
@@ -259,7 +258,7 @@ impl Muxer {
         writer.write_all(&crc32(&buf).to_be_bytes()[..])?; // checksum
 
         {
-            scoped_tracepoint!(_write_video_data);
+            let _span = info_span!("write video data").entered();
             writer.write_all(data)?;
         }
 
@@ -268,7 +267,7 @@ impl Muxer {
         Ok(())
     }
 
-    #[hawktracer(write_audio_frame)]
+    #[instrument(name = "Muxer::write_audio_frame", skip_all)]
     pub fn write_audio_frame(&mut self, data: &[u8]) -> Result<(), io::Error> {
         const SYNCPOINT_STARTCODE: u64 = 0x4e4be4adeeca4569;
 
@@ -308,7 +307,7 @@ impl Muxer {
     }
 
     /// Waits for the child process to exit and returns its output.
-    #[hawktracer(muxer_close)]
+    #[instrument(name = "Muxer::close", skip_all)]
     pub fn close(self) -> String {
         let output = self.child.wait_with_output().unwrap();
         String::from_utf8_lossy(&output.stderr).into_owned()

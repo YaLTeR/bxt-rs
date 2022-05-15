@@ -2,7 +2,6 @@ use std::thread::{self, JoinHandle};
 
 use color_eyre::eyre::{self, ensure, eyre, Context};
 use crossbeam_channel::{bounded, Receiver, Sender};
-use rust_hawktracer::*;
 
 use super::muxer::{Muxer, MuxerInitError, PixelFormat};
 use super::opengl::{self, OpenGl, Uuids};
@@ -85,7 +84,7 @@ enum ThreadToMain {
 }
 
 impl Recorder {
-    #[hawktracer(recorder_init)]
+    #[instrument(name = "Recorder::init")]
     pub unsafe fn init(
         width: i32,
         height: i32,
@@ -201,7 +200,7 @@ impl Recorder {
         }
     }
 
-    #[hawktracer(initialize_opengl_capturing)]
+    #[instrument(skip_all)]
     unsafe fn initialize_opengl_capturing(&mut self, marker: MainThreadMarker) -> eyre::Result<()> {
         assert!(matches!(self.capture_type, CaptureType::Vulkan(_)));
 
@@ -253,7 +252,7 @@ impl Recorder {
         }
     }
 
-    #[hawktracer(acquire_image_if_needed)]
+    #[instrument(skip_all)]
     unsafe fn acquire_image_if_needed(&mut self) {
         assert!(matches!(self.capture_type, CaptureType::Vulkan(_)));
 
@@ -271,7 +270,7 @@ impl Recorder {
         self.send_to_thread(MainToThread::AcquireImage);
     }
 
-    #[hawktracer(record)]
+    #[instrument(skip(self))]
     unsafe fn record(&mut self, frames: usize) -> eyre::Result<()> {
         match self.capture_type {
             CaptureType::Vulkan(_) => {
@@ -296,7 +295,7 @@ impl Recorder {
         Ok(())
     }
 
-    #[hawktracer(record_last_frame)]
+    #[instrument(skip_all)]
     pub unsafe fn record_last_frame(&mut self) -> eyre::Result<()> {
         // Push this frame as long as it takes up the most of the video frame.
         // Remainder is > -0.5 at all times.
@@ -335,12 +334,12 @@ impl Recorder {
         samples_rounded as i32
     }
 
-    #[hawktracer(write_audio_frame)]
+    #[instrument(name = "Recorder::write_audio_frame", skip_all)]
     pub fn write_audio_frame(&mut self, samples: Vec<u8>) {
         self.send_to_thread(MainToThread::Audio(samples));
     }
 
-    #[hawktracer(recorder_finish)]
+    #[instrument(name = "Recorder::finish", skip_all)]
     pub fn finish(mut self) -> Option<String> {
         self.send_to_thread(MainToThread::Finish);
 
@@ -423,19 +422,19 @@ fn process_message(
             s.send(ThreadToMain::ExternalHandles(handles)).unwrap();
         }
         MainToThread::AcquireImage => {
-            scoped_tracepoint!(_acquire);
+            let _span = info_span!("acquire").entered();
 
             unsafe { vulkan.unwrap().acquire_image() }?;
 
             s.send(ThreadToMain::AcquiredImage).unwrap();
         }
         MainToThread::Record { frames } => {
-            scoped_tracepoint!(_record);
+            let _span = info_span!("record").entered();
 
             unsafe { vulkan.unwrap().convert_colors_and_mux(muxer, frames) }?;
         }
         MainToThread::Mux { pixels, frames } => {
-            scoped_tracepoint!(_mux);
+            let _span = info_span!("mux").entered();
 
             for _ in 0..frames {
                 muxer.write_video_frame(&pixels)?;
@@ -444,7 +443,7 @@ fn process_message(
             s.send(ThreadToMain::Muxed(pixels)).unwrap();
         }
         MainToThread::Audio(samples) => {
-            scoped_tracepoint!(_audio);
+            let _span = info_span!("audio").entered();
 
             muxer.write_audio_frame(&samples)?;
         }

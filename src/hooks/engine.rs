@@ -11,7 +11,6 @@ use std::str::FromStr;
 
 use bxt_macros::pattern;
 use bxt_patterns::Patterns;
-use rust_hawktracer::*;
 
 use crate::ffi::com_model::{mleaf_s, model_s};
 use crate::ffi::command::cmd_function_s;
@@ -1005,7 +1004,7 @@ pub unsafe fn player_edict(marker: MainThreadMarker) -> Option<NonNull<edict_s>>
 ///
 /// [`reset_pointers()`] must be called before hw is unloaded so the pointers don't go stale.
 #[cfg(unix)]
-#[hawktracer(find_pointers)]
+#[instrument(name = "engine::find_pointers", skip(marker))]
 unsafe fn find_pointers(marker: MainThreadMarker) {
     use libc::{RTLD_NOLOAD, RTLD_NOW};
     use libloading::os::unix::Library;
@@ -1053,7 +1052,7 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
 /// the pointers are reset (according to the safety section of `PointerTrait::set`).
 #[allow(clippy::single_match)]
 #[cfg(windows)]
-#[hawktracer(find_pointers)]
+#[instrument(skip(marker))]
 pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: usize) {
     use std::slice;
 
@@ -1422,7 +1421,6 @@ pub mod exported {
 
             // This is the first function that we hook called on Linux, so do due initialization.
             ensure_logging_hooks();
-            ensure_profiling();
 
             #[cfg(unix)]
             find_pointers(marker);

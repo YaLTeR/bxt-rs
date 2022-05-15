@@ -1,7 +1,5 @@
 use std::os::raw::c_void;
 
-use rust_hawktracer::*;
-
 use crate::modules::capture;
 use crate::utils::*;
 
@@ -20,7 +18,7 @@ pub static GL: MainThreadRefCell<Option<Gl>> = MainThreadRefCell::new(None);
 ///
 /// [`reset_pointers()`] must be called before the library providing pointers is unloaded so the
 /// pointers don't go stale.
-#[hawktracer(gl_load_pointers)]
+#[instrument(name = "gl::find_pointers", skip_all)]
 pub unsafe fn load_pointers(
     marker: MainThreadMarker,
     load: impl Fn(&'static str) -> *const c_void,

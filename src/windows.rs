@@ -34,7 +34,6 @@ pub unsafe extern "system" fn DllMain(
 unsafe fn init() {
     // TODO: assertion fails will result in the launcher hanging forever.
     ensure_logging_hooks();
-    ensure_profiling();
 
     assert_eq!(MH_Initialize(), MH_OK);
 

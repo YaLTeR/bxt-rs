@@ -76,7 +76,6 @@ use std::{slice, str};
 use ash::util::read_spv;
 use ash::vk;
 use color_eyre::eyre::{self, ensure, eyre};
-use rust_hawktracer::*;
 
 use super::muxer::Muxer;
 use super::opengl::Uuids;
@@ -249,7 +248,7 @@ impl Vulkan {
         Ok(semaphore_handle)
     }
 
-    #[hawktracer(acquire_image)]
+    #[instrument(skip_all)]
     pub unsafe fn acquire_image(&self) -> eyre::Result<()> {
         let begin_info = vk::CommandBufferBeginInfo::builder()
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
@@ -367,7 +366,7 @@ impl Vulkan {
         Ok(())
     }
 
-    #[hawktracer(convert_colors_and_mux)]
+    #[instrument(skip(self, muxer))]
     pub unsafe fn convert_colors_and_mux(
         &self,
         muxer: &mut Muxer,
@@ -514,7 +513,7 @@ impl Vulkan {
             .queue_submit(self.queue, &[*submit_info], fence)?;
 
         {
-            scoped_tracepoint!(wait_for_fence_);
+            let _span = info_span!("wait for fence").entered();
 
             self.device
                 .wait_for_fences(&[fence], true, u64::max_value())?;
@@ -554,7 +553,7 @@ impl Vulkan {
     }
 }
 
-#[hawktracer(vulkan_init)]
+#[instrument(name = "vulkan::init", skip(uuids))]
 pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
     // TODO: handle weird resolutions.
     ensure!(

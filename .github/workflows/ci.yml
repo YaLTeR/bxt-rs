@@ -15,7 +15,7 @@ jobs:
       matrix:
         os: [ubuntu-20.04, windows-2019]
         rust: [stable, beta]
-        features: ['', vulkan-debug, profiling, 'vulkan-debug,profiling']
+        features: ['', vulkan-debug]
         configuration: [debug, release]
         cross: [false, true]
 
@@ -24,32 +24,12 @@ jobs:
             rust: beta
           - configuration: release
             features: vulkan-debug
-          - configuration: release
-            features: 'vulkan-debug,profiling'
 
           - cross: true
             os: windows-2019
 
-          # We want only a release profile build, but on Windows hawktracer fails to build on release.
-          - configuration: debug
-            features: profiling
-            os: ubuntu-20.04
-          - configuration: release
-            features: profiling
-            os: windows-2019
-
-          # rust-hawktracer fails to build with explicit -m32 on the CI.
-          - features: profiling
-            os: ubuntu-20.04
-          - features: 'vulkan-debug,profiling'
-            os: ubuntu-20.04
-
           - rust: beta
             features: vulkan-debug
-          - rust: beta
-            features: profiling
-          - rust: beta
-            features: 'vulkan-debug,profiling'
 
         include:
           - os: ubuntu-20.04
@@ -75,11 +55,6 @@ jobs:
           - configuration: release
             release-flag: '--release'
 
-          - features: profiling
-            profiling-dep: lib32stdc++-9-dev
-          - features: 'vulkan-debug,profiling'
-            profiling-dep: lib32stdc++-9-dev
-
     name: ${{ matrix.rust }} - ${{ matrix.label }} - ${{ matrix.configuration }} - ${{ matrix.features }}
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
@@ -104,7 +79,7 @@ jobs:
         if: matrix.os == 'ubuntu-20.04'
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y libc6-dev-i386 ${{ matrix.profiling-dep }} ${{ matrix.cross-dep }}
+          sudo apt-get install -y libc6-dev-i386 ${{ matrix.cross-dep }}
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
@@ -132,7 +107,7 @@ jobs:
           args: --all --target ${{ matrix.target }} ${{ matrix.release-flag }} --features=${{ matrix.features }}
 
       - uses: actions/upload-artifact@v2
-        if: matrix.rust == 'stable' && matrix.features != 'vulkan-debug,profiling' && !matrix.cross
+        if: matrix.rust == 'stable' && !matrix.cross
         with:
           name: bxt-rs-${{ runner.os }}-${{ matrix.configuration }}-${{ matrix.features }}
           path: target/${{ matrix.target }}/${{ matrix.configuration }}/${{ matrix.filename }}
