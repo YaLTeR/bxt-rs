@@ -149,8 +149,10 @@ impl Recorder {
 
         let (to_thread_sender, from_main_receiver) = bounded(2);
         let (to_main_sender, from_thread_receiver) = bounded(2);
-        let thread =
-            thread::spawn(move || thread(vulkan, muxer, to_main_sender, from_main_receiver));
+        let thread = thread::Builder::new()
+            .name("Recording Thread".to_string())
+            .spawn(move || thread(vulkan, muxer, to_main_sender, from_main_receiver))
+            .unwrap();
 
         Ok(Recorder {
             width,
