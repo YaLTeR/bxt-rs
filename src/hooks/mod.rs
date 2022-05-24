@@ -1,5 +1,6 @@
 //! Hooked functions.
 
+pub mod bxt;
 pub mod engine;
 pub mod sdl;
 pub mod server;
