@@ -8,7 +8,7 @@ use std::ptr::NonNull;
 use crate::ffi::playermove::playermove_s;
 use crate::ffi::usercmd::usercmd_s;
 use crate::hooks::engine;
-use crate::modules::{tas_logging, tas_recording, tas_server_time_fix};
+use crate::modules::{tas_editor, tas_logging, tas_recording, tas_server_time_fix};
 use crate::utils::*;
 
 pub static CmdStart: Pointer<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)> =
@@ -68,6 +68,7 @@ pub unsafe extern "C" fn my_CmdStart(
 
         tas_logging::begin_cmd_frame(marker, *cmd, random_seed);
         tas_recording::on_cmd_start(marker, *cmd, random_seed);
+        tas_editor::on_cmd_start(marker);
 
         CmdStart.get(marker)(player, cmd, random_seed);
     })

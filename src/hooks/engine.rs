@@ -21,7 +21,7 @@ use crate::ffi::triangleapi::triangleapi_s;
 use crate::ffi::usercmd::usercmd_s;
 #[cfg(windows)]
 use crate::hooks::opengl32;
-use crate::hooks::{sdl, server};
+use crate::hooks::{bxt, sdl, server};
 use crate::modules::*;
 use crate::utils::*;
 
@@ -1443,6 +1443,7 @@ pub mod exported {
             sdl::find_pointers(marker);
             #[cfg(windows)]
             opengl32::find_pointers(marker);
+            bxt::find_pointers(marker);
 
             let rv = Memory_Init.get(marker)(buf, size);
 
@@ -1450,6 +1451,10 @@ pub mod exported {
             commands::register_all_commands(marker);
             cvars::deregister_disabled_module_cvars(marker);
             commands::deregister_disabled_module_commands(marker);
+
+            if bxt::BXT_TAS_LOAD_SCRIPT_FROM_STRING.is_set(marker) {
+                tas_editor::try_connecting_to_server(marker);
+            }
 
             rv
         })
@@ -1679,6 +1684,7 @@ pub mod exported {
 
             if rv != 0 {
                 capture::time_passed(marker);
+                tas_editor::maybe_receive_messages_from_remote_server(marker);
             }
 
             rv

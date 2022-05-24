@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::io::Write;
+use std::mem;
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use std::result::Result;
@@ -13,13 +14,15 @@ use mlua::{Lua, LuaSerdeExt};
 use rand::distributions::Uniform;
 use rand::prelude::Distribution;
 use rand::Rng;
-use tap::{Conv, Pipe, TryConv};
+use serde::{Deserialize, Serialize};
+use tap::{Conv, Pipe, Tap, TryConv};
 
+use super::remote;
 use crate::modules::triangle_drawing::triangle_api::{Primitive, RenderMode};
 use crate::modules::triangle_drawing::TriangleApi;
 
 /// A movement frame.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Frame {
     /// Parameters used for simulating this frame.
     pub parameters: Parameters,
@@ -508,6 +511,114 @@ impl Editor {
                 self.mark_as_stale(valid_frames);
             }
         }
+    }
+
+    fn prepare_hltas_for_sending(&mut self) -> HLTAS {
+        let len = self.prefix.lines.len();
+        self.prefix.lines.extend(self.hltas.lines.iter().cloned());
+
+        // Replace the TAS editor / TAS optim commands with the start sending frames command.
+        match &mut self.prefix.lines[len] {
+            Line::FrameBulk(frame_bulk) => {
+                frame_bulk.console_command =
+                    Some("_bxt_tas_optim_simulation_start_recording_frames".to_owned());
+            }
+            _ => unreachable!(),
+        }
+
+        // Add a toggleconsole command in the end.
+        self.prefix.lines.push(Line::FrameBulk(
+            FrameBulk::with_frame_time("0.001".to_owned()).tap_mut(|x| {
+                x.console_command = Some("_bxt_tas_optim_simulation_done;toggleconsole".to_owned())
+            }),
+        ));
+
+        let hltas = self.prefix.clone();
+        self.prefix.lines.truncate(len);
+        hltas
+    }
+
+    pub fn maybe_simulate_all_in_remote_client(&mut self) {
+        if self.frames.len() > 1 {
+            // Already simulated.
+            return;
+        }
+
+        if let Some(mut frames) = remote::simulate(self.prepare_hltas_for_sending()) {
+            frames.insert(0, mem::take(&mut self.frames).into_iter().next().unwrap());
+            self.frames = frames;
+        }
+    }
+
+    // Yes I know this is not the best structured code at the moment...
+    #[allow(clippy::too_many_arguments)]
+    pub fn optimize_with_remote_clients(
+        &mut self,
+        frames: usize,
+        random_frames_to_change: usize,
+        change_single_frames: bool,
+        goal: &OptimizationGoal,
+        constraint: Option<&Constraint>,
+        mut on_improvement: impl FnMut(&str),
+    ) {
+        self.maybe_simulate_all_in_remote_client();
+
+        if self.frames.len() == 1 {
+            // Haven't finished the initial simulation yet...
+            return;
+        }
+
+        let mut high = self.frames.len() - 1;
+        if frames > 0 {
+            high = high.min(frames);
+        }
+
+        let between = Uniform::from(0..high);
+        let mut rng = rand::thread_rng();
+
+        remote::receive_simulation_result_from_clients(|mut hltas, mut frames| {
+            frames.insert(0, self.frames[0].clone());
+            self.last_mutation_frames = Some(frames.clone());
+
+            if constraint.map(|c| c.is_valid(&frames)).unwrap_or(true)
+                && goal.is_better(&frames, &self.frames)
+            {
+                self.hltas.lines = hltas
+                    .lines
+                    .drain(self.prefix.lines.len()..hltas.lines.len() - 1)
+                    .collect();
+
+                // Remove the start sending frames command.
+                match &mut self.hltas.lines[0] {
+                    Line::FrameBulk(frame_bulk) => frame_bulk.console_command = None,
+                    _ => unreachable!(),
+                };
+
+                self.frames = frames;
+                on_improvement(&goal.to_string(&self.frames));
+            }
+        });
+
+        remote::simulate_in_available_clients(|| {
+            let temp = self.hltas.clone();
+
+            // Change several frames.
+            for _ in 0..random_frames_to_change {
+                if change_single_frames {
+                    let frame = between.sample(&mut rng);
+                    let frame_bulk = self.hltas.split_single_at_frame(frame).unwrap();
+                    mutate_frame_bulk(&mut rng, frame_bulk);
+                } else {
+                    mutate_single_frame_bulk(&mut self.hltas, &mut rng);
+                }
+            }
+
+            let hltas = self.prepare_hltas_for_sending();
+
+            self.hltas = temp;
+
+            hltas
+        });
     }
 
     fn mutate_frame<R: Rng>(&mut self, rng: &mut R, frame: usize) {

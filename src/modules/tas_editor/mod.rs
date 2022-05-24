@@ -15,6 +15,7 @@ use super::triangle_drawing::{self, TriangleApi};
 use super::Module;
 use crate::ffi::edict;
 use crate::handler;
+use crate::hooks::bxt;
 use crate::hooks::engine::{self, con_print};
 use crate::modules::commands::{self, Command};
 use crate::utils::*;
@@ -24,6 +25,9 @@ use editor::Editor;
 
 mod tracer;
 use tracer::Tracer;
+
+mod remote;
+pub use remote::try_connecting_to_server;
 
 pub struct TasEditor;
 impl Module for TasEditor {
@@ -38,6 +42,8 @@ impl Module for TasEditor {
             &BXT_TAS_OPTIM_STOP,
             &BXT_TAS_OPTIM_SAVE,
             &BXT_TAS_OPTIM_MINIMIZE,
+            &BXT_TAS_OPTIM_SIMULATION_START_RECORDING_FRAMES,
+            &BXT_TAS_OPTIM_SIMULATION_DONE,
         ];
         COMMANDS
     }
@@ -193,6 +199,13 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
     };
 
     *EDITOR.borrow_mut(marker) = Some(Editor::new(hltas, first_frame, initial_frame));
+
+    if let Err(err) = remote::start_server(marker) {
+        con_print(
+            marker,
+            &format!("Could not start a server for multi-game optimization: {err:?}"),
+        );
+    }
 }
 
 static BXT_TAS_OPTIM_RUN: Command = Command::new(
@@ -407,6 +420,83 @@ fn optim_minimize(marker: MainThreadMarker) {
     }
 }
 
+static BXT_TAS_OPTIM_SIMULATION_START_RECORDING_FRAMES: Command = Command::new(
+    b"_bxt_tas_optim_simulation_start_recording_frames\0",
+    handler!(
+        "Usage: _bxt_tas_optim_simulation_start_recording_frames\n \
+          Starts recording frames to send to the remote server.\n",
+        optim_simulation_start_recording_frames as fn(_)
+    ),
+);
+
+fn optim_simulation_start_recording_frames(marker: MainThreadMarker) {
+    remote::start_recording_frames(marker);
+}
+
+static BXT_TAS_OPTIM_SIMULATION_DONE: Command = Command::new(
+    b"_bxt_tas_optim_simulation_done\0",
+    handler!(
+        "Usage: _bxt_tas_optim_simulation_done\n \
+          Sends simulated frames to the remote server.\n",
+        optim_simulation_done as fn(_)
+    ),
+);
+
+fn optim_simulation_done(marker: MainThreadMarker) {
+    remote::send_simulation_result_to_server(marker);
+}
+
+pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker) {
+    let cls = match engine::cls.get_opt(marker) {
+        Some(x) => x,
+        None => return,
+    };
+
+    let client_state = (*cls).state;
+    if client_state != 1 && client_state != 5 {
+        return;
+    }
+
+    if let Some(hltas) = remote::receive_new_hltas_to_simulate(marker) {
+        engine::prepend_command(
+            marker,
+            "sensitivity 0;volume 0;MP3Volume 0;bxt_tas_write_log 0;bxt_tas_norefresh_until_last_frames 1\n",
+        );
+
+        bxt::tas_load_script(marker, &hltas);
+    }
+}
+
+pub unsafe fn on_cmd_start(marker: MainThreadMarker) {
+    remote::on_frame_simulated(marker, || {
+        let player = player_data(marker).unwrap();
+
+        let parameters = Parameters {
+            frame_time: *engine::host_frametime.get(marker) as f32,
+            max_velocity: get_cvar_f32(marker, "sv_maxvelocity").unwrap_or(2000.),
+            max_speed: get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.),
+            stop_speed: get_cvar_f32(marker, "sv_stopspeed").unwrap_or(100.),
+            friction: get_cvar_f32(marker, "sv_friction").unwrap_or(4.),
+            edge_friction: get_cvar_f32(marker, "edgefriction").unwrap_or(2.),
+            ent_friction: 1.,
+            accelerate: get_cvar_f32(marker, "sv_accelerate").unwrap_or(10.),
+            air_accelerate: get_cvar_f32(marker, "sv_airaccelerate").unwrap_or(10.),
+            gravity: get_cvar_f32(marker, "sv_gravity").unwrap_or(800.),
+            ent_gravity: 1.,
+            step_size: get_cvar_f32(marker, "sv_stepsize").unwrap_or(18.),
+            bounce: get_cvar_f32(marker, "sv_bounce").unwrap_or(1.),
+            bhop_cap: get_cvar_f32(marker, "bxt_bhopcap").unwrap_or(0.) != 0.,
+        };
+
+        let tracer = Tracer::new(marker, false).unwrap();
+
+        Frame {
+            state: State::new(&tracer, parameters, player),
+            parameters,
+        }
+    });
+}
+
 unsafe fn player_data(marker: MainThreadMarker) -> Option<Player> {
     // SAFETY: we're not calling any engine functions while the reference is alive.
     let edict = engine::player_edict(marker)?.as_ref();
@@ -423,27 +513,47 @@ unsafe fn player_data(marker: MainThreadMarker) -> Option<Player> {
 
 pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     if let Some(editor) = &mut *EDITOR.borrow_mut(marker) {
-        // SAFETY: if we have access to TriangleApi, it's safe to do player tracing too.
-        let tracer =
-            unsafe { Tracer::new(marker, BXT_TAS_OPTIM_SIMULATION_ACCURACY.as_bool(marker)) }
-                .unwrap();
+        if BXT_TAS_OPTIM_SIMULATION_ACCURACY.as_u64(marker) == 2 {
+            if OPTIMIZE.get(marker) {
+                editor.optimize_with_remote_clients(
+                    BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
+                    BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
+                    BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
+                    &*GOAL.borrow(marker),
+                    CONSTRAINT.borrow(marker).as_ref(),
+                    |value| {
+                        con_print(marker, &format!("Found new best value: {value}\n"));
+                    },
+                );
+            } else {
+                // Poll games to make them free again.
+                remote::receive_simulation_result_from_clients(|_, _| {});
+            }
 
-        if OPTIMIZE.get(marker) {
-            editor.optimize(
-                &tracer,
-                BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
-                BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
-                BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
-                &*GOAL.borrow(marker),
-                CONSTRAINT.borrow(marker).as_ref(),
-                |value| {
-                    con_print(marker, &format!("Found new best value: {value}\n"));
-                },
-            );
+            editor.maybe_simulate_all_in_remote_client();
+        } else {
+            // SAFETY: if we have access to TriangleApi, it's safe to do player tracing too.
+            let tracer =
+                unsafe { Tracer::new(marker, BXT_TAS_OPTIM_SIMULATION_ACCURACY.as_bool(marker)) }
+                    .unwrap();
+
+            if OPTIMIZE.get(marker) {
+                editor.optimize(
+                    &tracer,
+                    BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
+                    BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
+                    BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
+                    &*GOAL.borrow(marker),
+                    CONSTRAINT.borrow(marker).as_ref(),
+                    |value| {
+                        con_print(marker, &format!("Found new best value: {value}\n"));
+                    },
+                );
+            }
+
+            // Make sure the state is ready for drawing.
+            editor.simulate_all(&tracer);
         }
-
-        // Make sure the state is ready for drawing.
-        editor.simulate_all(&tracer);
 
         editor.draw(tri);
     }
