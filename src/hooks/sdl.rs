@@ -4,15 +4,64 @@ use std::ffi::CString;
 use std::os::raw::{c_char, c_int, c_void};
 use std::ptr::NonNull;
 
+use bxt_patterns::Patterns;
+
 use crate::gl;
+use crate::modules::tas_editor;
 use crate::utils::*;
 
 pub static SDL_GL_ExtensionSupported: Pointer<unsafe extern "C" fn(*const c_char) -> c_int> =
     Pointer::empty(b"SDL_GL_ExtensionSupported\0");
 pub static SDL_GL_GetProcAddress: Pointer<unsafe extern "C" fn(*const c_char) -> *const c_void> =
     Pointer::empty(b"SDL_GL_GetProcAddress\0");
+pub static SDL_WarpMouseInWindow: Pointer<unsafe extern "C" fn(*mut c_void, c_int, c_int)> =
+    Pointer::empty_patterns(
+        b"SDL_WarpMouseInWindow\0",
+        Patterns(&[]),
+        my_SDL_WarpMouseInWindow as _,
+    );
 
-static POINTERS: &[&dyn PointerTrait] = &[&SDL_GL_ExtensionSupported, &SDL_GL_GetProcAddress];
+static POINTERS: &[&dyn PointerTrait] = &[
+    &SDL_GL_ExtensionSupported,
+    &SDL_GL_GetProcAddress,
+    &SDL_WarpMouseInWindow,
+];
+
+#[cfg(windows)]
+static ORIGINAL_FUNCTIONS: MainThreadRefCell<Vec<*mut c_void>> = MainThreadRefCell::new(Vec::new());
+
+#[cfg(windows)]
+unsafe fn maybe_hook(marker: MainThreadMarker, pointer: &dyn PointerTrait) {
+    use minhook_sys::*;
+
+    if !pointer.is_set(marker) {
+        return;
+    }
+
+    let hook_fn = pointer.hook_fn();
+    if hook_fn.is_null() {
+        return;
+    }
+
+    let original = pointer.get_raw(marker);
+    let mut trampoline = std::ptr::null_mut();
+    assert_eq!(
+        MH_CreateHook(original.as_ptr(), hook_fn, &mut trampoline),
+        MH_OK
+    );
+
+    ORIGINAL_FUNCTIONS
+        .borrow_mut(marker)
+        .push(original.as_ptr());
+
+    pointer.set_with_index(
+        marker,
+        NonNull::new_unchecked(trampoline),
+        pointer.pattern_index(marker),
+    );
+
+    assert_eq!(MH_EnableHook(original.as_ptr()), MH_OK);
+}
 
 #[cfg(unix)]
 fn open_library() -> Option<libloading::Library> {
@@ -53,6 +102,14 @@ pub unsafe fn find_pointers(marker: MainThreadMarker) {
         pointer.log(marker);
     }
 
+    #[cfg(windows)]
+    {
+        // Hook all found pointers on Windows.
+        for &pointer in POINTERS {
+            maybe_hook(marker, pointer);
+        }
+    }
+
     let load = |name| {
         let name = CString::new(name).unwrap();
         SDL_GL_GetProcAddress.get(marker)(name.as_ptr())
@@ -75,5 +132,38 @@ pub fn reset_pointers(marker: MainThreadMarker) {
 
     for pointer in POINTERS {
         pointer.reset(marker);
+    }
+
+    // Remove all hooks.
+    #[cfg(windows)]
+    {
+        use minhook_sys::*;
+
+        for function in ORIGINAL_FUNCTIONS.borrow_mut(marker).drain(..) {
+            assert_eq!(unsafe { MH_RemoveHook(function) }, MH_OK);
+        }
+    }
+}
+
+use exported::*;
+
+/// Functions exported for `LD_PRELOAD` hooking.
+pub mod exported {
+    #![allow(clippy::missing_safety_doc)]
+
+    use super::*;
+
+    #[export_name = "SDL_WarpMouseInWindow"]
+    pub unsafe extern "C" fn my_SDL_WarpMouseInWindow(window: *mut c_void, x: c_int, y: c_int) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if tas_editor::is_connected_to_server(marker) {
+                // Don't warp the mouse from simulator clients.
+                return;
+            }
+
+            SDL_WarpMouseInWindow.get(marker)(window, x, y);
+        })
     }
 }
