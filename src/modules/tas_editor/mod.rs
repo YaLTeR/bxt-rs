@@ -27,7 +27,7 @@ mod tracer;
 use tracer::Tracer;
 
 mod remote;
-pub use remote::try_connecting_to_server;
+pub use remote::maybe_try_connecting_to_server;
 
 pub struct TasEditor;
 impl Module for TasEditor {
