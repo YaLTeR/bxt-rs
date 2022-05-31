@@ -226,6 +226,11 @@ pub fn maybe_try_connecting_to_server(marker: MainThreadMarker) {
         return;
     }
 
+    if bxt::is_simulation_ipc_client(marker) {
+        // We are a BXT simulation client.
+        return;
+    }
+
     let mut stream = match TcpStream::connect(("127.0.0.1", PORT)) {
         Ok(x) => x,
         Err(err) => {
