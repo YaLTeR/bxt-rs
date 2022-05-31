@@ -1683,6 +1683,7 @@ pub mod exported {
             if rv != 0 {
                 capture::time_passed(marker);
 
+                tas_editor::maybe_disconnect_from_server(marker);
                 tas_editor::maybe_try_connecting_to_server(marker);
                 tas_editor::maybe_receive_messages_from_remote_server(marker);
             }

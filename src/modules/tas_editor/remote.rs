@@ -312,6 +312,12 @@ pub fn maybe_try_connecting_to_server(marker: MainThreadMarker) {
     });
 }
 
+pub fn maybe_disconnect_from_server(marker: MainThreadMarker) {
+    if bxt::is_simulation_ipc_client(marker) {
+        *REMOTE_SERVER.borrow_mut(marker) = None;
+    }
+}
+
 /// Receives any completed simulation results from the remote clients and calls `process_result` to
 /// process them.
 ///
