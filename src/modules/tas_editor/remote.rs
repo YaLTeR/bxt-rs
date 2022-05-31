@@ -173,7 +173,7 @@ fn server_thread(listener: TcpListener) {
         }
         drop(stream);
 
-        let (_, (sender, receiver)) = match server.accept() {
+        let (_, (hltas_sender, workaround_sender)): (_, (_, IpcSender<_>)) = match server.accept() {
             Ok(x) => x,
             Err(err) => {
                 error!("Error accepting remote client IPC connection: {err:?}");
@@ -181,9 +181,22 @@ fn server_thread(listener: TcpListener) {
             }
         };
 
+        let (frames_sender, frames_receiver) = match ipc_channel::ipc::channel() {
+            Ok(x) => x,
+            Err(err) => {
+                error!("Error creating a frames IPC channel: {err:?}");
+                return;
+            }
+        };
+
+        if let Err(err) = workaround_sender.send(frames_sender) {
+            error!("Error sending the frames sender to the remote client: {err:?}");
+            return;
+        };
+
         REMOTE_GAMES.lock().push(RemoteGame {
-            sender,
-            receiver,
+            sender: hltas_sender,
+            receiver: frames_receiver,
             state: RemoteGameState::Free,
         });
     }
@@ -237,18 +250,30 @@ pub fn try_connecting_to_server(marker: MainThreadMarker) {
         }
     };
 
-    let (frames_sender, frames_receiver) = match ipc_channel::ipc::channel() {
+    // Workaround for a Windows ipc-channel panic: the receiver for large payloads should be created
+    // in the process that will be using it.
+    //
+    // https://github.com/servo/ipc-channel/issues/277
+    let (workaround_sender, workaround_receiver) = match ipc_channel::ipc::channel() {
         Ok(x) => x,
         Err(err) => {
-            error!("Error creating a frames IPC channel: {err:?}");
+            error!("Error creating a workaround IPC channel: {err:?}");
             return;
         }
     };
 
-    if let Err(err) = tx.send((hltas_sender, frames_receiver)) {
+    if let Err(err) = tx.send((hltas_sender, workaround_sender)) {
         error!("Error sending the IPC channels to the remote server: {err:?}");
         return;
     }
+
+    let frames_sender = match workaround_receiver.recv() {
+        Ok(x) => x,
+        Err(err) => {
+            error!("Error receiving the frames sender from the remote server: {err:?}");
+            return;
+        }
+    };
 
     info!("Connected to a remote server.");
 
