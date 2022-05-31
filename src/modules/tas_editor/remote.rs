@@ -2,6 +2,7 @@
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::time::{Duration, Instant};
 use std::{mem, thread};
 
 use color_eyre::eyre::{self, eyre, Context};
@@ -204,6 +205,8 @@ fn server_thread(listener: TcpListener) {
 }
 
 /// Tries connecting to a remote server if not a server itself and not already connected.
+///
+/// Tries no more frequently than every second.
 #[instrument(name = "remote::maybe_try_connecting_to_server", skip_all)]
 pub fn maybe_try_connecting_to_server(marker: MainThreadMarker) {
     if IS_SERVER.get(marker) {
@@ -230,6 +233,15 @@ pub fn maybe_try_connecting_to_server(marker: MainThreadMarker) {
         // We are a BXT simulation client.
         return;
     }
+
+    static LAST_ATTEMPTED_AT: MainThreadCell<Option<Instant>> = MainThreadCell::new(None);
+    if let Some(last_attempted_at) = LAST_ATTEMPTED_AT.get(marker) {
+        if last_attempted_at.elapsed() < Duration::from_secs(1) {
+            // One second hasn't elapsed yet.
+            return;
+        }
+    }
+    LAST_ATTEMPTED_AT.set(marker, Some(Instant::now()));
 
     let mut stream = match TcpStream::connect(("127.0.0.1", PORT)) {
         Ok(x) => x,
