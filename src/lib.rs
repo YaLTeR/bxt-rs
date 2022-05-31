@@ -17,3 +17,5 @@ mod windows;
 // Export all functions we want to hook via LD_PRELOAD on Linux.
 #[cfg(unix)]
 pub use hooks::engine::exported::*;
+#[cfg(unix)]
+pub use hooks::sdl::exported::*;

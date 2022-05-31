@@ -318,6 +318,10 @@ pub fn maybe_disconnect_from_server(marker: MainThreadMarker) {
     }
 }
 
+pub fn is_connected_to_server(marker: MainThreadMarker) -> bool {
+    REMOTE_SERVER.borrow(marker).is_some()
+}
+
 /// Receives any completed simulation results from the remote clients and calls `process_result` to
 /// process them.
 ///
