@@ -10,7 +10,8 @@ use ipc_channel::ipc::{IpcOneShotServer, IpcReceiver, IpcSender};
 use parking_lot::{const_mutex, Mutex};
 
 use super::editor::Frame;
-use crate::utils::{MainThreadCell, MainThreadMarker, MainThreadRefCell};
+use crate::hooks::{bxt, engine};
+use crate::utils::{MainThreadCell, MainThreadMarker, MainThreadRefCell, PointerTrait};
 
 #[derive(Debug, Clone)]
 pub enum RemoteGameState {
@@ -203,8 +204,8 @@ fn server_thread(listener: TcpListener) {
 }
 
 /// Tries connecting to a remote server if not a server itself and not already connected.
-#[instrument(name = "remote::try_connecting_to_server", skip_all)]
-pub fn try_connecting_to_server(marker: MainThreadMarker) {
+#[instrument(name = "remote::maybe_try_connecting_to_server", skip_all)]
+pub fn maybe_try_connecting_to_server(marker: MainThreadMarker) {
     if IS_SERVER.get(marker) {
         // We are the server ourselves.
         return;
@@ -212,6 +213,16 @@ pub fn try_connecting_to_server(marker: MainThreadMarker) {
 
     if REMOTE_SERVER.borrow(marker).is_some() {
         // We are already connected to a remote server.
+        return;
+    }
+
+    if !engine::Host_FilterTime.is_set(marker) {
+        // We will never try to receive the script.
+        return;
+    }
+
+    if !bxt::BXT_TAS_LOAD_SCRIPT_FROM_STRING.is_set(marker) {
+        // We won't be able to run the scripts.
         return;
     }
 

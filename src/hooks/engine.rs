@@ -1452,9 +1452,7 @@ pub mod exported {
             cvars::deregister_disabled_module_cvars(marker);
             commands::deregister_disabled_module_commands(marker);
 
-            if bxt::BXT_TAS_LOAD_SCRIPT_FROM_STRING.is_set(marker) {
-                tas_editor::try_connecting_to_server(marker);
-            }
+            tas_editor::maybe_try_connecting_to_server(marker);
 
             rv
         })
