@@ -2,6 +2,7 @@
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 use std::{mem, thread};
 
@@ -12,7 +13,7 @@ use parking_lot::{const_mutex, Mutex};
 
 use super::editor::Frame;
 use crate::hooks::{bxt, engine};
-use crate::utils::{MainThreadCell, MainThreadMarker, PointerTrait};
+use crate::utils::{MainThreadMarker, PointerTrait};
 
 #[derive(Debug, Clone)]
 pub enum RemoteGameState {
@@ -114,6 +115,9 @@ impl State {
 }
 
 static STATE: Mutex<State> = const_mutex(State::None);
+
+/// Whether the client connection thread should try connecting to the remote server.
+static SHOULD_CONNECT_TO_SERVER: AtomicBool = AtomicBool::new(false);
 
 // One of the unassigned ports according to
 // https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt.
@@ -242,16 +246,9 @@ fn server_thread(listener: TcpListener) {
     }
 }
 
-/// Tries connecting to a remote server if not a server itself and not already connected.
-///
-/// Tries no more frequently than every second.
-#[instrument(name = "remote::maybe_try_connecting_to_server", skip_all)]
-pub fn maybe_try_connecting_to_server(marker: MainThreadMarker) {
-    let mut state = STATE.lock();
-    if !state.is_none() {
-        return;
-    }
-
+/// Starts a thread that tries to connect to a remote server repeatedly.
+#[instrument(name = "remote::maybe_start_client_connection_thread", skip_all)]
+pub fn maybe_start_client_connection_thread(marker: MainThreadMarker) {
     if !engine::Host_FilterTime.is_set(marker) {
         // We will never try to receive the script.
         return;
@@ -267,38 +264,59 @@ pub fn maybe_try_connecting_to_server(marker: MainThreadMarker) {
         return;
     }
 
-    static LAST_ATTEMPTED_AT: MainThreadCell<Option<Instant>> = MainThreadCell::new(None);
-    if let Some(last_attempted_at) = LAST_ATTEMPTED_AT.get(marker) {
-        if last_attempted_at.elapsed() < Duration::from_secs(1) {
-            // One second hasn't elapsed yet.
-            return;
+    SHOULD_CONNECT_TO_SERVER.store(true, std::sync::atomic::Ordering::SeqCst);
+
+    thread::Builder::new()
+        .name("TAS Editor Client Connection Thread".to_string())
+        .spawn(client_connection_thread)
+        .unwrap();
+}
+
+fn client_connection_thread() {
+    let mut last_attempted_at = Instant::now()
+        .checked_sub(Duration::from_secs(1))
+        .unwrap_or_else(Instant::now);
+
+    loop {
+        thread::sleep(Duration::from_secs(1).saturating_sub(last_attempted_at.elapsed()));
+        last_attempted_at = Instant::now();
+
+        if !SHOULD_CONNECT_TO_SERVER.load(std::sync::atomic::Ordering::SeqCst) {
+            continue;
+        }
+
+        let stream = match TcpStream::connect(("127.0.0.1", PORT)) {
+            Ok(x) => x,
+            Err(err) => {
+                // Don't print an error if the server does not exist yet.
+                if err.kind() != std::io::ErrorKind::ConnectionRefused {
+                    error!("Error connecting to the remote server: {err:?}");
+                }
+
+                continue;
+            }
+        };
+
+        let server = match connect_to_server(stream) {
+            Ok(x) => x,
+            Err(err) => {
+                error!("Error connecting to the remote server: {err:?}");
+                continue;
+            }
+        };
+
+        info!("Connected to a remote server.");
+
+        let mut state = STATE.lock();
+        if state.is_none() {
+            *state = State::Client(server);
+        } else {
+            // The check is only done here and not before connect_to_server() because we must go
+            // through with the IPC connection, otherwise the server will block indefinitely while
+            // waiting for the client to connect.
+            info!("Dropping a successful remote server connection because the state is not None.");
         }
     }
-    LAST_ATTEMPTED_AT.set(marker, Some(Instant::now()));
-
-    let stream = match TcpStream::connect(("127.0.0.1", PORT)) {
-        Ok(x) => x,
-        Err(err) => {
-            // Don't print an error if the server does not exist yet.
-            if err.kind() != std::io::ErrorKind::ConnectionRefused {
-                error!("Error connecting to the remote server: {err:?}");
-            }
-
-            return;
-        }
-    };
-
-    let server = match connect_to_server(stream) {
-        Ok(x) => x,
-        Err(err) => {
-            error!("Error connecting to the remote server: {err:?}");
-            return;
-        }
-    };
-
-    info!("Connected to a remote server.");
-
-    *state = State::Client(server);
 }
 
 fn connect_to_server(mut stream: TcpStream) -> eyre::Result<RemoteServer> {
@@ -334,13 +352,28 @@ fn connect_to_server(mut stream: TcpStream) -> eyre::Result<RemoteServer> {
     })
 }
 
-pub fn maybe_disconnect_from_server(marker: MainThreadMarker) {
+pub fn update_client_connection_condition(marker: MainThreadMarker) {
     if bxt::is_simulation_ipc_client(marker) {
+        // Don't try to connect if we're the BXT IPC client.
+        SHOULD_CONNECT_TO_SERVER.store(false, std::sync::atomic::Ordering::SeqCst);
+
+        // Disconnect if we were connected.
         let mut state = STATE.lock();
         if state.is_client() {
             *state = State::None;
         }
+
+        return;
     }
+
+    if !STATE.lock().is_none() {
+        // Don't try to connect if we're already a client or a server.
+        SHOULD_CONNECT_TO_SERVER.store(false, std::sync::atomic::Ordering::SeqCst);
+        return;
+    }
+
+    // Otherwise, try to connect again.
+    SHOULD_CONNECT_TO_SERVER.store(true, std::sync::atomic::Ordering::SeqCst);
 }
 
 pub fn is_connected_to_server() -> bool {

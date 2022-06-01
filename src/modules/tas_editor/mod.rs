@@ -28,7 +28,8 @@ use tracer::Tracer;
 
 mod remote;
 pub use remote::{
-    is_connected_to_server, maybe_disconnect_from_server, maybe_try_connecting_to_server,
+    is_connected_to_server, maybe_start_client_connection_thread,
+    update_client_connection_condition,
 };
 
 pub struct TasEditor;

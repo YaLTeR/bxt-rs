@@ -1452,7 +1452,7 @@ pub mod exported {
             cvars::deregister_disabled_module_cvars(marker);
             commands::deregister_disabled_module_commands(marker);
 
-            tas_editor::maybe_try_connecting_to_server(marker);
+            tas_editor::maybe_start_client_connection_thread(marker);
 
             rv
         })
@@ -1683,8 +1683,7 @@ pub mod exported {
             if rv != 0 {
                 capture::time_passed(marker);
 
-                tas_editor::maybe_disconnect_from_server(marker);
-                tas_editor::maybe_try_connecting_to_server(marker);
+                tas_editor::update_client_connection_condition(marker);
                 tas_editor::maybe_receive_messages_from_remote_server(marker);
             }
 
