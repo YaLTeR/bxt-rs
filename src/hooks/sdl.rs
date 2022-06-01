@@ -158,7 +158,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if tas_editor::is_connected_to_server(marker) {
+            if tas_editor::is_connected_to_server() {
                 // Don't warp the mouse from simulator clients.
                 return;
             }

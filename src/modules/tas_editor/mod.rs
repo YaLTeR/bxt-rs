@@ -202,7 +202,7 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
 
     *EDITOR.borrow_mut(marker) = Some(Editor::new(hltas, first_frame, initial_frame));
 
-    if let Err(err) = remote::start_server(marker) {
+    if let Err(err) = remote::start_server() {
         con_print(
             marker,
             &format!("Could not start a server for multi-game optimization: {err:?}"),
@@ -431,8 +431,8 @@ static BXT_TAS_OPTIM_SIMULATION_START_RECORDING_FRAMES: Command = Command::new(
     ),
 );
 
-fn optim_simulation_start_recording_frames(marker: MainThreadMarker) {
-    remote::start_recording_frames(marker);
+fn optim_simulation_start_recording_frames(_marker: MainThreadMarker) {
+    remote::start_recording_frames();
 }
 
 static BXT_TAS_OPTIM_SIMULATION_DONE: Command = Command::new(
@@ -444,8 +444,8 @@ static BXT_TAS_OPTIM_SIMULATION_DONE: Command = Command::new(
     ),
 );
 
-fn optim_simulation_done(marker: MainThreadMarker) {
-    remote::send_simulation_result_to_server(marker);
+fn optim_simulation_done(_marker: MainThreadMarker) {
+    remote::send_simulation_result_to_server();
 }
 
 pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker) {
@@ -459,7 +459,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
         return;
     }
 
-    if let Some(hltas) = remote::receive_new_hltas_to_simulate(marker) {
+    if let Some(hltas) = remote::receive_new_hltas_to_simulate() {
         engine::prepend_command(
             marker,
             "sensitivity 0;volume 0;MP3Volume 0;bxt_tas_write_log 0;bxt_tas_norefresh_until_last_frames 1\n",
@@ -470,7 +470,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
 }
 
 pub unsafe fn on_cmd_start(marker: MainThreadMarker) {
-    remote::on_frame_simulated(marker, || {
+    remote::on_frame_simulated(|| {
         let player = player_data(marker).unwrap();
 
         let parameters = Parameters {
