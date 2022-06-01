@@ -1053,7 +1053,9 @@ fn mutate_auto_actions<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
                     LeaveGroundActionSpeed::Optimal
                 },
                 times: Times::UnlimitedWithinFrameBulk,
-                type_: LeaveGroundActionType::DuckTap { zero_ms: false },
+                type_: LeaveGroundActionType::DuckTap {
+                    zero_ms: frame_bulk.frame_time == "0.001",
+                },
             })
         } else {
             Some(LeaveGroundAction {
