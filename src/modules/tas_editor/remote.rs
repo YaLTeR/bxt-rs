@@ -21,6 +21,8 @@ pub enum RemoteGameState {
     Busy {
         /// The script the game is simulating.
         hltas: HLTAS,
+        /// The generation of the script, incremented every time a new source HLTAS is loaded.
+        generation: u16,
     },
 }
 
@@ -138,30 +140,47 @@ impl RemoteGame {
         matches!(self.state, RemoteGameState::Busy { .. })
     }
 
-    pub fn unwrap_busy_hltas(&mut self) -> HLTAS {
-        match mem::replace(&mut self.state, RemoteGameState::Free) {
-            RemoteGameState::Free => panic!(),
-            RemoteGameState::Busy { hltas } => hltas,
+    pub fn busy_generation(&self) -> Option<u16> {
+        if let RemoteGameState::Busy { generation, .. } = self.state {
+            Some(generation)
+        } else {
+            None
         }
     }
 
-    pub fn start_simulating(&mut self, hltas: HLTAS) -> Result<(), Box<ipc_channel::ErrorKind>> {
+    pub fn unwrap_busy_hltas(&mut self) -> (HLTAS, u16) {
+        match mem::replace(&mut self.state, RemoteGameState::Free) {
+            RemoteGameState::Free => panic!(),
+            RemoteGameState::Busy { hltas, generation } => (hltas, generation),
+        }
+    }
+
+    pub fn start_simulating(
+        &mut self,
+        hltas: HLTAS,
+        generation: u16,
+    ) -> Result<(), (Box<ipc_channel::ErrorKind>, HLTAS)> {
         assert!(self.is_free());
 
-        let rv = self.sender.send(hltas.clone());
-        if rv.is_ok() {
-            self.state = RemoteGameState::Busy { hltas };
+        match self.sender.send(hltas.clone()) {
+            Ok(()) => {
+                self.state = RemoteGameState::Busy { hltas, generation };
+                Ok(())
+            }
+            Err(err) => Err((err, hltas)),
         }
-        rv
     }
 
     pub fn try_recv_frames(
         &mut self,
-    ) -> Result<Option<(HLTAS, Vec<Frame>)>, ipc_channel::ipc::IpcError> {
+    ) -> Result<Option<(HLTAS, u16, Vec<Frame>)>, ipc_channel::ipc::IpcError> {
         assert!(self.is_busy());
 
         match self.receiver.try_recv() {
-            Ok(x) => Ok(Some((self.unwrap_busy_hltas(), x))),
+            Ok(x) => {
+                let (hltas, generation) = self.unwrap_busy_hltas();
+                Ok(Some((hltas, generation, x)))
+            }
             Err(ipc_channel::ipc::TryRecvError::Empty) => Ok(None),
             Err(ipc_channel::ipc::TryRecvError::IpcError(err)) => Err(err),
         }
@@ -396,14 +415,16 @@ pub fn is_connected_to_server() -> bool {
 ///
 /// Note that the returned frames can contain less or more frames than there are in the HLTAS due to
 /// currently inaccurate frame recording.
-pub fn receive_simulation_result_from_clients(mut process_result: impl FnMut(HLTAS, Vec<Frame>)) {
+pub fn receive_simulation_result_from_clients(
+    mut process_result: impl FnMut(HLTAS, u16, Vec<Frame>),
+) {
     let mut state = STATE.lock();
     let games = state.unwrap_server();
 
     let mut errored_indices = Vec::new();
     for (index, game) in games.iter_mut().enumerate().filter(|(_, g)| g.is_busy()) {
         match game.try_recv_frames() {
-            Ok(Some((hltas, frames))) => process_result(hltas, frames),
+            Ok(Some((hltas, generation, frames))) => process_result(hltas, generation, frames),
             Ok(None) => (),
             Err(err) => {
                 error!("Error receiving simulation result from a remote client: {err:?}");
@@ -417,20 +438,29 @@ pub fn receive_simulation_result_from_clients(mut process_result: impl FnMut(HLT
     }
 }
 
+/// Returns `true` if any of the remote clients is currently simulating this generation.
+pub fn is_any_client_simulating_generation(generation: u16) -> bool {
+    STATE
+        .lock()
+        .unwrap_server()
+        .iter()
+        .any(|g| g.busy_generation() == Some(generation))
+}
+
 /// For all available (non-busy) remote clients, calls `prepare_hltas` to prepare a HLTAS and sends
 /// it to the remote client for simulation.
 ///
 /// If an error occurs sending the HLTAS to the remote client, it will be silently dropped without
 /// simulating.
-pub fn simulate_in_available_clients(mut prepare_hltas: impl FnMut() -> HLTAS) {
+pub fn simulate_in_available_clients(mut prepare_hltas: impl FnMut() -> (HLTAS, u16)) {
     let mut state = STATE.lock();
     let games = state.unwrap_server();
 
     let mut errored_indices = Vec::new();
     for (index, game) in games.iter_mut().enumerate().filter(|(_, g)| g.is_free()) {
-        let hltas = prepare_hltas();
+        let (hltas, generation) = prepare_hltas();
 
-        if let Err(err) = game.start_simulating(hltas) {
+        if let Err((err, _)) = game.start_simulating(hltas, generation) {
             error!("Error sending HLTAS to a remote client: {err:?}");
             errored_indices.push(index);
         }
@@ -441,48 +471,35 @@ pub fn simulate_in_available_clients(mut prepare_hltas: impl FnMut() -> HLTAS) {
     }
 }
 
-/// Simulates the HLTAS on an available (non-busy) remote client.
+/// Finds one available (non-busy) remote client, calls `prepare_hltas` to prepare a HLTAS and sends
+/// it for simulation. If the client errors out, finds the next one and sends the HLTAS there, and
+/// so on.
 ///
-/// Blocks until the simulation is complete.
-///
-/// Returns the simulation result on success and `None` if there were no clients able to serve the
-/// request.
-///
-/// Note that the returned frames can contain less or more frames than there are in the HLTAS due to
-/// currently inaccurate frame recording.
-#[instrument(name = "remote::simulate", skip_all)]
-pub fn simulate(hltas: HLTAS) -> Option<Vec<Frame>> {
+/// If there was no success in finding a free client and sending it the HLTAS, it is silently
+/// dropped without simulating.
+pub fn maybe_simulate_in_one_client(mut prepare_hltas: impl FnMut() -> (HLTAS, u16)) {
     let mut state = STATE.lock();
     let games = state.unwrap_server();
 
-    let mut result = None;
+    let mut payload = None;
 
     let mut errored_indices = Vec::new();
     for (index, game) in games.iter_mut().enumerate().filter(|(_, g)| g.is_free()) {
-        if let Err(err) = game.start_simulating(hltas.clone()) {
+        let (hltas, generation) = payload.take().unwrap_or_else(&mut prepare_hltas);
+
+        if let Err((err, hltas)) = game.start_simulating(hltas, generation) {
             error!("Error sending HLTAS to a remote client: {err:?}");
             errored_indices.push(index);
+            payload = Some((hltas, generation));
             continue;
         }
 
-        let frames = match game.recv_frames() {
-            Ok(frames) => frames,
-            Err(err) => {
-                error!("Error receiving simulation result from a remote client: {err:?}");
-                errored_indices.push(index);
-                continue;
-            }
-        };
-
-        result = Some(frames);
         break;
     }
 
     for index in errored_indices.into_iter().rev() {
         games.remove(index);
     }
-
-    result
 }
 
 pub fn receive_new_hltas_to_simulate() -> Option<HLTAS> {

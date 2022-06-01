@@ -43,6 +43,9 @@ pub struct Editor {
 
     /// Movement frames from the last mutation, starting from the initial frame.
     last_mutation_frames: Option<Vec<Frame>>,
+
+    /// Generation of this script for remote simulation.
+    generation: u16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -335,7 +338,12 @@ impl HLTASExt for HLTAS {
 }
 
 impl Editor {
-    pub fn new(mut hltas: HLTAS, first_frame: usize, initial_frame: Frame) -> Self {
+    pub fn new(
+        mut hltas: HLTAS,
+        first_frame: usize,
+        initial_frame: Frame,
+        generation: u16,
+    ) -> Self {
         let (l, _r) = hltas.line_and_repeat_at_frame(first_frame).unwrap();
 
         let mut prefix = hltas.clone();
@@ -348,6 +356,7 @@ impl Editor {
             hltas,
             frames: vec![initial_frame],
             last_mutation_frames: None,
+            generation,
         }
     }
 
@@ -544,10 +553,43 @@ impl Editor {
             return;
         }
 
-        if let Some(mut frames) = remote::simulate(self.prepare_hltas_for_sending()) {
+        // Check if we have already been simulating and it has finished.
+        remote::receive_simulation_result_from_clients(|_hltas, generation, mut frames| {
+            if generation != self.generation {
+                return;
+            }
+
             frames.insert(0, mem::take(&mut self.frames).into_iter().next().unwrap());
             self.frames = frames;
+        });
+
+        if self.frames.len() > 1 {
+            // Already simulated.
+            return;
         }
+
+        if !remote::is_any_client_simulating_generation(self.generation) {
+            // Try to send the script for simulation.
+            remote::maybe_simulate_in_one_client(|| {
+                (self.prepare_hltas_for_sending(), self.generation)
+            });
+        }
+    }
+
+    pub fn poll_remote_clients_when_not_optimizing(&mut self) {
+        remote::receive_simulation_result_from_clients(|_hltas, generation, mut frames| {
+            if generation != self.generation {
+                return;
+            }
+
+            if self.frames.len() == 1 {
+                // Received the initial simulation result, don't miss it.
+                frames.insert(0, mem::take(&mut self.frames).into_iter().next().unwrap());
+                self.frames = frames;
+            }
+
+            // Otherwise, we have received simulation result that we no longer care about.
+        });
     }
 
     // Yes I know this is not the best structured code at the moment...
@@ -576,7 +618,11 @@ impl Editor {
         let between = Uniform::from(0..high);
         let mut rng = rand::thread_rng();
 
-        remote::receive_simulation_result_from_clients(|mut hltas, mut frames| {
+        remote::receive_simulation_result_from_clients(|mut hltas, generation, mut frames| {
+            if generation != self.generation {
+                return;
+            }
+
             frames.insert(0, self.frames[0].clone());
             self.last_mutation_frames = Some(frames.clone());
 
@@ -617,7 +663,7 @@ impl Editor {
 
             self.hltas = temp;
 
-            hltas
+            (hltas, self.generation)
         });
     }
 
