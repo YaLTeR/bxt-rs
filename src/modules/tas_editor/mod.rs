@@ -201,7 +201,11 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
         parameters,
     };
 
-    *EDITOR.borrow_mut(marker) = Some(Editor::new(hltas, first_frame, initial_frame));
+    static GENERATION: MainThreadCell<u16> = MainThreadCell::new(0);
+    let generation = GENERATION.get(marker);
+    GENERATION.set(marker, generation.wrapping_add(1));
+
+    *EDITOR.borrow_mut(marker) = Some(Editor::new(hltas, first_frame, initial_frame, generation));
 
     if let Err(err) = remote::start_server() {
         con_print(
@@ -529,11 +533,9 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                     },
                 );
             } else {
-                // Poll games to make them free again.
-                remote::receive_simulation_result_from_clients(|_, _| {});
+                editor.maybe_simulate_all_in_remote_client();
+                editor.poll_remote_clients_when_not_optimizing();
             }
-
-            editor.maybe_simulate_all_in_remote_client();
         } else {
             // SAFETY: if we have access to TriangleApi, it's safe to do player tracing too.
             let tracer =
