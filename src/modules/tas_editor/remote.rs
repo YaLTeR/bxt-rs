@@ -276,7 +276,7 @@ pub fn maybe_try_connecting_to_server(marker: MainThreadMarker) {
     }
     LAST_ATTEMPTED_AT.set(marker, Some(Instant::now()));
 
-    let mut stream = match TcpStream::connect(("127.0.0.1", PORT)) {
+    let stream = match TcpStream::connect(("127.0.0.1", PORT)) {
         Ok(x) => x,
         Err(err) => {
             // Don't print an error if the server does not exist yet.
@@ -288,61 +288,50 @@ pub fn maybe_try_connecting_to_server(marker: MainThreadMarker) {
         }
     };
 
-    let mut name = String::new();
-    if let Err(err) = stream.read_to_string(&mut name) {
-        error!("Error reading IPC name from the remote server: {err:?}");
-        return;
-    }
-    drop(stream);
-
-    let tx = match IpcSender::connect(name) {
+    let server = match connect_to_server(stream) {
         Ok(x) => x,
         Err(err) => {
-            error!("Error connecting to the remote server IPC: {err:?}");
-            return;
-        }
-    };
-
-    let (hltas_sender, hltas_receiver) = match ipc_channel::ipc::channel() {
-        Ok(x) => x,
-        Err(err) => {
-            error!("Error creating a HLTAS IPC channel: {err:?}");
-            return;
-        }
-    };
-
-    // Workaround for a Windows ipc-channel panic: the receiver for large payloads should be created
-    // in the process that will be using it.
-    //
-    // https://github.com/servo/ipc-channel/issues/277
-    let (workaround_sender, workaround_receiver) = match ipc_channel::ipc::channel() {
-        Ok(x) => x,
-        Err(err) => {
-            error!("Error creating a workaround IPC channel: {err:?}");
-            return;
-        }
-    };
-
-    if let Err(err) = tx.send((hltas_sender, workaround_sender)) {
-        error!("Error sending the IPC channels to the remote server: {err:?}");
-        return;
-    }
-
-    let frames_sender = match workaround_receiver.recv() {
-        Ok(x) => x,
-        Err(err) => {
-            error!("Error receiving the frames sender from the remote server: {err:?}");
+            error!("Error connecting to the remote server: {err:?}");
             return;
         }
     };
 
     info!("Connected to a remote server.");
 
-    *state = State::Client(RemoteServer {
+    *state = State::Client(server);
+}
+
+fn connect_to_server(mut stream: TcpStream) -> eyre::Result<RemoteServer> {
+    let mut name = String::new();
+    stream
+        .read_to_string(&mut name)
+        .context("error reading IPC name from the remote server")?;
+    drop(stream);
+
+    let tx = IpcSender::connect(name).context("error connecting to the remote server IPC")?;
+
+    let (hltas_sender, hltas_receiver) =
+        ipc_channel::ipc::channel().context("error creating a HLTAS IPC channel")?;
+
+    // Workaround for a Windows ipc-channel panic: the receiver for large payloads should be created
+    // in the process that will be using it.
+    //
+    // https://github.com/servo/ipc-channel/issues/277
+    let (workaround_sender, workaround_receiver) =
+        ipc_channel::ipc::channel().context("error creating a workaround IPC channel")?;
+
+    tx.send((hltas_sender, workaround_sender))
+        .context("error sending the IPC channels to the remote server")?;
+
+    let frames_sender = workaround_receiver
+        .recv()
+        .context("error receiving the frames sender from the remote server")?;
+
+    Ok(RemoteServer {
         receiver: hltas_receiver,
         sender: frames_sender,
         simulation_state: SimulationState::Idle,
-    });
+    })
 }
 
 pub fn maybe_disconnect_from_server(marker: MainThreadMarker) {
