@@ -13,7 +13,7 @@ use parking_lot::{const_mutex, Mutex};
 
 use super::editor::Frame;
 use crate::hooks::{bxt, engine};
-use crate::utils::{MainThreadMarker, PointerTrait};
+use crate::utils::{MainThreadCell, MainThreadMarker, PointerTrait};
 
 #[derive(Debug, Clone)]
 pub enum RemoteGameState {
@@ -118,6 +118,8 @@ static STATE: Mutex<State> = const_mutex(State::None);
 
 /// Whether the client connection thread should try connecting to the remote server.
 static SHOULD_CONNECT_TO_SERVER: AtomicBool = AtomicBool::new(false);
+
+static STARTED_CLIENT_CONNECTION_THREAD: MainThreadCell<bool> = MainThreadCell::new(false);
 
 // One of the unassigned ports according to
 // https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt.
@@ -249,6 +251,10 @@ fn server_thread(listener: TcpListener) {
 /// Starts a thread that tries to connect to a remote server repeatedly.
 #[instrument(name = "remote::maybe_start_client_connection_thread", skip_all)]
 pub fn maybe_start_client_connection_thread(marker: MainThreadMarker) {
+    if STARTED_CLIENT_CONNECTION_THREAD.get(marker) {
+        return;
+    }
+
     if !engine::Host_FilterTime.is_set(marker) {
         // We will never try to receive the script.
         return;
@@ -265,6 +271,8 @@ pub fn maybe_start_client_connection_thread(marker: MainThreadMarker) {
     }
 
     SHOULD_CONNECT_TO_SERVER.store(true, std::sync::atomic::Ordering::SeqCst);
+
+    STARTED_CLIENT_CONNECTION_THREAD.set(marker, true);
 
     thread::Builder::new()
         .name("TAS Editor Client Connection Thread".to_string())
