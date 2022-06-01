@@ -18,7 +18,10 @@ use crate::utils::{MainThreadCell, MainThreadMarker, PointerTrait};
 #[derive(Debug, Clone)]
 pub enum RemoteGameState {
     Free,
-    Busy(HLTAS),
+    Busy {
+        /// The script the game is simulating.
+        hltas: HLTAS,
+    },
 }
 
 pub struct RemoteGame {
@@ -132,13 +135,13 @@ impl RemoteGame {
     }
 
     pub fn is_busy(&self) -> bool {
-        matches!(self.state, RemoteGameState::Busy(_))
+        matches!(self.state, RemoteGameState::Busy { .. })
     }
 
     pub fn unwrap_busy_hltas(&mut self) -> HLTAS {
         match mem::replace(&mut self.state, RemoteGameState::Free) {
             RemoteGameState::Free => panic!(),
-            RemoteGameState::Busy(hltas) => hltas,
+            RemoteGameState::Busy { hltas } => hltas,
         }
     }
 
@@ -147,7 +150,7 @@ impl RemoteGame {
 
         let rv = self.sender.send(hltas.clone());
         if rv.is_ok() {
-            self.state = RemoteGameState::Busy(hltas);
+            self.state = RemoteGameState::Busy { hltas };
         }
         rv
     }
