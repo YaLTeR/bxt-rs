@@ -12,7 +12,7 @@ use parking_lot::{const_mutex, Mutex};
 
 use super::editor::Frame;
 use crate::hooks::{bxt, engine};
-use crate::utils::{MainThreadCell, MainThreadMarker, MainThreadRefCell, PointerTrait};
+use crate::utils::{MainThreadCell, MainThreadMarker, PointerTrait};
 
 #[derive(Debug, Clone)]
 pub enum RemoteGameState {
@@ -70,19 +70,55 @@ struct RemoteServer {
     simulation_state: SimulationState,
 }
 
+/// Remote state.
+enum State {
+    /// We are neither a client nor a server.
+    None,
+    /// We are a client.
+    Client(RemoteServer),
+    /// We are a server.
+    Server(Vec<RemoteGame>),
+}
+
+impl State {
+    /// Returns `true` if the state is [`None`].
+    ///
+    /// [`None`]: State::None
+    #[must_use]
+    fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    fn unwrap_server(&mut self) -> &mut Vec<RemoteGame> {
+        match self {
+            Self::Server(x) => x,
+            _ => panic!("called `State::unwrap_server()` on a non-`Server` value"),
+        }
+    }
+
+    /// Returns `true` if the state is [`Client`].
+    ///
+    /// [`Client`]: State::Client
+    #[must_use]
+    fn is_client(&self) -> bool {
+        matches!(self, Self::Client(..))
+    }
+
+    fn remote_server(&mut self) -> Option<&mut RemoteServer> {
+        if let Self::Client(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+
+static STATE: Mutex<State> = const_mutex(State::None);
+
 // One of the unassigned ports according to
 // https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt.
 /// The port that we use for communication between the server and the clients.
 const PORT: u16 = 42401;
-
-/// If `true`, this game instance is a server.
-static IS_SERVER: MainThreadCell<bool> = MainThreadCell::new(false);
-
-/// When this game instance is a server, this contains the remote clients.
-static REMOTE_GAMES: Mutex<Vec<RemoteGame>> = const_mutex(Vec::new());
-
-/// When this game instance is a client, this is the remote server.
-static REMOTE_SERVER: MainThreadRefCell<Option<RemoteServer>> = MainThreadRefCell::new(None);
 
 impl RemoteGame {
     pub fn is_free(&self) -> bool {
@@ -132,18 +168,20 @@ impl RemoteGame {
 }
 
 #[instrument(name = "remote::start_server", skip_all)]
-pub fn start_server(marker: MainThreadMarker) -> eyre::Result<()> {
-    if IS_SERVER.get(marker) {
-        return Ok(());
-    }
+pub fn start_server() -> eyre::Result<()> {
+    let mut state = STATE.lock();
 
-    if REMOTE_SERVER.borrow(marker).is_some() {
-        return Err(eyre!("already connected to a remote server"));
+    match *state {
+        State::None => {}
+        State::Client(_) => return Err(eyre!("already connected to a remote server")),
+        State::Server(_) => return Ok(()),
     }
 
     let listener =
         TcpListener::bind(("127.0.0.1", PORT)).context("error binding the TcpListener")?;
-    IS_SERVER.set(marker, true);
+
+    *state = State::Server(Vec::new());
+    drop(state);
 
     thread::Builder::new()
         .name("TAS Editor Server Thread".to_string())
@@ -196,7 +234,7 @@ fn server_thread(listener: TcpListener) {
             return;
         };
 
-        REMOTE_GAMES.lock().push(RemoteGame {
+        STATE.lock().unwrap_server().push(RemoteGame {
             sender: hltas_sender,
             receiver: frames_receiver,
             state: RemoteGameState::Free,
@@ -209,13 +247,8 @@ fn server_thread(listener: TcpListener) {
 /// Tries no more frequently than every second.
 #[instrument(name = "remote::maybe_try_connecting_to_server", skip_all)]
 pub fn maybe_try_connecting_to_server(marker: MainThreadMarker) {
-    if IS_SERVER.get(marker) {
-        // We are the server ourselves.
-        return;
-    }
-
-    if REMOTE_SERVER.borrow(marker).is_some() {
-        // We are already connected to a remote server.
+    let mut state = STATE.lock();
+    if !state.is_none() {
         return;
     }
 
@@ -305,7 +338,7 @@ pub fn maybe_try_connecting_to_server(marker: MainThreadMarker) {
 
     info!("Connected to a remote server.");
 
-    *REMOTE_SERVER.borrow_mut(marker) = Some(RemoteServer {
+    *state = State::Client(RemoteServer {
         receiver: hltas_receiver,
         sender: frames_sender,
         simulation_state: SimulationState::Idle,
@@ -314,12 +347,15 @@ pub fn maybe_try_connecting_to_server(marker: MainThreadMarker) {
 
 pub fn maybe_disconnect_from_server(marker: MainThreadMarker) {
     if bxt::is_simulation_ipc_client(marker) {
-        *REMOTE_SERVER.borrow_mut(marker) = None;
+        let mut state = STATE.lock();
+        if state.is_client() {
+            *state = State::None;
+        }
     }
 }
 
-pub fn is_connected_to_server(marker: MainThreadMarker) -> bool {
-    REMOTE_SERVER.borrow(marker).is_some()
+pub fn is_connected_to_server() -> bool {
+    STATE.lock().is_client()
 }
 
 /// Receives any completed simulation results from the remote clients and calls `process_result` to
@@ -328,7 +364,8 @@ pub fn is_connected_to_server(marker: MainThreadMarker) -> bool {
 /// Note that the returned frames can contain less or more frames than there are in the HLTAS due to
 /// currently inaccurate frame recording.
 pub fn receive_simulation_result_from_clients(mut process_result: impl FnMut(HLTAS, Vec<Frame>)) {
-    let mut games = REMOTE_GAMES.lock();
+    let mut state = STATE.lock();
+    let games = state.unwrap_server();
 
     let mut errored_indices = Vec::new();
     for (index, game) in games.iter_mut().enumerate().filter(|(_, g)| g.is_busy()) {
@@ -353,7 +390,8 @@ pub fn receive_simulation_result_from_clients(mut process_result: impl FnMut(HLT
 /// If an error occurs sending the HLTAS to the remote client, it will be silently dropped without
 /// simulating.
 pub fn simulate_in_available_clients(mut prepare_hltas: impl FnMut() -> HLTAS) {
-    let mut games = REMOTE_GAMES.lock();
+    let mut state = STATE.lock();
+    let games = state.unwrap_server();
 
     let mut errored_indices = Vec::new();
     for (index, game) in games.iter_mut().enumerate().filter(|(_, g)| g.is_free()) {
@@ -381,7 +419,8 @@ pub fn simulate_in_available_clients(mut prepare_hltas: impl FnMut() -> HLTAS) {
 /// currently inaccurate frame recording.
 #[instrument(name = "remote::simulate", skip_all)]
 pub fn simulate(hltas: HLTAS) -> Option<Vec<Frame>> {
-    let mut games = REMOTE_GAMES.lock();
+    let mut state = STATE.lock();
+    let games = state.unwrap_server();
 
     let mut result = None;
 
@@ -413,12 +452,9 @@ pub fn simulate(hltas: HLTAS) -> Option<Vec<Frame>> {
     result
 }
 
-pub fn receive_new_hltas_to_simulate(marker: MainThreadMarker) -> Option<HLTAS> {
-    let mut server_ = REMOTE_SERVER.borrow_mut(marker);
-    let server = match &mut *server_ {
-        Some(x) => x,
-        None => return None,
-    };
+pub fn receive_new_hltas_to_simulate() -> Option<HLTAS> {
+    let mut state = STATE.lock();
+    let server = state.remote_server()?;
 
     if !server.simulation_state.is_idle() {
         // Already simulating something.
@@ -433,16 +469,16 @@ pub fn receive_new_hltas_to_simulate(marker: MainThreadMarker) -> Option<HLTAS> 
         Err(ipc_channel::ipc::TryRecvError::Empty) => (),
         Err(ipc_channel::ipc::TryRecvError::IpcError(err)) => {
             error!("Error when receiving a HLTAS from the remote server: {err:?}");
-            *server_ = None;
+            *state = State::None;
         }
     }
 
     None
 }
 
-pub fn on_frame_simulated(marker: MainThreadMarker, get_frame_data: impl FnOnce() -> Frame) {
-    let mut server_ = REMOTE_SERVER.borrow_mut(marker);
-    let server = match &mut *server_ {
+pub fn on_frame_simulated(get_frame_data: impl FnOnce() -> Frame) {
+    let mut state = STATE.lock();
+    let server = match state.remote_server() {
         Some(x) => x,
         None => return,
     };
@@ -457,9 +493,9 @@ pub fn on_frame_simulated(marker: MainThreadMarker, get_frame_data: impl FnOnce(
     pending_frames.push(frame);
 }
 
-pub fn send_simulation_result_to_server(marker: MainThreadMarker) {
-    let mut server_ = REMOTE_SERVER.borrow_mut(marker);
-    let server = match &mut *server_ {
+pub fn send_simulation_result_to_server() {
+    let mut state = STATE.lock();
+    let server = match state.remote_server() {
         Some(x) => x,
         None => return,
     };
@@ -469,13 +505,13 @@ pub fn send_simulation_result_to_server(marker: MainThreadMarker) {
 
     if let Err(err) = server.sender.send(pending_frames) {
         error!("Error when trying to send frames to the server: {err:?}");
-        *server_ = None;
+        *state = State::None;
     }
 }
 
-pub fn start_recording_frames(marker: MainThreadMarker) {
-    let mut server_ = REMOTE_SERVER.borrow_mut(marker);
-    let server = match &mut *server_ {
+pub fn start_recording_frames() {
+    let mut state = STATE.lock();
+    let server = match state.remote_server() {
         Some(x) => x,
         None => return,
     };
