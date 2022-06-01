@@ -351,6 +351,15 @@ impl Editor {
 
         hltas.lines = hltas.lines[l..].to_vec();
 
+        // Erase the console command that contains bxt_tas_optim_init.
+        //
+        // This is so when the single-frame mutation mode splits that frame bulk, it does not lead
+        // to bxt_tas_optim_init and other unwanted commands running in the remote client.
+        match &mut hltas.lines[0] {
+            Line::FrameBulk(frame_bulk) => frame_bulk.console_command = None,
+            _ => unreachable!(),
+        }
+
         Self {
             prefix,
             hltas,
