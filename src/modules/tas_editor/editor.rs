@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use tap::{Conv, Pipe, Tap, TryConv};
 
 use super::remote;
+use super::simulator::Simulator;
 use crate::modules::triangle_drawing::triangle_api::{Primitive, RenderMode};
 use crate::modules::triangle_drawing::TriangleApi;
 
@@ -410,58 +411,8 @@ impl Editor {
     }
 
     pub fn simulate_all<T: Trace>(&mut self, tracer: &T) {
-        let mut frame = 0;
-        for line in &self.hltas.lines {
-            if let Line::FrameBulk(frame_bulk) = line {
-                for repeat in 0..frame_bulk.frame_count.get() {
-                    frame += 1;
-
-                    if frame < self.frames.len() {
-                        continue;
-                    }
-
-                    let Frame {
-                        state,
-                        mut parameters,
-                    } = self
-                        .frames
-                        .last()
-                        .expect("there should always be at least one state (initial)")
-                        .clone();
-
-                    // Only set frame-time on the first repeat since subsequent repeats inherit it.
-                    if repeat == 0 {
-                        // TODO: move the truncation to bxt-strafe and add frame-time remainder
-                        // handling to it?
-                        parameters.frame_time =
-                            (frame_bulk.frame_time.parse::<f32>().unwrap_or(0.) * 1000.).trunc()
-                                / 1000.;
-                    }
-
-                    let (state, _input) = state.clone().simulate(tracer, parameters, frame_bulk);
-
-                    self.frames.push(Frame { state, parameters });
-                }
-            }
-
-            if frame < self.frames.len() {
-                continue;
-            }
-
-            match line {
-                Line::FrameBulk(_) => (),
-                Line::Save(_) => (),
-                Line::SharedSeed(_) => (),
-                Line::Buttons(_) => (),
-                Line::LGAGSTMinSpeed(_) => (),
-                Line::Reset { non_shared_seed: _ } => (),
-                Line::Comment(_) => (),
-                Line::VectorialStrafing(_) => (),
-                Line::VectorialStrafingConstraints(_) => (),
-                Line::Change(_) => (),
-                Line::TargetYawOverride(_) => (),
-            }
-        }
+        let simulator = Simulator::new(tracer, &self.frames, &self.hltas.lines);
+        self.frames.extend(simulator);
     }
 
     // Yes I know this is not the best structured code at the moment...

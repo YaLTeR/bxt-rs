@@ -23,6 +23,8 @@ use crate::utils::*;
 mod editor;
 use editor::Editor;
 
+mod simulator;
+
 mod tracer;
 use tracer::Tracer;
 
