@@ -203,6 +203,22 @@ fn angle_mod_rad(angle: f32) -> f32 {
     ((angle * INV_U_RAD) as i32 & 0xFFFF) as f32 * U_RAD
 }
 
+/// A dummy tracer that operates as if in an empty world.
+pub struct DummyTracer;
+
+impl Trace for DummyTracer {
+    fn trace(&self, _start: Vec3, end: Vec3, _hull: Hull) -> TraceResult {
+        TraceResult {
+            all_solid: false,
+            start_solid: false,
+            fraction: 1.,
+            end_pos: end,
+            plane_normal: Vec3::ZERO,
+            entity: -1,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU32;
