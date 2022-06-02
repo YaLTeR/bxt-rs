@@ -57,6 +57,7 @@ impl Module for TasEditor {
             &BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES,
             &BXT_TAS_OPTIM_FRAMES,
             &BXT_TAS_OPTIM_SIMULATION_ACCURACY,
+            &BXT_TAS_OPTIM_MULTIPLE_GAMES,
             &BXT_TAS_OPTIM_CONSTRAINT_VALUE,
             &BXT_TAS_OPTIM_CONSTRAINT_TYPE,
             &BXT_TAS_OPTIM_CONSTRAINT_VARIABLE,
@@ -92,6 +93,7 @@ static BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES: CVar =
 
 static BXT_TAS_OPTIM_SIMULATION_ACCURACY: CVar =
     CVar::new(b"bxt_tas_optim_simulation_accuracy\0", b"0\0");
+static BXT_TAS_OPTIM_MULTIPLE_GAMES: CVar = CVar::new(b"bxt_tas_optim_multiple_games\0", b"0\0");
 
 static BXT_TAS_OPTIM_VARIABLE: CVar = CVar::new(b"bxt_tas_optim_variable\0", b"pos.x\0");
 static BXT_TAS_OPTIM_DIRECTION: CVar = CVar::new(b"bxt_tas_optim_direction\0", b"maximize\0");
@@ -520,7 +522,7 @@ unsafe fn player_data(marker: MainThreadMarker) -> Option<Player> {
 
 pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     if let Some(editor) = &mut *EDITOR.borrow_mut(marker) {
-        if BXT_TAS_OPTIM_SIMULATION_ACCURACY.as_u64(marker) == 2 {
+        if BXT_TAS_OPTIM_MULTIPLE_GAMES.as_bool(marker) {
             if OPTIMIZE.get(marker) {
                 editor.optimize_with_remote_clients(
                     BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
