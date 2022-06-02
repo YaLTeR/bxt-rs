@@ -13,18 +13,13 @@ pub use args::Args;
 mod handler;
 pub use handler::CommandHandler;
 
-/// Pointer to a command handler function.
-// Required until https://github.com/rust-lang/rust/issues/63997 is stabilized.
-#[repr(transparent)]
-pub struct HandlerFunction(pub unsafe extern "C" fn());
-
 /// Console command.
 pub struct Command {
     /// Name of the command.
     name: &'static [u8],
 
     /// Handler function.
-    function: HandlerFunction,
+    function: unsafe extern "C" fn(),
 
     /// Whether the command is currently registered in the engine.
     is_registered: Cell<bool>,
@@ -35,7 +30,7 @@ unsafe impl Sync for Command {}
 
 impl Command {
     /// Creates a new command.
-    pub const fn new(name: &'static [u8], function: HandlerFunction) -> Self {
+    pub const fn new(name: &'static [u8], function: unsafe extern "C" fn()) -> Self {
         Self {
             name,
             function,
@@ -60,7 +55,7 @@ unsafe fn register(marker: MainThreadMarker, command: &Command) {
     // Make sure the provided name is a valid C string.
     assert!(CStr::from_bytes_with_nul(command.name).is_ok());
 
-    engine::Cmd_AddMallocCommand.get(marker)(command.name.as_ptr().cast(), command.function.0, 0);
+    engine::Cmd_AddMallocCommand.get(marker)(command.name.as_ptr().cast(), command.function, 0);
 
     command.is_registered.set(true);
 }
