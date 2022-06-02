@@ -11,7 +11,7 @@ use steps::*;
 mod vct;
 
 /// Result of a trace operation.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct TraceResult {
     pub all_solid: bool,
     pub start_solid: bool,
@@ -67,7 +67,7 @@ impl Player {
 }
 
 /// Movement parameters.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Parameters {
     pub frame_time: f32,
     pub max_velocity: f32,
@@ -97,7 +97,7 @@ pub enum Place {
 }
 
 /// Final input that the game will receive.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct Input {
     pub jump: bool,
     pub duck: bool,
@@ -111,7 +111,7 @@ pub struct Input {
 /// The state updated and acted upon by the simulation.
 ///
 /// To simulate the next frame, call [`State::simulate()`] on the previous state.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct State {
     player: Player,
     place: Place,
