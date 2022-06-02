@@ -9,6 +9,7 @@ use std::{mem, thread};
 use color_eyre::eyre::{self, eyre, Context};
 use hltas::HLTAS;
 use ipc_channel::ipc::{IpcOneShotServer, IpcReceiver, IpcSender};
+use once_cell::sync::Lazy;
 use parking_lot::{const_mutex, Mutex};
 
 use super::editor::Frame;
@@ -126,10 +127,15 @@ static SHOULD_CONNECT_TO_SERVER: AtomicBool = AtomicBool::new(false);
 
 static STARTED_CLIENT_CONNECTION_THREAD: MainThreadCell<bool> = MainThreadCell::new(false);
 
-// One of the unassigned ports according to
-// https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt.
 /// The port that we use for communication between the server and the clients.
-const PORT: u16 = 42401;
+static PORT: Lazy<u16> = Lazy::new(|| {
+    std::env::var("BXT_RS_REMOTE_PORT")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        // One of the unassigned ports according to
+        // https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt.
+        .unwrap_or(42401)
+});
 
 impl RemoteGame {
     pub fn is_free(&self) -> bool {
@@ -206,7 +212,7 @@ pub fn start_server() -> eyre::Result<()> {
     }
 
     let listener =
-        TcpListener::bind(("127.0.0.1", PORT)).context("error binding the TcpListener")?;
+        TcpListener::bind(("127.0.0.1", *PORT)).context("error binding the TcpListener")?;
 
     *state = State::Server(Vec::new());
     drop(state);
@@ -315,7 +321,7 @@ fn client_connection_thread() {
             continue;
         }
 
-        let stream = match TcpStream::connect(("127.0.0.1", PORT)) {
+        let stream = match TcpStream::connect(("127.0.0.1", *PORT)) {
             Ok(x) => x,
             Err(err) => {
                 // Don't print an error if the server does not exist yet.
