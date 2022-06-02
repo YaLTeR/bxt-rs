@@ -397,11 +397,6 @@ impl Editor {
         tri.end();
     }
 
-    /// Marks all frames starting from `frame` as stale, causing their re-simulation.
-    fn mark_as_stale(&mut self, frame: usize) {
-        self.frames.truncate(frame + 1);
-    }
-
     pub fn save<W: Write>(&mut self, writer: W) -> Result<(), Box<dyn Error>> {
         let len = self.prefix.lines.len();
         self.prefix.lines.extend(self.hltas.lines.iter().cloned());
@@ -433,9 +428,6 @@ impl Editor {
             return;
         }
 
-        let mut best_hltas = self.hltas.clone();
-        let mut best_frames = self.frames.clone();
-
         let mut high = self.frames.len() - 1;
         if frames > 0 {
             high = high.min(frames);
@@ -445,39 +437,38 @@ impl Editor {
         let mut rng = rand::thread_rng();
         // Do several attempts per optimize() call.
         for i in 0..20 {
+            let mut hltas = self.hltas.clone();
+
             // Change several frames.
+            let mut stale_frame = self.frames.len() - 1;
             for _ in 0..random_frames_to_change {
-                let stale_frame = if change_single_frames {
+                let frame = if change_single_frames {
                     // Pick a random frame and mutate it.
                     let frame = between.sample(&mut rng);
-                    self.mutate_frame(&mut rng, frame);
+                    mutate_frame(&mut rng, &mut hltas, frame);
                     frame
                 } else {
-                    mutate_single_frame_bulk(&mut self.hltas, &mut rng)
+                    mutate_single_frame_bulk(&mut hltas, &mut rng)
                 };
 
-                self.mark_as_stale(stale_frame);
+                stale_frame = stale_frame.min(frame);
             }
 
-            let valid_frames = self.frames.len() - 1;
+            let mut frames = Vec::from(&self.frames[..stale_frame + 1]);
+
             // Simulate the result.
-            self.simulate_all(tracer);
+            let simulator = Simulator::new(tracer, &frames, &hltas.lines);
+            frames.extend(simulator);
 
             // Check if we got an improvement.
-            if constraint.map(|c| c.is_valid(&self.frames)).unwrap_or(true)
-                && goal.is_better(&self.frames, &best_frames)
+            if constraint.map(|c| c.is_valid(&frames)).unwrap_or(true)
+                && goal.is_better(&frames, &self.frames)
             {
-                best_hltas = self.hltas.clone();
-                best_frames = self.frames.clone();
-                on_improvement(&goal.to_string(&best_frames));
-            } else {
-                if i == 19 {
-                    self.last_mutation_frames = Some(self.frames.clone());
-                }
-
-                // Restore the script before the changes.
-                self.hltas = best_hltas.clone();
-                self.mark_as_stale(valid_frames);
+                self.hltas = hltas;
+                self.frames = frames;
+                on_improvement(&goal.to_string(&self.frames));
+            } else if i == 19 {
+                self.last_mutation_frames = Some(frames);
             }
         }
     }
@@ -627,25 +618,6 @@ impl Editor {
         });
     }
 
-    fn mutate_frame<R: Rng>(&mut self, rng: &mut R, frame: usize) {
-        if frame > 0 {
-            let l = self.hltas.line_and_repeat_at_frame(frame).unwrap().0;
-            let frame_bulk = self.hltas.split_at_frame(frame).unwrap();
-            if l == 0 {
-                // If we split the first frame bulk, empty out the console command (which contains
-                // optim init and TAS editor commands).
-                frame_bulk.console_command = None;
-            }
-        }
-
-        // Split it into its own frame bulk.
-        let frame_bulk = self.hltas.split_single_at_frame(frame).unwrap();
-
-        mutate_frame_bulk(rng, frame_bulk);
-
-        self.mark_as_stale(frame);
-    }
-
     pub fn minimize<T: Trace>(&mut self, tracer: &T) {
         // Remove unused keys and actions.
         let mut state = self.frames[0].state.clone();
@@ -770,6 +742,23 @@ impl Editor {
 
         self.hltas.lines = new_lines;
     }
+}
+
+fn mutate_frame<R: Rng>(rng: &mut R, hltas: &mut HLTAS, frame: usize) {
+    if frame > 0 {
+        let l = hltas.line_and_repeat_at_frame(frame).unwrap().0;
+        let frame_bulk = hltas.split_at_frame(frame).unwrap();
+        if l == 0 {
+            // If we split the first frame bulk, empty out the console command (which contains
+            // optim init and TAS editor commands).
+            frame_bulk.console_command = None;
+        }
+    }
+
+    // Split it into its own frame bulk.
+    let frame_bulk = hltas.split_single_at_frame(frame).unwrap();
+
+    mutate_frame_bulk(rng, frame_bulk);
 }
 
 fn mutate_frame_bulk<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
