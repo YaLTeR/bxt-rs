@@ -22,7 +22,7 @@ use crate::modules::triangle_drawing::triangle_api::{Primitive, RenderMode};
 use crate::modules::triangle_drawing::TriangleApi;
 
 /// A movement frame.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Frame {
     /// Parameters used for simulating this frame.
     pub parameters: Parameters,
