@@ -436,7 +436,7 @@ impl Editor {
         let between = Uniform::from(0..high);
         let mut rng = rand::thread_rng();
         // Do several attempts per optimize() call.
-        for i in 0..20 {
+        for _ in 0..20 {
             let mut hltas = self.hltas.clone();
 
             // Change several frames.
@@ -467,7 +467,7 @@ impl Editor {
                 self.hltas = hltas;
                 self.frames = frames;
                 on_improvement(&goal.to_string(&self.frames));
-            } else if i == 19 {
+            } else {
                 self.last_mutation_frames = Some(frames);
             }
         }
