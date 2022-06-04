@@ -2,6 +2,7 @@
 
 use std::fs::{self, File};
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use bxt_strafe::{Parameters, Player, State};
 use glam::Vec3;
@@ -553,9 +554,15 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                     BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
                     &*OBJECTIVE.borrow(marker),
                 ) {
-                    for result in optimizer.take(20) {
+                    let start = Instant::now();
+
+                    for result in optimizer {
                         if let AttemptResult::Better { value } = result {
                             con_print(marker, &format!("Found new best value: {value}\n"));
+                        }
+
+                        if start.elapsed() > Duration::from_millis(40) {
+                            break;
                         }
                     }
                 }
