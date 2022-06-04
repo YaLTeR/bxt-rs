@@ -7,7 +7,6 @@ use std::time::{Duration, Instant};
 use bxt_strafe::{Parameters, Player, State};
 use glam::Vec3;
 use hltas::HLTAS;
-use mlua::Lua;
 
 use self::editor::Frame;
 use self::objective::{AttemptResult, Constraint, ConstraintType, Direction, Objective, Variable};
@@ -68,7 +67,7 @@ impl Module for TasEditor {
             &BXT_TAS_OPTIM_CONSTRAINT_VARIABLE,
             &BXT_TAS_OPTIM_DIRECTION,
             &BXT_TAS_OPTIM_VARIABLE,
-            &BXT_TAS_OPTIM_LUA_FILE,
+            &BXT_TAS_OPTIM_RHAI_FILE,
         ];
         CVARS
     }
@@ -109,7 +108,7 @@ static BXT_TAS_OPTIM_CONSTRAINT_VARIABLE: CVar =
 static BXT_TAS_OPTIM_CONSTRAINT_TYPE: CVar = CVar::new(b"bxt_tas_optim_constraint_type\0", b">\0");
 static BXT_TAS_OPTIM_CONSTRAINT_VALUE: CVar =
     CVar::new(b"bxt_tas_optim_constraint_value\0", b"0\0");
-static BXT_TAS_OPTIM_LUA_FILE: CVar = CVar::new(b"bxt_tas_optim_lua_file\0", b"\0");
+static BXT_TAS_OPTIM_RHAI_FILE: CVar = CVar::new(b"bxt_tas_optim_rhai_file\0", b"\0");
 
 static BXT_TAS_OPTIM_INIT: Command = Command::new(
     b"_bxt_tas_optim_init\0",
@@ -242,34 +241,60 @@ fn optim_run(marker: MainThreadMarker) {
         return;
     }
 
-    let mut set_with_lua = false;
-    let lua_path = BXT_TAS_OPTIM_LUA_FILE.to_os_string(marker);
-    if !lua_path.is_empty() {
-        match fs::read_to_string(BXT_TAS_OPTIM_LUA_FILE.to_os_string(marker)) {
+    let mut set_with_script = false;
+    let script_path = BXT_TAS_OPTIM_RHAI_FILE.to_os_string(marker);
+    if !script_path.is_empty() {
+        match fs::read_to_string(BXT_TAS_OPTIM_RHAI_FILE.to_os_string(marker)) {
             Ok(code) => {
-                let lua = Lua::new();
-                match lua.load(&code).exec() {
-                    Ok(()) => {
-                        if lua.globals().get::<_, mlua::Function>("is_better").is_ok() {
-                            if lua.globals().get::<_, mlua::Function>("to_string").is_ok() {
-                                if lua.globals().get::<_, mlua::Function>("is_valid").is_ok() {
-                                    *OBJECTIVE.borrow_mut(marker) = Objective::Lua(lua);
-                                    set_with_lua = true;
+                let engine = rhai::Engine::new();
+                match engine.compile(code) {
+                    Ok(ast) => {
+                        let does_function_exist = |name, args: &mut [rhai::Dynamic]| {
+                            let rv = engine.call_fn_raw(
+                                &mut rhai::Scope::new(),
+                                &ast,
+                                false,
+                                false,
+                                name,
+                                None,
+                                args,
+                            );
+
+                            !matches!(
+                                rv.as_ref().map_err(|err| &**err),
+                                Err(rhai::EvalAltResult::ErrorFunctionNotFound(_, _))
+                            )
+                        };
+
+                        if does_function_exist(
+                            "is_better",
+                            &mut [rhai::Dynamic::UNIT, rhai::Dynamic::UNIT],
+                        ) {
+                            if does_function_exist("is_valid", &mut [rhai::Dynamic::UNIT]) {
+                                if does_function_exist("to_string", &mut [rhai::Dynamic::UNIT]) {
+                                    *OBJECTIVE.borrow_mut(marker) = Objective::Rhai { engine, ast };
+                                    set_with_script = true;
                                 } else {
-                                    con_print(marker, "Lua code missing is_valid () function.\n");
+                                    con_print(
+                                        marker,
+                                        "Rhai script missing to_string(curr) function.\n",
+                                    );
                                     return;
                                 }
                             } else {
-                                con_print(marker, "Lua code missing to_string () function.\n");
+                                con_print(marker, "Rhai script missing is_valid(curr) function.\n");
                                 return;
                             }
                         } else {
-                            con_print(marker, "Lua code missing is_better () function.\n");
+                            con_print(
+                                marker,
+                                "Rhai script missing is_better(curr, best) function.\n",
+                            );
                             return;
                         }
                     }
                     Err(err) => {
-                        con_print(marker, &format!("Error evaluating Lua code: {err}\n"));
+                        con_print(marker, &format!("Error parsing Rhai code: {err}\n"));
                         return;
                     }
                 }
@@ -278,8 +303,8 @@ fn optim_run(marker: MainThreadMarker) {
                 con_print(
                     marker,
                     &format!(
-                        "Could not read Lua file `{}`: {err}\n",
-                        lua_path.to_string_lossy()
+                        "Could not read Rhai file `{}`: {err}\n",
+                        script_path.to_string_lossy()
                     ),
                 );
                 return;
@@ -287,7 +312,7 @@ fn optim_run(marker: MainThreadMarker) {
         }
     }
 
-    if !set_with_lua {
+    if !set_with_script {
         let variable = match BXT_TAS_OPTIM_VARIABLE.to_string(marker).parse::<Variable>() {
             Ok(x) => x,
             Err(_) => {

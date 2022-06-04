@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use bxt_strafe::State;
 use glam::Vec3Swizzles;
-use mlua::{Lua, LuaSerdeExt};
+use rhai::serde::to_dynamic;
 
 use super::editor::Frame;
 
@@ -148,6 +148,7 @@ impl AttemptResult {
 }
 
 /// The optimization objective.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum Objective {
     /// Objective set with console variables.
@@ -156,8 +157,11 @@ pub enum Objective {
         direction: Direction,
         constraint: Option<Constraint>,
     },
-    /// Objective defined as a Lua script.
-    Lua(Lua),
+    /// Objective defined as a Rhai script.
+    Rhai {
+        engine: rhai::Engine,
+        ast: rhai::AST,
+    },
 }
 
 impl Objective {
@@ -186,47 +190,100 @@ impl Objective {
                     value: new_value.to_string(),
                 }
             }
-            Objective::Lua(lua) => {
-                let should_pass_all_frames = lua.globals().get("should_pass_all_frames").unwrap();
-                let to_value = |frames: &[Frame]| {
+            Objective::Rhai { engine, ast } => {
+                let mut scope = rhai::Scope::new();
+
+                if let Err(err) = engine.run_ast_with_scope(&mut scope, ast) {
+                    error!("Error running Rhai script: {err:?}");
+                }
+
+                let should_pass_all_frames =
+                    scope.get_value("should_pass_all_frames").unwrap_or(false);
+
+                let convert = |frames: &[Frame]| {
                     if should_pass_all_frames {
-                        lua.to_value(&frames.iter().map(|f| f.state.player()).collect::<Vec<_>>())
-                            .unwrap()
+                        frames
+                            .iter()
+                            .map(|f| to_dynamic(f.state.player()).unwrap())
+                            .collect::<rhai::Dynamic>()
                     } else {
-                        lua.to_value(&frames.last().unwrap().state.player())
-                            .unwrap()
+                        to_dynamic(frames.last().unwrap().state.player()).unwrap()
                     }
                 };
 
-                let new = to_value(new_frames);
+                let new_frames = convert(new_frames);
 
-                let is_valid: mlua::Function = lua.globals().get("is_valid").unwrap();
-                match is_valid.call(new.clone()) {
-                    Ok(true) => (),
-                    Ok(false) => return AttemptResult::Invalid,
+                match engine
+                    .call_fn_raw(
+                        &mut scope,
+                        ast,
+                        false,
+                        false,
+                        "is_valid",
+                        None,
+                        [new_frames.clone()],
+                    )
+                    .as_ref()
+                    .map(rhai::Dynamic::as_bool)
+                {
+                    Ok(Ok(true)) => (),
+                    Ok(Ok(false)) => return AttemptResult::Invalid,
+                    Ok(Err(err)) => {
+                        error!("is_valid() returned an unexpected type: {err}");
+                        return AttemptResult::Invalid;
+                    }
                     Err(err) => {
-                        error!("Call to is_valid () failed: {err}");
+                        error!("Call to is_valid() failed: {err:?}");
                         return AttemptResult::Invalid;
                     }
                 }
 
-                let old = to_value(old_frames);
+                let old_frames = convert(old_frames);
 
-                let is_better: mlua::Function = lua.globals().get("is_better").unwrap();
-                match is_better.call((new.clone(), old)) {
-                    Ok(true) => (),
-                    Ok(false) => return AttemptResult::Worse,
+                match engine
+                    .call_fn_raw(
+                        &mut scope,
+                        ast,
+                        false,
+                        false,
+                        "is_better",
+                        None,
+                        [new_frames.clone(), old_frames],
+                    )
+                    .as_ref()
+                    .map(rhai::Dynamic::as_bool)
+                {
+                    Ok(Ok(true)) => (),
+                    Ok(Ok(false)) => return AttemptResult::Worse,
+                    Ok(Err(err)) => {
+                        error!("is_better() returned an unexpected type: {err}");
+                        return AttemptResult::Worse;
+                    }
                     Err(err) => {
-                        error!("Call to is_better () failed: {err}");
+                        error!("Call to is_better() failed: {err:?}");
                         return AttemptResult::Worse;
                     }
                 }
 
-                let to_string: mlua::Function = lua.globals().get("to_string").unwrap();
-                let value = match to_string.call(new) {
-                    Ok(value) => value,
+                let value = match engine
+                    .call_fn_raw(
+                        &mut scope,
+                        ast,
+                        false,
+                        false,
+                        "to_string",
+                        None,
+                        [new_frames],
+                    )
+                    .map(rhai::Dynamic::into_string)
+                {
+                    Ok(Ok(value)) => value,
+                    Ok(Err(err)) => {
+                        error!("to_string() returned an unexpected type: {err}");
+                        "<error>".to_owned()
+                    }
                     Err(err) => {
-                        error!("Call to to_string () failed: {err}");
+                        error!("Call to to_string() failed: {err:?}");
                         "<error>".to_owned()
                     }
                 };
