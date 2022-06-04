@@ -9,7 +9,8 @@ use glam::Vec3;
 use hltas::HLTAS;
 use mlua::Lua;
 
-use self::editor::{Constraint, ConstraintType, Direction, Frame, OptimizationGoal, Variable};
+use self::editor::Frame;
+use self::objective::{Constraint, ConstraintType, Direction, OptimizationGoal, Variable};
 use super::cvars::CVar;
 use super::triangle_drawing::{self, TriangleApi};
 use super::Module;
@@ -22,6 +23,8 @@ use crate::utils::*;
 
 mod editor;
 use editor::Editor;
+
+mod objective;
 
 mod simulator;
 
