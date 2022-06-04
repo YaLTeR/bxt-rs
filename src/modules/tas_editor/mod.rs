@@ -90,6 +90,7 @@ static OBJECTIVE: MainThreadRefCell<Objective> = MainThreadRefCell::new(Objectiv
 
 static OPTIM_STATS_LAST_PRINTED_AT: MainThreadCell<Option<Instant>> = MainThreadCell::new(None);
 static OPTIM_STATS_ITERATIONS: MainThreadCell<usize> = MainThreadCell::new(0);
+static OPTIM_STATS_ITERATIONS_INVALID: MainThreadCell<usize> = MainThreadCell::new(0);
 
 static BXT_TAS_OPTIM_FRAMES: CVar = CVar::new(b"bxt_tas_optim_frames\0", b"0\0");
 static BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE: CVar =
@@ -404,6 +405,7 @@ fn optim_run(marker: MainThreadMarker) {
 
     OPTIM_STATS_LAST_PRINTED_AT.set(marker, Some(Instant::now()));
     OPTIM_STATS_ITERATIONS.set(marker, 0);
+    OPTIM_STATS_ITERATIONS_INVALID.set(marker, 0);
 }
 
 static BXT_TAS_OPTIM_STOP: Command = Command::new(
@@ -588,8 +590,15 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                     let start = Instant::now();
 
                     for result in optimizer {
-                        if let AttemptResult::Better { value } = result {
-                            con_print(marker, &format!("Found new best value: {value}\n"));
+                        match result {
+                            AttemptResult::Better { value } => {
+                                con_print(marker, &format!("Found new best value: {value}\n"));
+                            }
+                            AttemptResult::Invalid => {
+                                OPTIM_STATS_ITERATIONS_INVALID
+                                    .set(marker, OPTIM_STATS_ITERATIONS_INVALID.get(marker) + 1);
+                            }
+                            _ => (),
                         }
 
                         OPTIM_STATS_ITERATIONS.set(marker, OPTIM_STATS_ITERATIONS.get(marker) + 1);
@@ -603,9 +612,21 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                 let now = Instant::now();
                 if now - OPTIM_STATS_LAST_PRINTED_AT.get(marker).unwrap() >= Duration::from_secs(1)
                 {
-                    eprintln!("Optim: {} it/s", OPTIM_STATS_ITERATIONS.get(marker));
+                    let iterations = OPTIM_STATS_ITERATIONS.get(marker);
+                    let invalid = OPTIM_STATS_ITERATIONS_INVALID.get(marker);
+                    eprintln!(
+                        "Optim: {} it/s ({:.1}% invalid)",
+                        iterations,
+                        if iterations == 0 {
+                            0.
+                        } else {
+                            invalid as f32 * 100. / iterations as f32
+                        },
+                    );
+
                     OPTIM_STATS_LAST_PRINTED_AT.set(marker, Some(now));
                     OPTIM_STATS_ITERATIONS.set(marker, 0);
+                    OPTIM_STATS_ITERATIONS_INVALID.set(marker, 0);
                 }
             }
 
