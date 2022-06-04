@@ -45,6 +45,9 @@ minhook-sys = "0.1.1"
 version = "0.3.9"
 features = ["libloaderapi", "psapi", "winuser", "synchapi", "handleapi", "processthreadsapi"]
 
+[build-dependencies]
+gl_generator = "0.14.0"
+
 [profile.dev.package.bxt-patterns]
 opt-level = 3
 
@@ -57,9 +60,6 @@ overflow-checks = true # So no hidden unsoundness can sneak in.
 
 [workspace]
 members = [".", "bxt-macros", "bxt-patterns", "bxt-strafe"]
-
-[build-dependencies]
-gl_generator = "0.14.0"
 
 [features]
 vulkan-debug = []
