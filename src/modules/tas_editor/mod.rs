@@ -2,7 +2,6 @@
 
 use std::fs::{self, File};
 use std::path::PathBuf;
-use std::rc::Rc;
 
 use bxt_strafe::{Parameters, Player, State};
 use glam::Vec3;
@@ -250,7 +249,6 @@ fn optim_run(marker: MainThreadMarker) {
                         if lua.globals().get::<_, mlua::Function>("is_better").is_ok() {
                             if lua.globals().get::<_, mlua::Function>("to_string").is_ok() {
                                 if lua.globals().get::<_, mlua::Function>("is_valid").is_ok() {
-                                    let lua = Rc::new(lua);
                                     *OBJECTIVE.borrow_mut(marker) = Objective::Lua(lua);
                                     set_with_lua = true;
                                 } else {

@@ -1,6 +1,5 @@
 //! Optimization objective.
 
-use std::rc::Rc;
 use std::str::FromStr;
 
 use bxt_strafe::State;
@@ -148,7 +147,7 @@ pub enum Objective {
         constraint: Option<Constraint>,
     },
     /// Objective defined as a Lua script.
-    Lua(Rc<Lua>),
+    Lua(Lua),
 }
 
 impl Objective {
