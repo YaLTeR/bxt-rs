@@ -80,94 +80,6 @@ impl FromStr for Direction {
     }
 }
 
-/// The optimization goal.
-#[derive(Debug)]
-pub enum OptimizationGoal {
-    Console {
-        variable: Variable,
-        direction: Direction,
-    },
-    Lua(Rc<Lua>),
-}
-
-impl OptimizationGoal {
-    /// Returns `true` if `new_frames` is better than `old_frames` according to this optimization
-    /// goal.
-    pub fn is_better(&self, new_frames: &[Frame], old_frames: &[Frame]) -> bool {
-        match self {
-            OptimizationGoal::Console {
-                variable,
-                direction,
-            } => direction.is_better(
-                variable.get(&new_frames.last().unwrap().state),
-                variable.get(&old_frames.last().unwrap().state),
-            ),
-            OptimizationGoal::Lua(lua) => {
-                let is_better: mlua::Function = lua.globals().get("is_better").unwrap();
-                let args = if lua.globals().get("should_pass_all_frames").unwrap() {
-                    (
-                        lua.to_value(
-                            &new_frames
-                                .iter()
-                                .map(|f| f.state.player())
-                                .collect::<Vec<_>>(),
-                        )
-                        .unwrap(),
-                        lua.to_value(
-                            &old_frames
-                                .iter()
-                                .map(|f| f.state.player())
-                                .collect::<Vec<_>>(),
-                        )
-                        .unwrap(),
-                    )
-                } else {
-                    (
-                        lua.to_value(&new_frames.last().unwrap().state.player())
-                            .unwrap(),
-                        lua.to_value(&old_frames.last().unwrap().state.player())
-                            .unwrap(),
-                    )
-                };
-
-                match is_better.call(args) {
-                    Ok(x) => x,
-                    Err(err) => {
-                        eprintln!("Call to is_better () failed: {err}");
-                        false
-                    }
-                }
-            }
-        }
-    }
-
-    /// Returns a string representation of the value of the optimization goal for `frames`.
-    pub fn to_string(&self, frames: &[Frame]) -> String {
-        match self {
-            OptimizationGoal::Console { variable, .. } => {
-                variable.get(&frames.last().unwrap().state).to_string()
-            }
-            OptimizationGoal::Lua(lua) => {
-                let to_string: mlua::Function = lua.globals().get("to_string").unwrap();
-                let args = if lua.globals().get("should_pass_all_frames").unwrap() {
-                    lua.to_value(&frames.iter().map(|f| f.state.player()).collect::<Vec<_>>())
-                        .unwrap()
-                } else {
-                    lua.to_value(&frames.last().unwrap().state.player())
-                        .unwrap()
-                };
-                match to_string.call(args) {
-                    Ok(x) => x,
-                    Err(err) => {
-                        eprintln!("Call to to_string () failed: {err}");
-                        "<error>".to_owned()
-                    }
-                }
-            }
-        }
-    }
-}
-
 /// Type of a constraint on a [`Variable`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConstraintType {
@@ -196,42 +108,121 @@ impl ConstraintType {
     }
 }
 
-/// The optimization constraint.
+/// Constraint on a [`Variable`].
 #[derive(Debug)]
-pub enum Constraint {
-    Console {
-        variable: Variable,
-        type_: ConstraintType,
-        constraint: f32,
-    },
-    Lua(Rc<Lua>),
+pub struct Constraint {
+    pub variable: Variable,
+    pub type_: ConstraintType,
+    pub constraint: f32,
 }
 
 impl Constraint {
     /// Returns `true` if `frames` satisfies the constraint.
     pub fn is_valid(&self, frames: &[Frame]) -> bool {
+        let value = self.variable.get(&frames.last().unwrap().state);
+        self.type_.is_valid(value, self.constraint)
+    }
+}
+
+/// Result of an optimization attempt.
+#[derive(Debug)]
+pub enum AttemptResult {
+    /// The attempt failed the constraint.
+    Invalid,
+    /// The attempt was worse than the best so far.
+    Worse,
+    /// The attempt was an improvement.
+    Better {
+        /// String representation of the optimized value.
+        value: String,
+    },
+}
+
+/// The optimization objective.
+#[derive(Debug)]
+pub enum Objective {
+    /// Objective set with console variables.
+    Console {
+        variable: Variable,
+        direction: Direction,
+        constraint: Option<Constraint>,
+    },
+    /// Objective defined as a Lua script.
+    Lua(Rc<Lua>),
+}
+
+impl Objective {
+    /// Evaluates the objective for `new_frames` compared to `old_frames`.
+    pub fn eval(&self, new_frames: &[Frame], old_frames: &[Frame]) -> AttemptResult {
         match self {
-            &Constraint::Console {
+            Objective::Console {
                 variable,
-                type_,
+                direction,
                 constraint,
-            } => type_.is_valid(variable.get(&frames.last().unwrap().state), constraint),
-            Constraint::Lua(lua) => {
-                let is_valid: mlua::Function = lua.globals().get("is_valid").unwrap();
-                let args = if lua.globals().get("should_pass_all_frames").unwrap() {
-                    lua.to_value(&frames.iter().map(|f| f.state.player()).collect::<Vec<_>>())
-                        .unwrap()
-                } else {
-                    lua.to_value(&frames.last().unwrap().state.player())
-                        .unwrap()
-                };
-                match is_valid.call(args) {
-                    Ok(x) => x,
-                    Err(err) => {
-                        eprintln!("Call to is_valid () failed: {err}");
-                        false
+            } => {
+                if let Some(constraint) = constraint {
+                    if !constraint.is_valid(new_frames) {
+                        return AttemptResult::Invalid;
                     }
                 }
+
+                let new_value = variable.get(&new_frames.last().unwrap().state);
+                let old_value = variable.get(&old_frames.last().unwrap().state);
+
+                if !direction.is_better(new_value, old_value) {
+                    return AttemptResult::Worse;
+                }
+
+                AttemptResult::Better {
+                    value: new_value.to_string(),
+                }
+            }
+            Objective::Lua(lua) => {
+                let should_pass_all_frames = lua.globals().get("should_pass_all_frames").unwrap();
+                let to_value = |frames: &[Frame]| {
+                    if should_pass_all_frames {
+                        lua.to_value(&frames.iter().map(|f| f.state.player()).collect::<Vec<_>>())
+                            .unwrap()
+                    } else {
+                        lua.to_value(&frames.last().unwrap().state.player())
+                            .unwrap()
+                    }
+                };
+
+                let new = to_value(new_frames);
+
+                let is_valid: mlua::Function = lua.globals().get("is_valid").unwrap();
+                match is_valid.call(new.clone()) {
+                    Ok(true) => (),
+                    Ok(false) => return AttemptResult::Invalid,
+                    Err(err) => {
+                        error!("Call to is_valid () failed: {err}");
+                        return AttemptResult::Invalid;
+                    }
+                }
+
+                let old = to_value(old_frames);
+
+                let is_better: mlua::Function = lua.globals().get("is_better").unwrap();
+                match is_better.call((new.clone(), old)) {
+                    Ok(true) => (),
+                    Ok(false) => return AttemptResult::Worse,
+                    Err(err) => {
+                        error!("Call to is_better () failed: {err}");
+                        return AttemptResult::Worse;
+                    }
+                }
+
+                let to_string: mlua::Function = lua.globals().get("to_string").unwrap();
+                let value = match to_string.call(new) {
+                    Ok(value) => value,
+                    Err(err) => {
+                        error!("Call to to_string () failed: {err}");
+                        "<error>".to_owned()
+                    }
+                };
+
+                AttemptResult::Better { value }
             }
         }
     }

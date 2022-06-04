@@ -10,7 +10,7 @@ use hltas::HLTAS;
 use mlua::Lua;
 
 use self::editor::Frame;
-use self::objective::{Constraint, ConstraintType, Direction, OptimizationGoal, Variable};
+use self::objective::{Constraint, ConstraintType, Direction, Objective, Variable};
 use super::cvars::CVar;
 use super::triangle_drawing::{self, TriangleApi};
 use super::Module;
@@ -83,12 +83,11 @@ impl Module for TasEditor {
 
 static EDITOR: MainThreadRefCell<Option<Editor>> = MainThreadRefCell::new(None);
 static OPTIMIZE: MainThreadCell<bool> = MainThreadCell::new(false);
-static GOAL: MainThreadRefCell<OptimizationGoal> =
-    MainThreadRefCell::new(OptimizationGoal::Console {
-        variable: Variable::PosX,
-        direction: Direction::Maximize,
-    });
-static CONSTRAINT: MainThreadRefCell<Option<Constraint>> = MainThreadRefCell::new(None);
+static OBJECTIVE: MainThreadRefCell<Objective> = MainThreadRefCell::new(Objective::Console {
+    variable: Variable::PosX,
+    direction: Direction::Maximize,
+    constraint: None,
+});
 
 static BXT_TAS_OPTIM_FRAMES: CVar = CVar::new(b"bxt_tas_optim_frames\0", b"0\0");
 static BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE: CVar =
@@ -252,8 +251,7 @@ fn optim_run(marker: MainThreadMarker) {
                             if lua.globals().get::<_, mlua::Function>("to_string").is_ok() {
                                 if lua.globals().get::<_, mlua::Function>("is_valid").is_ok() {
                                     let lua = Rc::new(lua);
-                                    *GOAL.borrow_mut(marker) = OptimizationGoal::Lua(lua.clone());
-                                    *CONSTRAINT.borrow_mut(marker) = Some(Constraint::Lua(lua));
+                                    *OBJECTIVE.borrow_mut(marker) = Objective::Lua(lua);
                                     set_with_lua = true;
                                 } else {
                                     con_print(marker, "Lua code missing is_valid () function.\n");
@@ -315,13 +313,8 @@ fn optim_run(marker: MainThreadMarker) {
             }
         };
 
-        *GOAL.borrow_mut(marker) = OptimizationGoal::Console {
-            variable,
-            direction,
-        };
-
         let constraint_variable = BXT_TAS_OPTIM_CONSTRAINT_VARIABLE.to_string(marker);
-        if !constraint_variable.is_empty() {
+        let constraint = if !constraint_variable.is_empty() {
             let variable = if let Ok(x) = BXT_TAS_OPTIM_CONSTRAINT_VARIABLE
                 .to_string(marker)
                 .parse::<Variable>()
@@ -364,14 +357,20 @@ fn optim_run(marker: MainThreadMarker) {
                 return;
             };
 
-            *CONSTRAINT.borrow_mut(marker) = Some(Constraint::Console {
+            Some(Constraint {
                 variable,
                 type_,
                 constraint,
-            });
+            })
         } else {
-            *CONSTRAINT.borrow_mut(marker) = None;
-        }
+            None
+        };
+
+        *OBJECTIVE.borrow_mut(marker) = Objective::Console {
+            variable,
+            direction,
+            constraint,
+        };
     }
 
     OPTIMIZE.set(marker, true);
@@ -533,8 +532,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                     BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
-                    &*GOAL.borrow(marker),
-                    CONSTRAINT.borrow(marker).as_ref(),
+                    &*OBJECTIVE.borrow(marker),
                     |value| {
                         con_print(marker, &format!("Found new best value: {value}\n"));
                     },
@@ -555,8 +553,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                     BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
-                    &*GOAL.borrow(marker),
-                    CONSTRAINT.borrow(marker).as_ref(),
+                    &*OBJECTIVE.borrow(marker),
                     |value| {
                         con_print(marker, &format!("Found new best value: {value}\n"));
                     },

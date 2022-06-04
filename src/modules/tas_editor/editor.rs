@@ -13,7 +13,7 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tap::{Conv, Pipe, Tap, TryConv};
 
-use super::objective::{Constraint, OptimizationGoal};
+use super::objective::{AttemptResult, Objective};
 use super::remote;
 use super::simulator::Simulator;
 use crate::modules::triangle_drawing::triangle_api::{Primitive, RenderMode};
@@ -196,8 +196,7 @@ impl Editor {
         frames: usize,
         random_frames_to_change: usize,
         change_single_frames: bool,
-        goal: &OptimizationGoal,
-        constraint: Option<&Constraint>,
+        objective: &Objective,
         mut on_improvement: impl FnMut(&str),
     ) {
         self.simulate_all(tracer);
@@ -239,12 +238,10 @@ impl Editor {
             frames.extend(simulator);
 
             // Check if we got an improvement.
-            if constraint.map(|c| c.is_valid(&frames)).unwrap_or(true)
-                && goal.is_better(&frames, &self.frames)
-            {
+            if let AttemptResult::Better { value } = objective.eval(&frames, &self.frames) {
                 self.hltas = hltas;
                 self.frames = frames;
-                on_improvement(&goal.to_string(&self.frames));
+                on_improvement(&value);
             } else {
                 self.last_mutation_frames = Some(frames);
             }
@@ -328,8 +325,7 @@ impl Editor {
         frames: usize,
         random_frames_to_change: usize,
         change_single_frames: bool,
-        goal: &OptimizationGoal,
-        constraint: Option<&Constraint>,
+        objective: &Objective,
         mut on_improvement: impl FnMut(&str),
     ) {
         self.maybe_simulate_all_in_remote_client();
@@ -355,9 +351,7 @@ impl Editor {
             frames.insert(0, self.frames[0].clone());
             self.last_mutation_frames = Some(frames.clone());
 
-            if constraint.map(|c| c.is_valid(&frames)).unwrap_or(true)
-                && goal.is_better(&frames, &self.frames)
-            {
+            if let AttemptResult::Better { value } = objective.eval(&frames, &self.frames) {
                 self.hltas.lines = hltas
                     .lines
                     .drain(self.prefix.lines.len()..hltas.lines.len() - 1)
@@ -370,7 +364,7 @@ impl Editor {
                 };
 
                 self.frames = frames;
-                on_improvement(&goal.to_string(&self.frames));
+                on_improvement(&value);
             }
         });
 
