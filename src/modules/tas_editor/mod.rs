@@ -89,6 +89,9 @@ static OBJECTIVE: MainThreadRefCell<Objective> = MainThreadRefCell::new(Objectiv
     constraint: None,
 });
 
+static OPTIM_STATS_LAST_PRINTED_AT: MainThreadCell<Option<Instant>> = MainThreadCell::new(None);
+static OPTIM_STATS_ITERATIONS: MainThreadCell<usize> = MainThreadCell::new(0);
+
 static BXT_TAS_OPTIM_FRAMES: CVar = CVar::new(b"bxt_tas_optim_frames\0", b"0\0");
 static BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE: CVar =
     CVar::new(b"bxt_tas_optim_random_frames_to_change\0", b"6\0");
@@ -373,6 +376,9 @@ fn optim_run(marker: MainThreadMarker) {
     }
 
     OPTIMIZE.set(marker, true);
+
+    OPTIM_STATS_LAST_PRINTED_AT.set(marker, Some(Instant::now()));
+    OPTIM_STATS_ITERATIONS.set(marker, 0);
 }
 
 static BXT_TAS_OPTIM_STOP: Command = Command::new(
@@ -561,10 +567,20 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                             con_print(marker, &format!("Found new best value: {value}\n"));
                         }
 
+                        OPTIM_STATS_ITERATIONS.set(marker, OPTIM_STATS_ITERATIONS.get(marker) + 1);
+
                         if start.elapsed() > Duration::from_millis(40) {
                             break;
                         }
                     }
+                }
+
+                let now = Instant::now();
+                if now - OPTIM_STATS_LAST_PRINTED_AT.get(marker).unwrap() >= Duration::from_secs(1)
+                {
+                    eprintln!("Optim: {} it/s", OPTIM_STATS_ITERATIONS.get(marker));
+                    OPTIM_STATS_LAST_PRINTED_AT.set(marker, Some(now));
+                    OPTIM_STATS_ITERATIONS.set(marker, 0);
                 }
             }
 
