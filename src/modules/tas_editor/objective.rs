@@ -9,6 +9,7 @@ use mlua::{Lua, LuaSerdeExt};
 
 use super::editor::Frame;
 
+/// The variable to optimize.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Variable {
     PosX,
@@ -51,6 +52,7 @@ impl FromStr for Variable {
     }
 }
 
+/// The optimization direction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     Maximize,
@@ -78,6 +80,7 @@ impl FromStr for Direction {
     }
 }
 
+/// The optimization goal.
 #[derive(Debug)]
 pub enum OptimizationGoal {
     Console {
@@ -88,6 +91,8 @@ pub enum OptimizationGoal {
 }
 
 impl OptimizationGoal {
+    /// Returns `true` if `new_frames` is better than `old_frames` according to this optimization
+    /// goal.
     pub fn is_better(&self, new_frames: &[Frame], old_frames: &[Frame]) -> bool {
         match self {
             OptimizationGoal::Console {
@@ -136,6 +141,7 @@ impl OptimizationGoal {
         }
     }
 
+    /// Returns a string representation of the value of the optimization goal for `frames`.
     pub fn to_string(&self, frames: &[Frame]) -> String {
         match self {
             OptimizationGoal::Console { variable, .. } => {
@@ -162,6 +168,7 @@ impl OptimizationGoal {
     }
 }
 
+/// Type of a constraint on a [`Variable`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConstraintType {
     GreaterThan,
@@ -189,6 +196,7 @@ impl ConstraintType {
     }
 }
 
+/// The optimization constraint.
 #[derive(Debug)]
 pub enum Constraint {
     Console {
@@ -200,6 +208,7 @@ pub enum Constraint {
 }
 
 impl Constraint {
+    /// Returns `true` if `frames` satisfies the constraint.
     pub fn is_valid(&self, frames: &[Frame]) -> bool {
         match self {
             &Constraint::Console {
