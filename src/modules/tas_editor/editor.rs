@@ -334,14 +334,6 @@ impl Editor {
             return;
         }
 
-        let mut high = self.frames.len() - 1;
-        if frames > 0 {
-            high = high.min(frames);
-        }
-
-        let between = Uniform::from(0..high);
-        let mut rng = rand::thread_rng();
-
         remote::receive_simulation_result_from_clients(|mut hltas, generation, mut frames| {
             if generation != self.generation {
                 return;
@@ -366,6 +358,14 @@ impl Editor {
                 on_improvement(&value);
             }
         });
+
+        let mut high = self.frames.len() - 1;
+        if frames > 0 {
+            high = high.min(frames);
+        }
+
+        let between = Uniform::from(0..high);
+        let mut rng = rand::thread_rng();
 
         remote::simulate_in_available_clients(|| {
             let temp = self.hltas.clone();
