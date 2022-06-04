@@ -9,7 +9,7 @@ use hltas::HLTAS;
 use mlua::Lua;
 
 use self::editor::Frame;
-use self::objective::{Constraint, ConstraintType, Direction, Objective, Variable};
+use self::objective::{AttemptResult, Constraint, ConstraintType, Direction, Objective, Variable};
 use super::cvars::CVar;
 use super::triangle_drawing::{self, TriangleApi};
 use super::Module;
@@ -546,16 +546,19 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                     .unwrap();
 
             if OPTIMIZE.get(marker) {
-                editor.optimize(
+                if let Some(optimizer) = editor.optimize(
                     &tracer,
                     BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
                     &*OBJECTIVE.borrow(marker),
-                    |value| {
-                        con_print(marker, &format!("Found new best value: {value}\n"));
-                    },
-                );
+                ) {
+                    for result in optimizer.take(20) {
+                        if let AttemptResult::Better { value } = result {
+                            con_print(marker, &format!("Found new best value: {value}\n"));
+                        }
+                    }
+                }
             }
 
             // Make sure the state is ready for drawing.

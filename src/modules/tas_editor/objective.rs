@@ -137,6 +137,16 @@ pub enum AttemptResult {
     },
 }
 
+impl AttemptResult {
+    /// Returns `true` if the attempt result is [`Better`].
+    ///
+    /// [`Better`]: AttemptResult::Better
+    #[must_use]
+    pub fn is_better(&self) -> bool {
+        matches!(self, Self::Better { .. })
+    }
+}
+
 /// The optimization objective.
 #[derive(Debug)]
 pub enum Objective {

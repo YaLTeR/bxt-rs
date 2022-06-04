@@ -1,8 +1,8 @@
 use std::error::Error;
 use std::io::Write;
-use std::mem;
 use std::num::NonZeroU32;
 use std::result::Result;
+use std::{iter, mem};
 
 use bxt_strafe::{Parameters, State, Trace};
 use hltas::types::*;
@@ -188,21 +188,18 @@ impl Editor {
         self.frames.extend(simulator);
     }
 
-    // Yes I know this is not the best structured code at the moment...
-    #[allow(clippy::too_many_arguments)]
-    pub fn optimize<T: Trace>(
-        &mut self,
-        tracer: &T,
+    pub fn optimize<'a, T: Trace>(
+        &'a mut self,
+        tracer: &'a T,
         frames: usize,
         random_frames_to_change: usize,
         change_single_frames: bool,
-        objective: &Objective,
-        mut on_improvement: impl FnMut(&str),
-    ) {
+        objective: &'a Objective,
+    ) -> Option<impl Iterator<Item = AttemptResult> + 'a> {
         self.simulate_all(tracer);
 
         if self.frames.len() == 1 {
-            return;
+            return None;
         }
 
         let mut high = self.frames.len() - 1;
@@ -212,8 +209,8 @@ impl Editor {
 
         let between = Uniform::from(0..high);
         let mut rng = rand::thread_rng();
-        // Do several attempts per optimize() call.
-        for _ in 0..20 {
+
+        Some(iter::from_fn(move || {
             let mut hltas = self.hltas.clone();
 
             // Change several frames.
@@ -238,14 +235,16 @@ impl Editor {
             frames.extend(simulator);
 
             // Check if we got an improvement.
-            if let AttemptResult::Better { value } = objective.eval(&frames, &self.frames) {
+            let result = objective.eval(&frames, &self.frames);
+            if result.is_better() {
                 self.hltas = hltas;
                 self.frames = frames;
-                on_improvement(&value);
             } else {
                 self.last_mutation_frames = Some(frames);
             }
-        }
+
+            Some(result)
+        }))
     }
 
     fn prepare_hltas_for_sending(&mut self) -> HLTAS {
