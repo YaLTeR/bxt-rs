@@ -412,7 +412,7 @@ static BXT_TAS_OPTIM_STOP: Command = Command::new(
     b"bxt_tas_optim_stop\0",
     handler!(
         "Usage: bxt_tas_optim_stop\n \
-          Starts the optimization.\n",
+          Stops the optimization.\n",
         optim_stop as fn(_)
     ),
 );
