@@ -126,6 +126,9 @@ impl<'a, T: Trace> Iterator for Simulator<'a, T> {
                 Line::Change(_) => (),
                 Line::TargetYawOverride(_) => (),
             }
+
+            // Advance to the next line for non-frame-bulks.
+            self.lines = &self.lines[1..];
         }
 
         None
@@ -258,5 +261,18 @@ mod tests {
         );
         assert_eq!(simulator.lines, &lines[2..]);
         assert_eq!(simulator.repeat, 1);
+    }
+
+    #[test]
+    fn simulator_advances_on_non_frame_bulks() {
+        let lines = [
+            Line::FrameBulk(FrameBulk::with_frame_time("0.001".to_string())),
+            Line::LGAGSTMinSpeed(0.),
+            Line::LGAGSTMinSpeed(0.),
+            Line::LGAGSTMinSpeed(0.),
+            Line::FrameBulk(FrameBulk::with_frame_time("0.001".to_string())),
+        ];
+        let simulator = Simulator::new(&DummyTracer, &[default_frame()], &lines);
+        assert_eq!(simulator.count(), 2);
     }
 }
