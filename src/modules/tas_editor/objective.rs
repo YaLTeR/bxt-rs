@@ -26,9 +26,9 @@ impl Variable {
             Variable::PosX => state.player().pos.x,
             Variable::PosY => state.player().pos.y,
             Variable::PosZ => state.player().pos.z,
-            Variable::VelY => state.player().vel.x,
-            Variable::VelZ => state.player().vel.y,
-            Variable::VelX => state.player().vel.z,
+            Variable::VelX => state.player().vel.x,
+            Variable::VelY => state.player().vel.y,
+            Variable::VelZ => state.player().vel.z,
             Variable::Speed => state.player().vel.xy().length(),
         }
     }
