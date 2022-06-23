@@ -146,10 +146,11 @@ fn find_demos(prefix: PathBuf) -> Result<Vec<(PathBuf, usize)>, String> {
 pub fn set_next_demo(marker: MainThreadMarker) {
     let mut demos = DEMOS.borrow_mut(marker);
 
-    unsafe {
+    
         // Safety: no engine functions are called while the reference is active.
-        let cls_demos = &mut *engine::cls_demos.get(marker);
+        let cls_demos = unsafe { &mut *engine::cls_demos.get(marker) };
 
+    
         match demos.pop() {
             Some(demo) => {
                 // Replace the first startdemos entry with the next demo and set the next demo as
@@ -165,5 +166,4 @@ pub fn set_next_demo(marker: MainThreadMarker) {
                 cls_demos.demos[0][0] = 0;
             }
         }
-    }
 }

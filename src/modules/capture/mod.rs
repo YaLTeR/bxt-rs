@@ -184,8 +184,8 @@ static BXT_CAP_STOP: Command = Command::new(
 );
 
 fn cap_stop(marker: MainThreadMarker) {
+    let mut state = STATE.borrow_mut(marker);
     unsafe {
-        let mut state = STATE.borrow_mut(marker);
         if let State::Recording(ref mut recorder) = *state {
             match recorder.record_last_frame() {
                 Ok(()) => {
