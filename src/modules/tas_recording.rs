@@ -2,6 +2,7 @@
 
 use std::convert::TryInto;
 use std::ffi::CStr;
+use std::fmt::Write;
 use std::fs::File;
 use std::mem;
 use std::os::raw::c_char;
@@ -463,13 +464,15 @@ pub unsafe fn on_sv_frame_end(marker: MainThreadMarker) {
         if !console_command.is_empty() {
             console_command.push(';');
         }
-        console_command.push_str(&format!(
+        write!(
+            *console_command,
             "_bxt_set_frametime_remainder {}",
             recorder
                 .pending_remainders
                 .pop()
                 .expect("unexpected more commands than frame time remainders"),
-        ));
+        )
+        .expect("writing to `String` should never error");
 
         let player_command = recorder
             .pending_console_commands

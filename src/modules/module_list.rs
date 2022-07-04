@@ -1,5 +1,7 @@
 //! `bxt_module_list`
 
+use std::fmt::Write;
+
 use super::{Module, MODULES};
 use crate::handler;
 use crate::hooks::engine::{self, con_print};
@@ -38,15 +40,17 @@ fn module_list(marker: MainThreadMarker) {
 
     let mut output = String::new();
     for module in MODULES {
-        output.push_str(&format!(
-            "- {}{}\n",
+        writeln!(
+            output,
+            "- {}{}",
             if module.is_enabled(marker) {
                 ""
             } else {
                 "[DISABLED] "
             },
             module.name()
-        ));
+        )
+        .expect("writing to `String` should never error");
     }
 
     con_print(marker, &output);

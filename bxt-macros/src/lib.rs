@@ -1,5 +1,7 @@
 //! Attribute macro for creating a byte pattern out of a more commonly used format.
 
+use std::fmt::Write;
+
 extern crate proc_macro;
 use proc_macro::{Span, TokenStream, TokenTree};
 
@@ -33,7 +35,8 @@ pub fn pattern(input: TokenStream) -> TokenStream {
                 }
 
                 match u8::from_str_radix(&token_string, 16) {
-                    Ok(byte) => output.push_str(&format!("Some(0x{:X}), ", byte)),
+                    Ok(byte) => write!(output, "Some(0x{:X}), ", byte)
+                        .expect("writing to `String` should never error"),
                     Err(_) => return error(token.span(), "token must be a hex number"),
                 }
             }
