@@ -12,6 +12,10 @@ impl Module for RngSet {
         "_bxt_rng_set"
     }
 
+    fn description(&self) -> &'static str {
+        "Setting the engine RNG state."
+    }
+
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[&BXT_RNG_SET];
         COMMANDS

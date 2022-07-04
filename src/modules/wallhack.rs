@@ -12,6 +12,10 @@ impl Module for Wallhack {
         "bxt_wallhack"
     }
 
+    fn description(&self) -> &'static str {
+        "Seeing through walls."
+    }
+
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_WALLHACK, &BXT_WALLHACK_ADDITIVE];
         CVARS

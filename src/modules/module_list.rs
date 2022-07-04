@@ -14,6 +14,10 @@ impl Module for ModuleList {
         "bxt_module_list"
     }
 
+    fn description(&self) -> &'static str {
+        "Printing the list of modules."
+    }
+
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[&BXT_MODULE_LIST];
         COMMANDS

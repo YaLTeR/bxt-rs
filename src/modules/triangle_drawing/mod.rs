@@ -13,6 +13,10 @@ impl Module for TriangleDrawing {
         "Triangle drawing"
     }
 
+    fn description(&self) -> &'static str {
+        "Makes bxt-rs able to draw shapes in the 3D space."
+    }
+
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         engine::ClientDLL_DrawTransparentTriangles.is_set(marker) && engine::tri.is_set(marker)
     }

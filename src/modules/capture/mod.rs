@@ -17,6 +17,10 @@ impl Module for Capture {
         "Video capture"
     }
 
+    fn description(&self) -> &'static str {
+        "Recording videos from demos and TAS playback."
+    }
+
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[&BXT_CAP_START, &BXT_CAP_STOP];
         COMMANDS

@@ -12,6 +12,10 @@ impl Module for HudScale {
         "bxt_hud_scale"
     }
 
+    fn description(&self) -> &'static str {
+        "Changing the scale of the HUD elements like health and ammo count."
+    }
+
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_HUD_SCALE];
         CVARS

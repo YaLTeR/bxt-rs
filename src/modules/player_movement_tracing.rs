@@ -14,6 +14,10 @@ impl Module for PlayerMovementTracing {
         "Player-movement tracing"
     }
 
+    fn description(&self) -> &'static str {
+        "Makes bxt-rs able to use the game's player movement collision detection."
+    }
+
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         engine::pmove.is_set(marker)
     }

@@ -12,6 +12,10 @@ impl Module for TasServerTimeFix {
         "TAS server time fix"
     }
 
+    fn description(&self) -> &'static str {
+        "Fixes server-side movement non-determinism when the player is stuck."
+    }
+
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         server::PM_Move.is_set(marker)
     }

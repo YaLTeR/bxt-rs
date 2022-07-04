@@ -24,6 +24,10 @@ impl Module for DemoPlayback {
         "Multiple demo playback"
     }
 
+    fn description(&self) -> &'static str {
+        "Playing multiple demos at once."
+    }
+
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[&BXT_PLAY_RUN];
         &COMMANDS
@@ -160,7 +164,11 @@ Now build bxt-rs and see if it successfully finds the function.
        fn name(&self) -> &'static str {
            "Useful functionality"
        }
-   
+
+       fn description(&self) -> &'static str {
+           "Doing useful things."
+       }
+
        fn is_enabled(&self, _marker: MainThreadMarker) -> bool {
            true
        }
