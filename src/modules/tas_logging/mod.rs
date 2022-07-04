@@ -26,6 +26,12 @@ impl Module for TasLogging {
         "bxt_tas_log"
     }
 
+    fn description(&self) -> &'static str {
+        "Logging the player state during TAS playback.\n\n\
+        This is a useful subset of `bxt_tas_log`, including RNG state dumping, \
+        when you can't use the one from the original Bunnymod XT."
+    }
+
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[&BXT_TAS_LOG];
         COMMANDS

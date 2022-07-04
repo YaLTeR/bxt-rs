@@ -12,6 +12,10 @@ impl Module for SkyboxRemove {
         "bxt_skybox_remove"
     }
 
+    fn description(&self) -> &'static str {
+        "Disabling the skybox drawing."
+    }
+
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_SKYBOX_REMOVE];
         CVARS

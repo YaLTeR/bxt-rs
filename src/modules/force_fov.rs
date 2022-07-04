@@ -11,6 +11,10 @@ impl Module for ForceFov {
         "bxt_force_fov"
     }
 
+    fn description(&self) -> &'static str {
+        "Overriding the field-of-view."
+    }
+
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_FORCE_FOV];
         CVARS

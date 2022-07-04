@@ -25,6 +25,10 @@ impl Module for TasRecording {
         "TAS recording"
     }
 
+    fn description(&self) -> &'static str {
+        "Recording of real-time gameplay into a HLTAS script."
+    }
+
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[&BXT_TAS_RECORDING_START, &BXT_TAS_RECORDING_STOP];
         COMMANDS

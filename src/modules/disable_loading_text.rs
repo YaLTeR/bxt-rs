@@ -11,6 +11,10 @@ impl Module for DisableLoadingText {
         "bxt_disable_loading_text"
     }
 
+    fn description(&self) -> &'static str {
+        "Disabling the LOADING text."
+    }
+
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_DISABLE_LOADING_TEXT];
         CVARS

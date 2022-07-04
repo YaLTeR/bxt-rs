@@ -42,6 +42,10 @@ impl Module for TasEditor {
         "TAS editor"
     }
 
+    fn description(&self) -> &'static str {
+        "Brute-force optimization for TASes."
+    }
+
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[
             &BXT_TAS_OPTIM_INIT,

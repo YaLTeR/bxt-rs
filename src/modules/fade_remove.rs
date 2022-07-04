@@ -11,6 +11,10 @@ impl Module for FadeRemove {
         "bxt_fade_remove"
     }
 
+    fn description(&self) -> &'static str {
+        "Removing the screen blackout effect."
+    }
+
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_FADE_REMOVE];
         CVARS

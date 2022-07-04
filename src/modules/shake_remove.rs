@@ -11,6 +11,10 @@ impl Module for ShakeRemove {
         "bxt_shake_remove"
     }
 
+    fn description(&self) -> &'static str {
+        "Removing the screen shake effect."
+    }
+
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_SHAKE_REMOVE];
         CVARS

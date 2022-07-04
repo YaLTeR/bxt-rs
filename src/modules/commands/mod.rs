@@ -169,6 +169,10 @@ impl Module for Commands {
         "Console commands"
     }
 
+    fn description(&self) -> &'static str {
+        "Makes bxt-rs able to add console commands."
+    }
+
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         engine::Memory_Init.is_set(marker)
             && engine::Host_Shutdown.is_set(marker)

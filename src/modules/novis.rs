@@ -11,6 +11,10 @@ impl Module for NoVis {
         "bxt_novis"
     }
 
+    fn description(&self) -> &'static str {
+        "Rendering entities behind walls."
+    }
+
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[&BXT_NOVIS];
         CVARS

@@ -1,12 +1,4 @@
 //! Comment command buffer overflow fix.
-//!
-//! Bunnymod XT spams demos with data stored in console command comments. They overflow the command
-//! buffer upon playback leading to console spam and commands being skipped. In particular, the
-//! command to play the next demo in `bxt_play_run` can get skipped, which means the demo playback
-//! interrupts mid-way.
-//!
-//! This module strips prefix comments from console commands as they are added to the command
-//! buffer, preventing the overflow.
 
 use super::Module;
 use crate::hooks::engine;
@@ -16,6 +8,17 @@ pub struct CommentOverflowFix;
 impl Module for CommentOverflowFix {
     fn name(&self) -> &'static str {
         "Comment command buffer overflow fix"
+    }
+
+    fn description(&self) -> &'static str {
+        "\
+Bunnymod XT spams demos with data stored in console command comments. They overflow the command \
+buffer upon playback leading to console spam and commands being skipped. In particular, the \
+command to play the next demo in `bxt_play_run` can get skipped, which means the demo playback \
+interrupts mid-way.
+
+This module strips prefix comments from console commands as they are added to the command buffer, \
+preventing the overflow."
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {

@@ -46,6 +46,13 @@ pub trait Module: Sync {
     /// Returns the name of the module.
     fn name(&self) -> &'static str;
 
+    /// Returns the description of the module.
+    ///
+    /// For short descriptions, try to return a string that would fit this phrase: "This module
+    /// provides support for <description>". For example, `Playing multiple demos at once.` -- this
+    /// fits the phrase: "This module provides support for playing multiple demos at once."
+    fn description(&self) -> &'static str;
+
     /// Returns the console commands defined by the module.
     fn commands(&self) -> &'static [&'static Command] {
         &[]

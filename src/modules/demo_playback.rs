@@ -17,6 +17,10 @@ impl Module for DemoPlayback {
         "Multiple demo playback"
     }
 
+    fn description(&self) -> &'static str {
+        "Playing multiple demos at once."
+    }
+
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[&BXT_PLAY_RUN];
         COMMANDS
