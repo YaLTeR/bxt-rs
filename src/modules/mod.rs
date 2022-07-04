@@ -7,6 +7,12 @@
 //! Every module is represented by a unit struct implementing the [`Module`] trait. All modules live
 //! in the global [`MODULES`] array where they all can be operated on at once as trait objects.
 
+// Modules have a lot of unsafe functions that are only intended to be called in one particular spot
+// of the game code, and nowhere else. They are frequently called accordingly, too, e.g.
+// `on_pm_move_start()`. Documenting this for every such function doesn't seem to add any meaningful
+// clarity while being tedious. Therefore, allow missing safety doc for modules.
+#![allow(clippy::missing_safety_doc)]
+
 use crate::utils::*;
 
 pub mod commands;
