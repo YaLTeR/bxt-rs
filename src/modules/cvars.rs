@@ -46,6 +46,11 @@ impl CVar {
         }
     }
 
+    /// Returns the name of the variable.
+    pub fn name(&self) -> &'static [u8] {
+        self.name
+    }
+
     /// Returns `true` if the variable is currently registered in the engine.
     fn is_registered(&self, _marker: MainThreadMarker) -> bool {
         // Safety: we're not calling any engine methods while the reference is active.
