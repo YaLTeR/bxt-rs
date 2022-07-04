@@ -30,26 +30,22 @@ unsafe extern "C" fn my_Sys_FloatTime() -> f64 {
     })
 }
 
-pub fn on_pm_move_start(marker: MainThreadMarker, ppmove: *mut playermove_s) {
+pub unsafe fn on_pm_move_start(marker: MainThreadMarker, ppmove: *mut playermove_s) {
     if ORIGINAL_DATA.get(marker).is_some() {
         return;
     }
 
-    unsafe {
-        ORIGINAL_DATA.set(marker, Some((ppmove, (*ppmove).Sys_FloatTime)));
-        (*ppmove).Sys_FloatTime = my_Sys_FloatTime;
-    }
+    ORIGINAL_DATA.set(marker, Some((ppmove, (*ppmove).Sys_FloatTime)));
+    (*ppmove).Sys_FloatTime = my_Sys_FloatTime;
 }
 
-pub fn on_pm_move_end(marker: MainThreadMarker, ppmove: *mut playermove_s) {
+pub unsafe fn on_pm_move_end(marker: MainThreadMarker, ppmove: *mut playermove_s) {
     if let Some((ppmove_, sys_floattime)) = ORIGINAL_DATA.get(marker) {
-        unsafe {
-            // Sanity checks.
-            #[allow(clippy::fn_address_comparisons)]
-            if ppmove == ppmove_ && (*ppmove).Sys_FloatTime == my_Sys_FloatTime {
-                (*ppmove).Sys_FloatTime = sys_floattime;
-                ORIGINAL_DATA.set(marker, None);
-            }
+        // Sanity checks.
+        #[allow(clippy::fn_address_comparisons)]
+        if ppmove == ppmove_ && (*ppmove).Sys_FloatTime == my_Sys_FloatTime {
+            (*ppmove).Sys_FloatTime = sys_floattime;
+            ORIGINAL_DATA.set(marker, None);
         }
     }
 }
