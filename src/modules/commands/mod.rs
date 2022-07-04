@@ -38,6 +38,11 @@ impl Command {
         }
     }
 
+    /// Returns the name of the command.
+    pub fn name(&self) -> &'static [u8] {
+        self.name
+    }
+
     /// Returns whether the command is currently registered in the engine.
     pub fn is_registered(&self, _marker: MainThreadMarker) -> bool {
         self.is_registered.get()
