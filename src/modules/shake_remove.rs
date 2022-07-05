@@ -25,7 +25,11 @@ impl Module for ShakeRemove {
     }
 }
 
-static BXT_SHAKE_REMOVE: CVar = CVar::new(b"bxt_shake_remove\0", b"0\0");
+static BXT_SHAKE_REMOVE: CVar = CVar::new(
+    b"bxt_shake_remove\0",
+    b"0\0",
+    "Set to `1` to disable the screen shake effect.",
+);
 
 /// Returns `true` if shake should currently be removed.
 pub fn is_active(marker: MainThreadMarker) -> bool {

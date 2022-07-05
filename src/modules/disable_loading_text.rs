@@ -25,7 +25,11 @@ impl Module for DisableLoadingText {
     }
 }
 
-static BXT_DISABLE_LOADING_TEXT: CVar = CVar::new(b"bxt_disable_loading_text\0", b"0\0");
+static BXT_DISABLE_LOADING_TEXT: CVar = CVar::new(
+    b"bxt_disable_loading_text\0",
+    b"0\0",
+    "Set to `1` to disable the LOADING text.",
+);
 
 /// Returns `true` if loading text should currently be disabled.
 pub fn is_active(marker: MainThreadMarker) -> bool {

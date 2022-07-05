@@ -66,12 +66,51 @@ pub type ExternalObject = std::os::unix::io::RawFd;
 #[cfg(windows)]
 pub type ExternalObject = *mut std::os::raw::c_void;
 
-static BXT_CAP_FPS: CVar = CVar::new(b"bxt_cap_fps\0", b"60\0");
-static BXT_CAP_SOUND_EXTRA: CVar = CVar::new(b"bxt_cap_sound_extra\0", b"0\0");
-static BXT_CAP_VOLUME: CVar = CVar::new(b"bxt_cap_volume\0", b"0.4\0");
-static BXT_CAP_SLOWDOWN: CVar = CVar::new(b"bxt_cap_slowdown\0", b"1\0");
-static BXT_CAP_FORCE_FALLBACK: CVar = CVar::new(b"_bxt_cap_force_fallback\0", b"0\0");
-static BXT_CAP_OVERRIDE_FFMPEG_ARGS: CVar = CVar::new(b"_bxt_cap_override_ffmpeg_args\0", b"\0");
+static BXT_CAP_FPS: CVar = CVar::new(
+    b"bxt_cap_fps\0",
+    b"60\0",
+    "Frames-per-second of the recorded video.",
+);
+static BXT_CAP_SOUND_EXTRA: CVar = CVar::new(
+    b"bxt_cap_sound_extra\0",
+    b"0\0",
+    "How many extra seconds of audio to mix and capture past the end of the recording.",
+);
+static BXT_CAP_VOLUME: CVar = CVar::new(
+    b"bxt_cap_volume\0",
+    b"0.4\0",
+    "\
+Volume of the recording.
+
+This is the same as the `volume` console variable, but for the recorded video. The `volume` \
+variable itself does not affect the recorded video.",
+);
+static BXT_CAP_SLOWDOWN: CVar = CVar::new(
+    b"bxt_cap_slowdown\0",
+    b"1\0",
+    "\
+Slowdown factor for the recording.
+
+For example, `2` means that the video will be two times slower than the realtime playback. \
+Especially useful for TASes.",
+);
+static BXT_CAP_FORCE_FALLBACK: CVar = CVar::new(
+    b"_bxt_cap_force_fallback\0",
+    b"0\0",
+    "Set to `1` to force the use of simple OpenGL capturing instead of the fast \
+    GPU-accelerated Vulkan capturing. Try this if you get artifacts on the recorded video.",
+);
+static BXT_CAP_OVERRIDE_FFMPEG_ARGS: CVar = CVar::new(
+    b"_bxt_cap_override_ffmpeg_args\0",
+    b"\0",
+    "\
+Extra arguments to pass to FFmpeg.
+
+When using this variable, you might want to also add some of the following arguments, that bxt-rs \
+adds automatically when this variable is unset: `-c:v libx264 -crf 15 -preset ultrafast \
+-color_primaries bt709 -color_trc bt709 -colorspace bt709 -color_range tv \
+-chroma_sample_location center`.",
+);
 
 static HAVE_REQUIRED_GL_EXTENSIONS: MainThreadCell<bool> = MainThreadCell::new(false);
 

@@ -25,7 +25,11 @@ impl Module for FadeRemove {
     }
 }
 
-static BXT_FADE_REMOVE: CVar = CVar::new(b"bxt_fade_remove\0", b"0\0");
+static BXT_FADE_REMOVE: CVar = CVar::new(
+    b"bxt_fade_remove\0",
+    b"0\0",
+    "Set to `1` to disable the screen blackout effect.",
+);
 
 /// Returns `true` if fade should currently be removed.
 pub fn is_active(marker: MainThreadMarker) -> bool {

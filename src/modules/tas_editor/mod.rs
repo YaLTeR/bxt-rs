@@ -96,24 +96,162 @@ static OPTIM_STATS_LAST_PRINTED_AT: MainThreadCell<Option<Instant>> = MainThread
 static OPTIM_STATS_ITERATIONS: MainThreadCell<usize> = MainThreadCell::new(0);
 static OPTIM_STATS_ITERATIONS_INVALID: MainThreadCell<usize> = MainThreadCell::new(0);
 
-static BXT_TAS_OPTIM_FRAMES: CVar = CVar::new(b"bxt_tas_optim_frames\0", b"0\0");
-static BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE: CVar =
-    CVar::new(b"bxt_tas_optim_random_frames_to_change\0", b"6\0");
-static BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES: CVar =
-    CVar::new(b"bxt_tas_optim_change_single_frames\0", b"0\0");
+static BXT_TAS_OPTIM_FRAMES: CVar = CVar::new(
+    b"bxt_tas_optim_frames\0",
+    b"0\0",
+    "\
+How much of the script, in number of frames, can be mutated in the single-frame mode.
 
-static BXT_TAS_OPTIM_SIMULATION_ACCURACY: CVar =
-    CVar::new(b"bxt_tas_optim_simulation_accuracy\0", b"0\0");
-static BXT_TAS_OPTIM_MULTIPLE_GAMES: CVar = CVar::new(b"bxt_tas_optim_multiple_games\0", b"0\0");
+Use when you want the tail of the script to remain unchanged, but still included in the \
+optimization objective.",
+);
+static BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE: CVar = CVar::new(
+    b"bxt_tas_optim_random_frames_to_change\0",
+    b"6\0",
+    "Number of individual frames to mutate on every iteration in single-frame mode.",
+);
+static BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES: CVar = CVar::new(
+    b"bxt_tas_optim_change_single_frames\0",
+    b"0\0",
+    "\
+Set to `0` to make the optimizer mutate entire frame bulks at once. Set to `1` to make the \
+optimizer mutate individual frames.
 
-static BXT_TAS_OPTIM_VARIABLE: CVar = CVar::new(b"bxt_tas_optim_variable\0", b"pos.x\0");
-static BXT_TAS_OPTIM_DIRECTION: CVar = CVar::new(b"bxt_tas_optim_direction\0", b"maximize\0");
-static BXT_TAS_OPTIM_CONSTRAINT_VARIABLE: CVar =
-    CVar::new(b"bxt_tas_optim_constraint_variable\0", b"\0");
-static BXT_TAS_OPTIM_CONSTRAINT_TYPE: CVar = CVar::new(b"bxt_tas_optim_constraint_type\0", b">\0");
-static BXT_TAS_OPTIM_CONSTRAINT_VALUE: CVar =
-    CVar::new(b"bxt_tas_optim_constraint_value\0", b"0\0");
-static BXT_TAS_OPTIM_RHAI_FILE: CVar = CVar::new(b"bxt_tas_optim_rhai_file\0", b"\0");
+Generally `0` gives better results and produces a script ready to be copy-pasted. `1` can be \
+useful for fine-tuning, e.g. if you're very close but barely not making the jump.",
+);
+
+static BXT_TAS_OPTIM_SIMULATION_ACCURACY: CVar = CVar::new(
+    b"bxt_tas_optim_simulation_accuracy\0",
+    b"0\0",
+    "\
+Set to `1` to enable whole-map player movement tracing.
+
+This makes the optimization considerably slower, so only use it when `0` makes the optimizer path \
+go through entities.",
+);
+static BXT_TAS_OPTIM_MULTIPLE_GAMES: CVar = CVar::new(
+    b"bxt_tas_optim_multiple_games\0",
+    b"0\0",
+    "\
+Set to `1` to use multi-game optimization.
+
+When set to `1`, instead of prediction, the optimizer will use game instances launched in parallel \
+to run the script. This results in 100% accurate simulation including entity interaction, but is \
+much slower compared even to accurate prediction.
+
+You need to start one or more game instances in addition to the one running the optimizer.",
+);
+
+static BXT_TAS_OPTIM_VARIABLE: CVar = CVar::new(
+    b"bxt_tas_optim_variable\0",
+    b"pos.x\0",
+    "Variable to optimize. Can be `pos.x`, `pos.y`, `pos.z`, `vel.x`, `vel.y`, `vel.z` \
+    or `speed`, which represents the horizontal speed.",
+);
+static BXT_TAS_OPTIM_DIRECTION: CVar = CVar::new(
+    b"bxt_tas_optim_direction\0",
+    b"maximize\0",
+    "Direction to optimize `bxt_tas_optim_variable` towards. Can be `minimize` or `maximize`.",
+);
+static BXT_TAS_OPTIM_CONSTRAINT_VARIABLE: CVar = CVar::new(
+    b"bxt_tas_optim_constraint_variable\0",
+    b"\0",
+    "\
+Set to a variable to constrain it. Possible values are the same as `bxt_tas_optim_variable`.
+
+A constraint is set by `bxt_tas_optim_constraint_variable`, `bxt_tas_optim_constraint_type` and \
+`bxt_tas_optim_constraint_value`. It forces the variable to be less-than or greater-than the \
+value. For example, you can set `pos.x < 300` or `speed > 500`. Then those brute-force attempts \
+that do not satisfy this constraint get discarded.",
+);
+static BXT_TAS_OPTIM_CONSTRAINT_TYPE: CVar = CVar::new(
+    b"bxt_tas_optim_constraint_type\0",
+    b">\0",
+    "Type of the constraint. Can be `<` or `>` for less-than and greater-than constraint, \
+    respectively.",
+);
+static BXT_TAS_OPTIM_CONSTRAINT_VALUE: CVar = CVar::new(
+    b"bxt_tas_optim_constraint_value\0",
+    b"0\0",
+    "Value to constraint against.",
+);
+static BXT_TAS_OPTIM_RHAI_FILE: CVar = CVar::new(
+    b"bxt_tas_optim_rhai_file\0",
+    b"\0",
+    "\
+Set to filename.rhai to use a Rhai script as the optimization objective.
+
+The optimization objective can be set either with console variables (`bxt_tas_optim_variable`, \
+`bxt_tas_optim_direction` and constraints), or as a [Rhai] script. The script should define three \
+functions:
+
+- `is_valid(curr)` that returns whether the brute-force attempt is valid (analogue of constraint),
+- `is_better(curr, best)` that returns whether the brute-force attempt is better than the best one,
+- `to_string(curr)` that returns a string representation of the optimization objective.
+
+Here's an example script:
+
+```
+fn is_valid(curr) {
+    // X pos < -3500
+    curr.pos[0] < -3500
+}
+
+fn is_better(curr, best) {
+    // New Y pos > best Y pos
+    curr.pos[1] > best.pos[1]
+}
+
+fn to_string(curr) {
+    // Need to convert to string manually at the moment
+    curr.pos[0].to_string()
+}
+```
+
+The script can also define a `should_pass_all_frames` variable set to `true` to receive an array \
+of all simulated frames of the brute-force attempt, rather than just the last one. Note that this \
+makes it considerably slower. Here's an example:
+
+```
+// Set this to true to get all frames rather than just one
+let should_pass_all_frames = true;
+
+fn is_valid(curr) {
+    // You can use -1 to grab the last array element like in Python
+    curr[-1].pos[0] < -3500
+}
+
+fn is_better(curr, best) {
+    // Loop through all frames to find the highest Z we ever reached
+    let best_z = best[0].pos[2];
+    for player in best {
+        if player.pos[2] > best_z {
+            best_z = player.pos[2];
+        }
+    }
+
+    let curr_z = curr[0].pos[2];
+    for player in curr {
+        if player.pos[2] > curr_z {
+            curr_z = player.pos[2];
+        }
+    }
+
+    curr_z > best_z
+}
+
+fn to_string(curr) {
+    // You can reference variables that you set in is_better() here
+    curr_z.to_string()
+}
+```
+
+The Rhai language has [an online playground with examples](https://rhai.rs/playground/stable/), a \
+VSCode extension and a reference which you can find on its website: https://rhai.rs/.
+
+[Rhai]: https://rhai.rs/",
+);
 
 static BXT_TAS_OPTIM_INIT: Command = Command::new(
     b"_bxt_tas_optim_init\0",

@@ -27,7 +27,15 @@ impl Module for ForceFov {
     }
 }
 
-static BXT_FORCE_FOV: CVar = CVar::new(b"bxt_force_fov\0", b"0\0");
+static BXT_FORCE_FOV: CVar = CVar::new(
+    b"bxt_force_fov\0",
+    b"0\0",
+    "\
+Field-of-view to set.
+
+This variable will work even when `default_fov` doesn't work or when `default_fov` is set by the \
+demo. Set to `0` to disable the override.",
+);
 
 /// Returns the FOV value to force, if any.
 pub fn fov(marker: MainThreadMarker) -> Option<f32> {

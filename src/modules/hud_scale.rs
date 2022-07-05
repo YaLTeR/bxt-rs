@@ -34,7 +34,14 @@ impl Module for HudScale {
 
 static SCALE_SCREEN_INFO: MainThreadCell<bool> = MainThreadCell::new(false);
 
-static BXT_HUD_SCALE: CVar = CVar::new(b"bxt_hud_scale\0", b"0\0");
+static BXT_HUD_SCALE: CVar = CVar::new(
+    b"bxt_hud_scale\0",
+    b"0\0",
+    "\
+Sets the scale of the HUD elements. For example, `2` makes them 2 times bigger.
+
+Setting to `0` disables the bxt-rs scaling code, making it a safer default than `1`.",
+);
 
 /// Returns the HUD scale, if any.
 pub fn scale(marker: MainThreadMarker) -> Option<f32> {
