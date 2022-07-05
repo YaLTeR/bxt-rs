@@ -31,8 +31,9 @@ impl Module for ModuleList {
 static BXT_MODULE_LIST: Command = Command::new(
     b"bxt_module_list\0",
     handler!(
-        "Usage: bxt_module_list\n \
-          Shows the list of modules and their status.\n",
+        "bxt_module_list
+
+Shows the list of modules and their status.",
         module_list as fn(_)
     ),
 );

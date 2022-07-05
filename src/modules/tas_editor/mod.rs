@@ -256,8 +256,12 @@ VSCode extension and a reference which you can find on its website: https://rhai
 static BXT_TAS_OPTIM_INIT: Command = Command::new(
     b"_bxt_tas_optim_init\0",
     handler!(
-        "Usage: _bxt_tas_optim_init <script.hltas> <frame number>\n \
-          Initializes the optimization with the given script, starting from the given frame.\n",
+        "_bxt_tas_optim_init <script.hltas> <frame number>
+
+Initializes the optimization with the given script, starting from the given frame.
+
+You're not meant to use this command directly. Instead, use `bxt_tas_optim_init` (without \
+arguments) provided in Bunnymod XT, which sets the script name and frame number automatically.",
         optim_init as fn(_, _, _)
     ),
 );
@@ -369,8 +373,9 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
 static BXT_TAS_OPTIM_RUN: Command = Command::new(
     b"bxt_tas_optim_run\0",
     handler!(
-        "Usage: bxt_tas_optim_run\n \
-          Starts the optimization.\n",
+        "bxt_tas_optim_run
+
+Starts the optimization.",
         optim_run as fn(_)
     ),
 );
@@ -553,8 +558,9 @@ fn optim_run(marker: MainThreadMarker) {
 static BXT_TAS_OPTIM_STOP: Command = Command::new(
     b"bxt_tas_optim_stop\0",
     handler!(
-        "Usage: bxt_tas_optim_stop\n \
-          Stops the optimization.\n",
+        "bxt_tas_optim_stop
+
+Stops the optimization.",
         optim_stop as fn(_)
     ),
 );
@@ -566,8 +572,9 @@ fn optim_stop(marker: MainThreadMarker) {
 static BXT_TAS_OPTIM_SAVE: Command = Command::new(
     b"bxt_tas_optim_save\0",
     handler!(
-        "Usage: bxt_tas_optim_save\n \
-          Saves the optimized script.\n",
+        "bxt_tas_optim_save
+
+Saves the optimized script.",
         optim_save as fn(_)
     ),
 );
@@ -588,8 +595,11 @@ fn optim_save(marker: MainThreadMarker) {
 static BXT_TAS_OPTIM_MINIMIZE: Command = Command::new(
     b"bxt_tas_optim_minimize\0",
     handler!(
-        "Usage: bxt_tas_optim_minimize\n \
-          Minimizes the optimized script.\n",
+        "bxt_tas_optim_minimize
+
+Minimizes the optimized script. This removes things like enabled autojump that does nothing \
+because during this frame bulk the player never lands on the ground. It also joins together \
+equivalent frame bulks.",
         optim_minimize as fn(_)
     ),
 );
@@ -610,8 +620,11 @@ fn optim_minimize(marker: MainThreadMarker) {
 static BXT_TAS_OPTIM_SIMULATION_START_RECORDING_FRAMES: Command = Command::new(
     b"_bxt_tas_optim_simulation_start_recording_frames\0",
     handler!(
-        "Usage: _bxt_tas_optim_simulation_start_recording_frames\n \
-          Starts recording frames to send to the remote server.\n",
+        "_bxt_tas_optim_simulation_start_recording_frames
+
+Starts recording frames to send to the remote server.
+
+You're not meant to use this command. It's run automatically by bxt-rs in simulator clients.",
         optim_simulation_start_recording_frames as fn(_)
     ),
 );
@@ -623,8 +636,11 @@ fn optim_simulation_start_recording_frames(_marker: MainThreadMarker) {
 static BXT_TAS_OPTIM_SIMULATION_DONE: Command = Command::new(
     b"_bxt_tas_optim_simulation_done\0",
     handler!(
-        "Usage: _bxt_tas_optim_simulation_done\n \
-          Sends simulated frames to the remote server.\n",
+        "_bxt_tas_optim_simulation_done
+
+Sends simulated frames to the remote server.
+
+You're not meant to use this command. It's run automatically by bxt-rs in simulator clients.",
         optim_simulation_done as fn(_)
     ),
 );

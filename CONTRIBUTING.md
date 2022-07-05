@@ -259,8 +259,9 @@ Now you can build bxt-rs and find your new console variable:
    static BXT_DO_THING: Command = Command::new(
        b"bxt_do_thing\0",
        handler!(
-           "Usage: bxt_do_thing\n \
-             Does a thing.\n",
+           "bxt_do_thing
+   
+   Does a thing.",
            do_thing as fn(_)
        ),
    );
@@ -305,8 +306,9 @@ Commands can accept a string argument or an argument of any type that can be par
 static BXT_DO_THING: Command = Command::new(
     b"bxt_do_thing\0",
     handler!(
-        "Usage: bxt_do_thing <N>\n \
-          Does a thing N times.\n",
+        "bxt_do_thing <N>
+
+Does a thing N times.",
         do_thing as fn(_, _)
     ),
 );
@@ -328,8 +330,9 @@ Commands can also have multiple handlers with different argument count or types:
 static BXT_DO_THING: Command = Command::new(
     b"bxt_do_thing\0",
     handler!(
-        "Usage: bxt_do_thing [argument]\n \
-          Does a thing, maybe with an argument.\n",
+        "bxt_do_thing [argument]
+
+Does a thing, maybe with an argument.",
         do_thing as fn(_),
         do_thing_with_argument as fn(_, _)
     ),

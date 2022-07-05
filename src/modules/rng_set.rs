@@ -32,8 +32,9 @@ impl Module for RngSet {
 static BXT_RNG_SET: Command = Command::new(
     b"_bxt_rng_set\0",
     handler!(
-        "Usage: _bxt_rng_set \"<idum> <iy> <iv[0]> <iv[1]> ... <iv[31]>\"\n \
-          Sets the non-shared RNG state.\n",
+        "_bxt_rng_set \"<idum> <iy> <iv[0]> <iv[1]> ... <iv[31]>\"
+
+Sets the non-shared RNG state. The parameter is 34 numbers.",
         rng_set as fn(_, _)
     ),
 );

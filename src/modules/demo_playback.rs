@@ -39,8 +39,9 @@ static DEMOS: MainThreadRefCell<Vec<Vec<u8>>> = MainThreadRefCell::new(Vec::new(
 static BXT_PLAY_RUN: Command = Command::new(
     b"bxt_play_run\0",
     handler!(
-        "Usage: bxt_play_run <name>\n \
-          Plays back all name_N.dem demos in order.\n",
+        "bxt_play_run <name>
+
+Plays back all `name_N.dem` demos in order.",
         play_run as fn(_, _)
     ),
 );

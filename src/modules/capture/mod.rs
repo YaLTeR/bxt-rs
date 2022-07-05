@@ -183,9 +183,11 @@ static STATE: MainThreadRefCell<State> = MainThreadRefCell::new(State::Idle);
 static BXT_CAP_START: Command = Command::new(
     b"bxt_cap_start\0",
     handler!(
-        "Usage: bxt_cap_start [filename.mp4]\n \
-          Starts capturing video. The default filename is \"output.mp4\".\n \
-          If the filename ends with \".wav\", captures only the sound.\n",
+        "bxt_cap_start [filename.mp4]
+
+Starts capturing video. The default filename is `output.mp4`.
+
+If the filename ends with `.wav`, captures only the sound.",
         cap_start as fn(_),
         cap_start_with_filename as fn(_, _)
     ),
@@ -220,8 +222,9 @@ fn cap_start_with_filename(marker: MainThreadMarker, filename: String) {
 static BXT_CAP_STOP: Command = Command::new(
     b"bxt_cap_stop\0",
     handler!(
-        "Usage: bxt_cap_stop\n \
-          Stops capturing video.\n",
+        "bxt_cap_stop
+
+Stops capturing video.",
         cap_stop as fn(_)
     ),
 );

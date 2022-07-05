@@ -18,6 +18,9 @@ pub struct Command {
     /// Name of the command.
     name: &'static [u8],
 
+    /// Description of the command.
+    description: &'static str,
+
     /// Handler function.
     function: unsafe extern "C" fn(),
 
@@ -30,9 +33,16 @@ unsafe impl Sync for Command {}
 
 impl Command {
     /// Creates a new command.
-    pub const fn new(name: &'static [u8], function: unsafe extern "C" fn()) -> Self {
+    ///
+    /// `description` and `function` are passed as a tuple to make it easier for the [`handler!`]
+    /// macro.
+    pub const fn new(
+        name: &'static [u8],
+        (description, function): (&'static str, unsafe extern "C" fn()),
+    ) -> Self {
         Self {
             name,
+            description,
             function,
             is_registered: Cell::new(false),
         }
@@ -47,6 +57,11 @@ impl Command {
     pub fn name_str(&self) -> &'static str {
         std::str::from_utf8(&self.name[..self.name.len() - 1])
             .expect("console command names must be valid UTF-8")
+    }
+
+    /// Returns the description of the command.
+    pub fn description(&self) -> &'static str {
+        self.description
     }
 
     /// Returns whether the command is currently registered in the engine.
