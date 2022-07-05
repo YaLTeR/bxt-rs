@@ -51,6 +51,11 @@ impl CVar {
         self.name
     }
 
+    /// Returns the default value of the variable.
+    pub fn default_value(&self) -> &'static [u8] {
+        self.default_value
+    }
+
     /// Returns `true` if the variable is currently registered in the engine.
     fn is_registered(&self, _marker: MainThreadMarker) -> bool {
         // Safety: we're not calling any engine methods while the reference is active.
