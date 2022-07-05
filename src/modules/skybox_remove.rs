@@ -28,7 +28,11 @@ impl Module for SkyboxRemove {
     }
 }
 
-static BXT_SKYBOX_REMOVE: CVar = CVar::new(b"bxt_skybox_remove\0", b"0\0");
+static BXT_SKYBOX_REMOVE: CVar = CVar::new(
+    b"bxt_skybox_remove\0",
+    b"0\0",
+    "Set to `1` to remove the skybox.",
+);
 
 /// Returns `true` if skybox should currently be disabled.
 pub fn is_active(marker: MainThreadMarker) -> bool {

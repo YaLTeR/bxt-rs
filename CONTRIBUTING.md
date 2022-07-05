@@ -205,7 +205,11 @@ Now you can build bxt-rs and find your new module in `bxt_module_list`:
 1. Add a CVar:
 
    ```rust
-   static BXT_ENABLE_THING: CVar = CVar::new(b"bxt_enable_thing\0", b"0\0");
+   static BXT_ENABLE_THING: CVar = CVar::new(
+       b"bxt_enable_thing\0",
+       b"0\0",
+       "Set to `1` to enable the thing.",
+   );
    ```
 
    The second argument is the default value.

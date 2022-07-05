@@ -28,8 +28,16 @@ impl Module for Wallhack {
     }
 }
 
-static BXT_WALLHACK: CVar = CVar::new(b"bxt_wallhack\0", b"0\0");
-static BXT_WALLHACK_ADDITIVE: CVar = CVar::new(b"bxt_wallhack_additive\0", b"0\0");
+static BXT_WALLHACK: CVar = CVar::new(
+    b"bxt_wallhack\0",
+    b"0\0",
+    "Set to `1` to enable the wallhack.",
+);
+static BXT_WALLHACK_ADDITIVE: CVar = CVar::new(
+    b"bxt_wallhack_additive\0",
+    b"0\0",
+    "Set to `1` to make the wallhack additive, which sometimes makes objects easier to see.",
+);
 
 /// Returns `true` if wallhack is enabled.
 pub fn is_active(marker: MainThreadMarker) -> bool {

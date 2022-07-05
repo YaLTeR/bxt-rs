@@ -25,7 +25,11 @@ impl Module for NoVis {
     }
 }
 
-static BXT_NOVIS: CVar = CVar::new(b"bxt_novis\0", b"0\0");
+static BXT_NOVIS: CVar = CVar::new(
+    b"bxt_novis\0",
+    b"0\0",
+    "Set to `1` to render entities behind walls.",
+);
 
 /// Returns `true` if vis should currently be skipped for entities.
 pub fn is_active(marker: MainThreadMarker) -> bool {

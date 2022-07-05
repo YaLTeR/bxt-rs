@@ -56,9 +56,20 @@ static BXT_TAS_LOG: Command = Command::new(
     ),
 );
 
-static BXT_TAS_LOG_FILENAME: CVar = CVar::new(b"bxt_tas_log_filename\0", b"taslogger.log\0");
-static BXT_TAS_LOG_WRITE_FULL_RNG_STATE: CVar =
-    CVar::new(b"_bxt_tas_log_write_full_rng_state\0", b"0\0");
+static BXT_TAS_LOG_FILENAME: CVar = CVar::new(
+    b"bxt_tas_log_filename\0",
+    b"taslogger.log\0",
+    "Filename of the log file to write.",
+);
+static BXT_TAS_LOG_WRITE_FULL_RNG_STATE: CVar = CVar::new(
+    b"_bxt_tas_log_write_full_rng_state\0",
+    b"0\0",
+    "\
+Set to `1` to write the full engine RNG state every frame.
+
+This massively increases the log file size while being seldom needed, so it's not enabled by \
+default.",
+);
 
 static TAS_LOG: MainThreadRefCell<Option<TasLog>> = MainThreadRefCell::new(None);
 

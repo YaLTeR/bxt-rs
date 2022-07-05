@@ -25,6 +25,8 @@ pub struct CVar {
     name: &'static [u8],
     /// Storage for the default value.
     default_value: &'static [u8],
+    /// Description of this variable for documentation.
+    description: &'static str,
 }
 
 // Safety: all methods accessing `cvar` require a `MainThreadMarker`.
@@ -32,7 +34,11 @@ unsafe impl Sync for CVar {}
 
 impl CVar {
     /// Creates a new variable.
-    pub const fn new(name: &'static [u8], default_value: &'static [u8]) -> Self {
+    pub const fn new(
+        name: &'static [u8],
+        default_value: &'static [u8],
+        description: &'static str,
+    ) -> Self {
         Self {
             raw: UnsafeCell::new(ffi::cvar_s {
                 name: name.as_ptr().cast(),
@@ -43,6 +49,7 @@ impl CVar {
             }),
             name,
             default_value,
+            description,
         }
     }
 
@@ -54,6 +61,11 @@ impl CVar {
     /// Returns the default value of the variable.
     pub fn default_value(&self) -> &'static [u8] {
         self.default_value
+    }
+
+    /// Returns the description of the variable.
+    pub fn description(&self) -> &'static str {
+        self.description
     }
 
     /// Returns `true` if the variable is currently registered in the engine.
