@@ -43,6 +43,12 @@ impl Command {
         self.name
     }
 
+    /// Returns the name of the command as a [`str`].
+    pub fn name_str(&self) -> &'static str {
+        std::str::from_utf8(&self.name[..self.name.len() - 1])
+            .expect("console command names must be valid UTF-8")
+    }
+
     /// Returns whether the command is currently registered in the engine.
     pub fn is_registered(&self, _marker: MainThreadMarker) -> bool {
         self.is_registered.get()
