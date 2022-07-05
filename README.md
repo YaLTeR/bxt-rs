@@ -11,6 +11,8 @@ A few speedrunning and TAS-related tools for Half-Life and mods. Current feature
 - `bxt_fade_remove`, `bxt_shake_remove`, `bxt_skybox_remove`, `bxt_novis`, `bxt_wallhack`, `bxt_disable_loading_text`.
 - Mostly-working recording real-time gameplay into a `.hltas` script.
 
+For a full list of features, console commands and variables visit the [wiki page](https://github.com/YaLTeR/bxt-rs/wiki/Features).
+
 Started as an experiment to re-architecture Bunnymod XT from scratch with the benefit of hindsight.
 
 ## VAC Ban Warning
