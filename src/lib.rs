@@ -7,7 +7,7 @@ extern crate tracing;
 mod ffi;
 mod gl;
 mod hooks;
-mod modules;
+pub mod modules;
 mod utils;
 mod vulkan;
 
