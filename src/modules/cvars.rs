@@ -58,9 +58,21 @@ impl CVar {
         self.name
     }
 
+    /// Returns the name of the variable as a [`str`].
+    pub fn name_str(&self) -> &'static str {
+        std::str::from_utf8(&self.name[..self.name.len() - 1])
+            .expect("console variable names must be valid UTF-8")
+    }
+
     /// Returns the default value of the variable.
     pub fn default_value(&self) -> &'static [u8] {
         self.default_value
+    }
+
+    /// Returns the default value of the variable as a [`str`].
+    pub fn default_value_str(&self) -> &'static str {
+        std::str::from_utf8(&self.default_value[..self.default_value.len() - 1])
+            .expect("console variable default values must be valid UTF-8")
     }
 
     /// Returns the description of the variable.
