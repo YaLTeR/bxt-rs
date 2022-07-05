@@ -48,8 +48,9 @@ impl Module for TasRecording {
 static BXT_TAS_RECORDING_START: Command = Command::new(
     b"bxt_tas_recording_start\0",
     handler!(
-        "Usage: bxt_tas_recording_start <filename.hltas>\n \
-          Starts recording gameplay into a HLTAS script.\n",
+        "bxt_tas_recording_start <filename.hltas>
+
+Starts recording gameplay into a HLTAS script.",
         tas_recording_start as fn(_, _)
     ),
 );
@@ -57,8 +58,9 @@ static BXT_TAS_RECORDING_START: Command = Command::new(
 static BXT_TAS_RECORDING_STOP: Command = Command::new(
     b"bxt_tas_recording_stop\0",
     handler!(
-        "Usage: bxt_tas_recording_stop\n \
-          Stops gameplay recording.\n",
+        "bxt_tas_recording_stop
+
+Stops gameplay recording.",
         tas_recording_stop as fn(_)
     ),
 );

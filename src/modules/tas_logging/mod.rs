@@ -50,8 +50,9 @@ impl Module for TasLogging {
 static BXT_TAS_LOG: Command = Command::new(
     b"bxt_tas_log\0",
     handler!(
-        "Usage: bxt_tas_log <0|1>\n \
-          Enables or disables TAS logging into the file at bxt_tas_log_filename.\n",
+        "bxt_tas_log <0|1>
+
+Enables (`1`) or disables (`0`) TAS logging into the file at `bxt_tas_log_filename`.",
         tas_log as fn(_, _)
     ),
 );

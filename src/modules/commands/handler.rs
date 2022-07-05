@@ -90,10 +90,10 @@ impl<A1: FromStr, A2: FromStr> CommandHandler for fn(MainThreadMarker, A1, A2) {
 /// Wraps a function accepting `FromStr` arguments as a console command handler.
 ///
 /// The arguments are safely extracted and parsed into their respective types, and if the parsing
-/// fails, usage is printed.
+/// fails, the help text is printed.
 #[macro_export]
 macro_rules! handler {
-    ($usage:expr, $($fn:expr),+) => {{
+    ($help:literal, $($fn:expr),+) => {{
         /// Handles the console command.
         ///
         /// # Safety
@@ -111,11 +111,11 @@ macro_rules! handler {
                     }
                 )+
 
-                // None of the command handlers worked, print usage.
-                $crate::hooks::engine::con_print(marker, $usage);
+                // None of the command handlers worked, print the help text.
+                $crate::hooks::engine::con_print(marker, concat!("Usage: ", $help, '\n'));
             })
         }
 
-        handler
+        ($help, handler)
     }};
 }
