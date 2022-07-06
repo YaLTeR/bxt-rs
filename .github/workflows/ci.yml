@@ -127,6 +127,33 @@ jobs:
           draft: true
           fail_on_unmatched_files: true
 
+      - name: Generate Wiki Page
+        if: >
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/master' &&
+          matrix.os == 'ubuntu-20.04' &&
+          matrix.rust == 'stable' &&
+          matrix.configuration == 'release' &&
+          matrix.features == '' &&
+          !matrix.cross
+        run: |
+          mkdir temp_wiki_output
+          cargo run --target ${{ matrix.target }} --release --bin gen-wiki > temp_wiki_output/Features.md
+
+      - name: Upload Wiki Page Artifact
+        uses: actions/upload-artifact@v2
+        if: >
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/master' &&
+          matrix.os == 'ubuntu-20.04' &&
+          matrix.rust == 'stable' &&
+          matrix.configuration == 'release' &&
+          matrix.features == '' &&
+          !matrix.cross
+        with:
+          name: wiki
+          path: temp_wiki_output/
+
   clippy:
     strategy:
       fail-fast: false
@@ -190,3 +217,23 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+
+  publish-wiki:
+    name: Publish Wiki
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [build, clippy, rustfmt]
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: wiki
+          path: temp_wiki_output/
+
+      - run: ls --recursive temp_wiki_output/
+
+      - uses: SwiftDocOrg/github-wiki-publish-action@v1
+        with:
+          path: temp_wiki_output/
+        env:
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
