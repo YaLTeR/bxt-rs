@@ -26,7 +26,13 @@ impl Module for TasRecording {
     }
 
     fn description(&self) -> &'static str {
-        "Recording of real-time gameplay into a HLTAS script."
+        "\
+Recording of real-time gameplay into a HLTAS script.
+
+This is not perfect and needs a Bunnymod XT patch to set `host_frametime` directly instead of \
+going through the `host_framerate` console variable (thus missing precision due to the \
+`f64`->`f32`->`f64` roundtrip) for better sync. Nevertheless, it was very useful for diagnosing \
+and fixing a number of TAS determinism issues."
     }
 
     fn commands(&self) -> &'static [&'static Command] {
