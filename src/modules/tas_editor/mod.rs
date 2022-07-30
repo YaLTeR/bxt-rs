@@ -23,6 +23,8 @@ use crate::utils::*;
 mod editor;
 use editor::Editor;
 
+mod hltas_ext;
+
 mod objective;
 
 mod simulator;
