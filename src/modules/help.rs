@@ -1,4 +1,4 @@
-//! `bxt_module_list`
+//! `bxt_help`
 
 use std::fmt::Write;
 
@@ -8,10 +8,10 @@ use crate::hooks::engine::{self, con_print};
 use crate::modules::commands::{self, Command};
 use crate::utils::*;
 
-pub struct ModuleList;
-impl Module for ModuleList {
+pub struct Help;
+impl Module for Help {
     fn name(&self) -> &'static str {
-        "bxt_module_list"
+        "Help"
     }
 
     fn description(&self) -> &'static str {
@@ -19,7 +19,7 @@ impl Module for ModuleList {
     }
 
     fn commands(&self) -> &'static [&'static Command] {
-        static COMMANDS: &[&Command] = &[&BXT_MODULE_LIST];
+        static COMMANDS: &[&Command] = &[&BXT_HELP];
         COMMANDS
     }
 
@@ -28,18 +28,18 @@ impl Module for ModuleList {
     }
 }
 
-static BXT_MODULE_LIST: Command = Command::new(
-    b"bxt_module_list\0",
+static BXT_HELP: Command = Command::new(
+    b"bxt_help\0",
     handler!(
-        "bxt_module_list
+        "bxt_help
 
 Shows the list of modules and their status.",
-        module_list as fn(_)
+        help as fn(_)
     ),
 );
 
-fn module_list(marker: MainThreadMarker) {
-    if !ModuleList.is_enabled(marker) {
+fn help(marker: MainThreadMarker) {
+    if !Help.is_enabled(marker) {
         return;
     }
 

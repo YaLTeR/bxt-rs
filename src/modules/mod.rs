@@ -27,8 +27,8 @@ pub mod demo_playback;
 pub mod disable_loading_text;
 pub mod fade_remove;
 pub mod force_fov;
+pub mod help;
 pub mod hud_scale;
-pub mod module_list;
 pub mod novis;
 pub mod player_movement_tracing;
 pub mod rng_set;
@@ -82,8 +82,8 @@ pub static MODULES: &[&dyn Module] = &[
     &disable_loading_text::DisableLoadingText,
     &fade_remove::FadeRemove,
     &force_fov::ForceFov,
+    &help::Help,
     &hud_scale::HudScale,
-    &module_list::ModuleList,
     &novis::NoVis,
     &player_movement_tracing::PlayerMovementTracing,
     &rng_set::RngSet,
