@@ -43,7 +43,7 @@ fn help(marker: MainThreadMarker) {
         return;
     }
 
-    let mut output = String::new();
+    let mut output = "bxt-rs modules:\n".to_string();
     for module in MODULES {
         writeln!(
             output,
