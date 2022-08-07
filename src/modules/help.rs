@@ -44,7 +44,13 @@ fn help(marker: MainThreadMarker) {
     }
 
     let mut output = "bxt-rs modules:\n".to_string();
-    for module in MODULES {
+
+    let mut sorted_modules = MODULES.to_vec();
+    sorted_modules.sort_unstable_by_key(|m| m.name().to_ascii_lowercase());
+    sorted_modules.sort_by_key(|m| m.name().starts_with('_'));
+    sorted_modules.sort_by_key(|m| !m.is_enabled(marker));
+
+    for module in sorted_modules {
         writeln!(
             output,
             "- {}{}",

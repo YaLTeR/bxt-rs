@@ -17,7 +17,8 @@ This wiki page is generated automatically with `src/bin/gen-wiki.rs`. Do not edi
     );
 
     let mut sorted_modules = MODULES.to_vec();
-    sorted_modules.sort_unstable_by_key(|m| m.name());
+    sorted_modules.sort_unstable_by_key(|m| m.name().to_ascii_lowercase());
+    sorted_modules.sort_by_key(|m| m.name().starts_with('_'));
 
     for module in sorted_modules {
         println!("\n## {}", module.name());
