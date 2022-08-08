@@ -16,7 +16,7 @@
 
 ### Checking what pointers some module needs
 
-Every module has a list of pointers it needs to be enabled. To find it, do a global search for the module name from `bxt_module_list`, e.g. `Multiple demo playback`. You will find it in a file under `src/modules/`, in this case [`src/modules/demo_playback.rs`](src/modules/demo_playback.rs).
+Every module has a list of pointers it needs to be enabled. To find it, do a global search for the module name from `bxt_help`, e.g. `Multiple demo playback`. You will find it in a file under `src/modules/`, in this case [`src/modules/demo_playback.rs`](src/modules/demo_playback.rs).
 
 ```rust
 impl Module for DemoPlayback {
@@ -190,9 +190,9 @@ Now build bxt-rs and see if it successfully finds the function.
    ];
    ```
 
-Now you can build bxt-rs and find your new module in `bxt_module_list`:
+Now you can build bxt-rs and find your new module in `bxt_help`:
 
-![](https://user-images.githubusercontent.com/1794388/127631714-b79c436b-422a-43b4-b93c-fe5ec6ffb411.png)
+![](https://user-images.githubusercontent.com/1794388/183336608-1c6cd741-206d-44eb-86bb-969dee6bd276.png)
 
 ### Adding a console variable
 
