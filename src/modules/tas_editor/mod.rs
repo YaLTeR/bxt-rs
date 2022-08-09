@@ -583,6 +583,10 @@ Saves the optimized script.",
 
 fn optim_save(marker: MainThreadMarker) {
     if let Some(editor) = &mut *EDITOR.borrow_mut(marker) {
+        // TODO: this is unsafe outside of gameplay.
+        let tracer = unsafe { Tracer::new(marker, false) }.unwrap();
+        editor.minimize(&tracer);
+
         editor
             .save(File::create("bxt-rs-optimization-best.hltas").unwrap())
             .unwrap();
