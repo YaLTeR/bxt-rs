@@ -45,6 +45,9 @@ pub struct Editor {
 
     /// Generation of this script for remote simulation.
     generation: u16,
+
+    /// Console command from the first frame of the edited script, that we erased.
+    erased_console_command: Option<String>,
 }
 
 impl Editor {
@@ -65,10 +68,10 @@ impl Editor {
         //
         // This is so when the single-frame mutation mode splits that frame bulk, it does not lead
         // to bxt_tas_optim_init and other unwanted commands running in the remote client.
-        match &mut hltas.lines[0] {
-            Line::FrameBulk(frame_bulk) => frame_bulk.console_command = None,
+        let erased_console_command = match &mut hltas.lines[0] {
+            Line::FrameBulk(frame_bulk) => frame_bulk.console_command.take(),
             _ => unreachable!(),
-        }
+        };
 
         Self {
             prefix,
@@ -76,6 +79,7 @@ impl Editor {
             frames: vec![initial_frame],
             last_mutation_frames: None,
             generation,
+            erased_console_command,
         }
     }
 
@@ -109,6 +113,15 @@ impl Editor {
     pub fn save<W: Write>(&mut self, writer: W) -> Result<(), Box<dyn Error>> {
         let len = self.prefix.lines.len();
         self.prefix.lines.extend(self.hltas.lines.iter().cloned());
+
+        if let Some(Line::FrameBulk(frame_bulk)) = self.prefix.lines.get_mut(len) {
+            assert_eq!(
+                frame_bulk.console_command, None,
+                "the command was erased in Editor::new()"
+            );
+            frame_bulk.console_command = self.erased_console_command.clone();
+        }
+
         let rv = self.prefix.to_writer(writer);
         self.prefix.lines.truncate(len);
         Ok(rv?)
