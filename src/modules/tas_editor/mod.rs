@@ -51,7 +51,7 @@ impl Module for TasEditor {
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[
             &BXT_TAS_OPTIM_INIT,
-            &BXT_TAS_OPTIM_RUN,
+            &BXT_TAS_OPTIM_START,
             &BXT_TAS_OPTIM_STOP,
             &BXT_TAS_OPTIM_SAVE,
             &BXT_TAS_OPTIM_MINIMIZE,
@@ -372,17 +372,17 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
     }
 }
 
-static BXT_TAS_OPTIM_RUN: Command = Command::new(
-    b"bxt_tas_optim_run\0",
+static BXT_TAS_OPTIM_START: Command = Command::new(
+    b"bxt_tas_optim_start\0",
     handler!(
-        "bxt_tas_optim_run
+        "bxt_tas_optim_start
 
 Starts the optimization.",
-        optim_run as fn(_)
+        optim_start as fn(_)
     ),
 );
 
-fn optim_run(marker: MainThreadMarker) {
+fn optim_start(marker: MainThreadMarker) {
     if EDITOR.borrow(marker).is_none() {
         con_print(
             marker,
