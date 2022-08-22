@@ -407,7 +407,7 @@ fn optim_start(marker: MainThreadMarker) {
     if OPTIMIZER.borrow(marker).is_none() {
         con_print(
             marker,
-            "There's nothing to optimize. Call _bxt_tas_optim_init first!\n",
+            "There's nothing to optimize. Call bxt_tas_optim_init first!\n",
         );
         return;
     }
