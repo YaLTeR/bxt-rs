@@ -51,6 +51,7 @@ impl Module for TasOptimizer {
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[
             &BXT_TAS_OPTIM_INIT,
+            &BXT_TAS_OPTIM_CLEAR,
             &BXT_TAS_OPTIM_START,
             &BXT_TAS_OPTIM_STOP,
             &BXT_TAS_OPTIM_SAVE,
@@ -375,6 +376,21 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
             &format!("Could not start a server for multi-game optimization: {err:?}"),
         );
     }
+}
+
+static BXT_TAS_OPTIM_CLEAR: Command = Command::new(
+    b"bxt_tas_optim_clear\0",
+    handler!(
+        "bxt_tas_optim_clear
+
+Stops and disables the optimizer.",
+        optim_clear as fn(_)
+    ),
+);
+
+fn optim_clear(marker: MainThreadMarker) {
+    *OPTIMIZER.borrow_mut(marker) = None;
+    OPTIMIZE.set(marker, false);
 }
 
 static BXT_TAS_OPTIM_START: Command = Command::new(
