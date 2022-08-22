@@ -30,11 +30,11 @@ pub struct Frame {
     pub state: State,
 }
 
-pub struct Editor {
-    /// The first part of the script that we're not editing.
+pub struct Optimizer {
+    /// The first part of the script that we're not optimizing.
     prefix: HLTAS,
 
-    /// The script being edited.
+    /// The script being optimized.
     hltas: HLTAS,
 
     /// Movement frames, starting from the initial frame.
@@ -46,11 +46,11 @@ pub struct Editor {
     /// Generation of this script for remote simulation.
     generation: u16,
 
-    /// Console command from the first frame of the edited script, that we erased.
+    /// Console command from the first frame of the optimized script, that we erased.
     erased_console_command: Option<String>,
 }
 
-impl Editor {
+impl Optimizer {
     pub fn new(
         mut hltas: HLTAS,
         first_frame: usize,
@@ -117,7 +117,7 @@ impl Editor {
         if let Some(Line::FrameBulk(frame_bulk)) = self.prefix.lines.get_mut(len) {
             assert_eq!(
                 frame_bulk.console_command, None,
-                "the command was erased in Editor::new()"
+                "the command was erased in Optimizer::new()"
             );
             frame_bulk.console_command = self.erased_console_command.clone();
         }
@@ -195,7 +195,7 @@ impl Editor {
         let len = self.prefix.lines.len();
         self.prefix.lines.extend(self.hltas.lines.iter().cloned());
 
-        // Replace the TAS editor / TAS optim commands with the start sending frames command.
+        // Replace the TAS optimizer / TAS optim commands with the start sending frames command.
         match &mut self.prefix.lines[len] {
             Line::FrameBulk(frame_bulk) => {
                 frame_bulk.console_command =
@@ -465,7 +465,7 @@ fn mutate_frame<R: Rng>(rng: &mut R, hltas: &mut HLTAS, frame: usize) {
         let frame_bulk = hltas.split_at_frame(frame).unwrap();
         if l == 0 {
             // If we split the first frame bulk, empty out the console command (which contains
-            // optim init and TAS editor commands).
+            // optim init and TAS optimizer commands).
             frame_bulk.console_command = None;
         }
     }

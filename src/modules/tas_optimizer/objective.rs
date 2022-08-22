@@ -6,7 +6,7 @@ use bxt_strafe::State;
 use glam::Vec3Swizzles;
 use rhai::serde::to_dynamic;
 
-use super::editor::Frame;
+use super::optimizer::Frame;
 
 /// The variable to optimize.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,4 +1,4 @@
-//! The TAS editor.
+//! The TAS optimizer.
 
 use std::fs::{self, File};
 use std::path::PathBuf;
@@ -8,8 +8,8 @@ use bxt_strafe::{Parameters, Player, State};
 use glam::Vec3;
 use hltas::HLTAS;
 
-use self::editor::Frame;
 use self::objective::{AttemptResult, Constraint, ConstraintType, Direction, Objective, Variable};
+use self::optimizer::Frame;
 use super::cvars::CVar;
 use super::triangle_drawing::{self, TriangleApi};
 use super::Module;
@@ -20,8 +20,8 @@ use crate::hooks::engine::{self, con_print};
 use crate::modules::commands::{self, Command};
 use crate::utils::*;
 
-mod editor;
-use editor::Editor;
+mod optimizer;
+use optimizer::Optimizer;
 
 mod hltas_ext;
 
@@ -38,10 +38,10 @@ pub use remote::{
     update_client_connection_condition,
 };
 
-pub struct TasEditor;
-impl Module for TasEditor {
+pub struct TasOptimizer;
+impl Module for TasOptimizer {
     fn name(&self) -> &'static str {
-        "TAS editor"
+        "TAS optimizer"
     }
 
     fn description(&self) -> &'static str {
@@ -86,7 +86,7 @@ impl Module for TasEditor {
     }
 }
 
-static EDITOR: MainThreadRefCell<Option<Editor>> = MainThreadRefCell::new(None);
+static OPTIMIZER: MainThreadRefCell<Option<Optimizer>> = MainThreadRefCell::new(None);
 static OPTIMIZE: MainThreadCell<bool> = MainThreadCell::new(false);
 static OBJECTIVE: MainThreadRefCell<Objective> = MainThreadRefCell::new(Objective::Console {
     variable: Variable::PosX,
@@ -286,12 +286,12 @@ unsafe fn get_cvar_f32(marker: MainThreadMarker, name: &str) -> Option<f32> {
 }
 
 fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
-    if !TasEditor.is_enabled(marker) {
+    if !TasOptimizer.is_enabled(marker) {
         return;
     }
 
     if path.as_os_str().is_empty() {
-        *EDITOR.borrow_mut(marker) = None;
+        *OPTIMIZER.borrow_mut(marker) = None;
         OPTIMIZE.set(marker, false);
         return;
     }
@@ -320,7 +320,7 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
         None => {
             con_print(
                 marker,
-                "Cannot enable the TAS editor outside of gameplay.\n",
+                "Cannot enable the TAS optimizer outside of gameplay.\n",
             );
             return;
         }
@@ -362,7 +362,12 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
     let generation = GENERATION.get(marker);
     GENERATION.set(marker, generation.wrapping_add(1));
 
-    *EDITOR.borrow_mut(marker) = Some(Editor::new(hltas, first_frame, initial_frame, generation));
+    *OPTIMIZER.borrow_mut(marker) = Some(Optimizer::new(
+        hltas,
+        first_frame,
+        initial_frame,
+        generation,
+    ));
 
     if let Err(err) = remote::start_server() {
         con_print(
@@ -383,7 +388,7 @@ Starts the optimization.",
 );
 
 fn optim_start(marker: MainThreadMarker) {
-    if EDITOR.borrow(marker).is_none() {
+    if OPTIMIZER.borrow(marker).is_none() {
         con_print(
             marker,
             "There's nothing to optimize. Call _bxt_tas_optim_init first!\n",
@@ -582,12 +587,12 @@ Saves the optimized script.",
 );
 
 fn optim_save(marker: MainThreadMarker) {
-    if let Some(editor) = &mut *EDITOR.borrow_mut(marker) {
+    if let Some(optimizer) = &mut *OPTIMIZER.borrow_mut(marker) {
         // TODO: this is unsafe outside of gameplay.
         let tracer = unsafe { Tracer::new(marker, false) }.unwrap();
-        editor.minimize(&tracer);
+        optimizer.minimize(&tracer);
 
-        editor
+        optimizer
             .save(File::create("bxt-rs-optimization-best.hltas").unwrap())
             .unwrap();
     } else {
@@ -611,10 +616,10 @@ equivalent frame bulks.",
 );
 
 fn optim_minimize(marker: MainThreadMarker) {
-    if let Some(editor) = &mut *EDITOR.borrow_mut(marker) {
+    if let Some(optimizer) = &mut *OPTIMIZER.borrow_mut(marker) {
         // TODO: this is unsafe outside of gameplay.
         let tracer = unsafe { Tracer::new(marker, false) }.unwrap();
-        editor.minimize(&tracer);
+        optimizer.minimize(&tracer);
     } else {
         con_print(
             marker,
@@ -721,10 +726,10 @@ unsafe fn player_data(marker: MainThreadMarker) -> Option<Player> {
 }
 
 pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
-    if let Some(editor) = &mut *EDITOR.borrow_mut(marker) {
+    if let Some(optimizer) = &mut *OPTIMIZER.borrow_mut(marker) {
         if BXT_TAS_OPTIM_MULTIPLE_GAMES.as_bool(marker) {
             if OPTIMIZE.get(marker) {
-                editor.optimize_with_remote_clients(
+                optimizer.optimize_with_remote_clients(
                     BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
@@ -734,8 +739,8 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                     },
                 );
             } else {
-                editor.maybe_simulate_all_in_remote_client();
-                editor.poll_remote_clients_when_not_optimizing();
+                optimizer.maybe_simulate_all_in_remote_client();
+                optimizer.poll_remote_clients_when_not_optimizing();
             }
         } else {
             // SAFETY: if we have access to TriangleApi, it's safe to do player tracing too.
@@ -744,7 +749,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                     .unwrap();
 
             if OPTIMIZE.get(marker) {
-                if let Some(optimizer) = editor.optimize(
+                if let Some(optimizer) = optimizer.optimize(
                     &tracer,
                     BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
@@ -795,9 +800,9 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
             }
 
             // Make sure the state is ready for drawing.
-            editor.simulate_all(&tracer);
+            optimizer.simulate_all(&tracer);
         }
 
-        editor.draw(tri);
+        optimizer.draw(tri);
     }
 }

@@ -7,7 +7,7 @@ use std::ptr::NonNull;
 use bxt_patterns::Patterns;
 
 use crate::gl;
-use crate::modules::tas_editor;
+use crate::modules::tas_optimizer;
 use crate::utils::*;
 
 pub static SDL_GL_ExtensionSupported: Pointer<unsafe extern "C" fn(*const c_char) -> c_int> =
@@ -158,7 +158,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if tas_editor::is_connected_to_server() {
+            if tas_optimizer::is_connected_to_server() {
                 // Don't warp the mouse from simulator clients.
                 return;
             }

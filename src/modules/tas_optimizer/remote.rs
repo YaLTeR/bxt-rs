@@ -12,7 +12,7 @@ use ipc_channel::ipc::{IpcOneShotServer, IpcReceiver, IpcSender};
 use once_cell::sync::Lazy;
 use parking_lot::{const_mutex, Mutex};
 
-use super::editor::Frame;
+use super::optimizer::Frame;
 use crate::hooks::{bxt, engine};
 use crate::utils::{MainThreadCell, MainThreadMarker, PointerTrait};
 
@@ -218,7 +218,7 @@ pub fn start_server() -> eyre::Result<()> {
     drop(state);
 
     thread::Builder::new()
-        .name("TAS Editor Server Thread".to_string())
+        .name("TAS Optimizer Server Thread".to_string())
         .spawn(move || server_thread(listener))
         .unwrap();
 
@@ -303,7 +303,7 @@ pub fn maybe_start_client_connection_thread(marker: MainThreadMarker) {
     STARTED_CLIENT_CONNECTION_THREAD.set(marker, true);
 
     thread::Builder::new()
-        .name("TAS Editor Client Connection Thread".to_string())
+        .name("TAS Optimizer Client Connection Thread".to_string())
         .spawn(client_connection_thread)
         .unwrap();
 }

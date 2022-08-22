@@ -34,8 +34,8 @@ pub mod player_movement_tracing;
 pub mod rng_set;
 pub mod shake_remove;
 pub mod skybox_remove;
-pub mod tas_editor;
 pub mod tas_logging;
+pub mod tas_optimizer;
 pub mod tas_recording;
 pub mod tas_server_time_fix;
 pub mod triangle_drawing;
@@ -89,8 +89,8 @@ pub static MODULES: &[&dyn Module] = &[
     &rng_set::RngSet,
     &shake_remove::ShakeRemove,
     &skybox_remove::SkyboxRemove,
-    &tas_editor::TasEditor,
     &tas_logging::TasLogging,
+    &tas_optimizer::TasOptimizer,
     &tas_recording::TasRecording,
     &tas_server_time_fix::TasServerTimeFix,
     &triangle_drawing::TriangleDrawing,
