@@ -36,7 +36,7 @@ impl Vulkan {
         debug!("initializing Vulkan");
 
         // Entry, instance.
-        let entry = unsafe { ash::Entry::new()? };
+        let entry = unsafe { ash::Entry::load()? };
         let app_info = vk::ApplicationInfo {
             // A few extensions we need for capturing are core in 1.1.
             api_version: vk::make_api_version(0, 1, 1, 0),
@@ -63,7 +63,9 @@ impl Vulkan {
         let create_info = vk::DebugUtilsMessengerCreateInfoEXT {
             message_severity: vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
                 | vk::DebugUtilsMessageSeverityFlagsEXT::ERROR,
-            message_type: vk::DebugUtilsMessageTypeFlagsEXT::all(),
+            message_type: vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
+                | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
+                | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE,
             pfn_user_callback: Some(debug_utils_callback),
             ..Default::default()
         };

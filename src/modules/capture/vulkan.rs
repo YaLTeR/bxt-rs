@@ -69,8 +69,6 @@
 
 use std::ffi::CStr;
 use std::io::Cursor;
-#[cfg(windows)]
-use std::mem;
 use std::{slice, str};
 
 use ash::util::read_spv;
@@ -96,14 +94,14 @@ pub struct Vulkan {
     #[cfg(unix)]
     external_memory_fd: ash::extensions::khr::ExternalMemoryFd,
     #[cfg(windows)]
-    external_memory_win32_fn: vk::KhrExternalMemoryWin32Fn,
+    external_memory_win32: ash::extensions::khr::ExternalMemoryWin32,
     image_sample: vk::Image,
     image_sample_memory: vk::DeviceMemory,
     semaphore: vk::Semaphore,
     #[cfg(unix)]
     external_semaphore_fd: ash::extensions::khr::ExternalSemaphoreFd,
     #[cfg(windows)]
-    external_semaphore_win32_fn: vk::KhrExternalSemaphoreWin32Fn,
+    external_semaphore_win32: ash::extensions::khr::ExternalSemaphoreWin32,
     buffer: vk::Buffer,
     buffer_memory: vk::DeviceMemory,
     buffer_color_conversion_output: vk::Buffer,
@@ -185,19 +183,10 @@ impl Vulkan {
         let create_info = vk::MemoryGetWin32HandleInfoKHR::builder()
             .memory(self.image_frame_memory)
             .handle_type(vk::ExternalMemoryHandleTypeFlags::OPAQUE_WIN32);
-        let mut memory_handle = std::ptr::null_mut();
-        let rv = unsafe {
-            self.external_memory_win32_fn.get_memory_win32_handle_khr(
-                self.device.handle(),
-                &*create_info,
-                &mut memory_handle,
-            )
+        let memory_handle = unsafe {
+            self.external_memory_win32
+                .get_memory_win32_handle(&create_info)?
         };
-        ensure!(
-            rv == vk::Result::SUCCESS,
-            "get_memory_win32_handle_khr() returned an error: {}",
-            rv
-        );
         Ok(memory_handle)
     }
 
@@ -231,20 +220,10 @@ impl Vulkan {
         let create_info = vk::SemaphoreGetWin32HandleInfoKHR::builder()
             .semaphore(self.semaphore)
             .handle_type(vk::ExternalSemaphoreHandleTypeFlags::OPAQUE_WIN32);
-        let mut semaphore_handle = std::ptr::null_mut();
-        let rv = unsafe {
-            self.external_semaphore_win32_fn
-                .get_semaphore_win32_handle_khr(
-                    self.device.handle(),
-                    &*create_info,
-                    &mut semaphore_handle,
-                )
+        let semaphore_handle = unsafe {
+            self.external_semaphore_win32
+                .get_semaphore_win32_handle(&create_info)?
         };
-        ensure!(
-            rv == vk::Result::SUCCESS,
-            "get_semaphore_win32_handle_khr() returned an error: {}",
-            rv
-        );
         Ok(semaphore_handle)
     }
 
@@ -724,9 +703,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
     #[cfg(unix)]
     let external_memory_fd = ash::extensions::khr::ExternalMemoryFd::new(instance, &device);
     #[cfg(windows)]
-    let external_memory_win32_fn = vk::KhrExternalMemoryWin32Fn::load(|name| unsafe {
-        mem::transmute(instance.get_device_proc_addr(device.handle(), name.as_ptr()))
-    });
+    let external_memory_win32 = ash::extensions::khr::ExternalMemoryWin32::new(instance, &device);
 
     // Sampler for the image for the OpenGL frame.
     let create_info = vk::SamplerCreateInfo::builder()
@@ -822,9 +799,8 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
     #[cfg(unix)]
     let external_semaphore_fd = ash::extensions::khr::ExternalSemaphoreFd::new(instance, &device);
     #[cfg(windows)]
-    let external_semaphore_win32_fn = vk::KhrExternalSemaphoreWin32Fn::load(|name| unsafe {
-        mem::transmute(instance.get_device_proc_addr(device.handle(), name.as_ptr()))
-    });
+    let external_semaphore_win32 =
+        ash::extensions::khr::ExternalSemaphoreWin32::new(instance, &device);
 
     // Buffer for color conversion shader output.
     let create_info = vk::BufferCreateInfo::builder()
@@ -1045,7 +1021,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         #[cfg(unix)]
         external_memory_fd,
         #[cfg(windows)]
-        external_memory_win32_fn,
+        external_memory_win32,
         sampler_frame,
         image_view_frame,
         image_sample,
@@ -1056,7 +1032,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         #[cfg(unix)]
         external_semaphore_fd,
         #[cfg(windows)]
-        external_semaphore_win32_fn,
+        external_semaphore_win32,
         buffer_color_conversion_output,
         buffer_color_conversion_output_memory,
         buffer,

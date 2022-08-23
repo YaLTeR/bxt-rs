@@ -9,4 +9,4 @@ license = "GPL-3.0-or-later"
 proc_macro = true
 
 [dev-dependencies]
-trybuild = "1.0.32"
+trybuild = "1.0.64"
