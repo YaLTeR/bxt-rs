@@ -89,9 +89,11 @@ fn setup_logging_hooks() {
 
         Box::leak(Box::new(guard));
 
-        Some(chrome_layer)
+        chrome_layer.boxed()
     } else {
-        None
+        // Work around https://github.com/tokio-rs/tracing/issues/2265: return boxed ChromeLayer or
+        // boxed Identity instead of Some(ChromeLayer) or None.
+        tracing_subscriber::layer::Identity::new().boxed()
     };
 
     tracing_subscriber::registry()
