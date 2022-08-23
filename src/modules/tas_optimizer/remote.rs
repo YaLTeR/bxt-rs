@@ -191,14 +191,6 @@ impl RemoteGame {
             Err(ipc_channel::ipc::TryRecvError::IpcError(err)) => Err(err),
         }
     }
-
-    #[instrument(name = "RemoteGame::recv_frames", skip_all)]
-    pub fn recv_frames(&mut self) -> Result<Vec<Frame>, ipc_channel::ipc::IpcError> {
-        assert!(self.is_busy());
-
-        self.state = RemoteGameState::Free;
-        self.receiver.recv()
-    }
 }
 
 #[instrument(name = "remote::start_server", skip_all)]
