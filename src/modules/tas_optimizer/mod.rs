@@ -51,7 +51,7 @@ impl Module for TasOptimizer {
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[
             &BXT_TAS_OPTIM_INIT,
-            &BXT_TAS_OPTIM_CLEAR,
+            &BXT_TAS_OPTIM_DISABLE,
             &BXT_TAS_OPTIM_START,
             &BXT_TAS_OPTIM_STOP,
             &BXT_TAS_OPTIM_SAVE,
@@ -378,17 +378,17 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
     }
 }
 
-static BXT_TAS_OPTIM_CLEAR: Command = Command::new(
-    b"bxt_tas_optim_clear\0",
+static BXT_TAS_OPTIM_DISABLE: Command = Command::new(
+    b"bxt_tas_optim_disable\0",
     handler!(
-        "bxt_tas_optim_clear
+        "bxt_tas_optim_disable
 
 Stops and disables the optimizer.",
-        optim_clear as fn(_)
+        optim_disable as fn(_)
     ),
 );
 
-fn optim_clear(marker: MainThreadMarker) {
+fn optim_disable(marker: MainThreadMarker) {
     *OPTIMIZER.borrow_mut(marker) = None;
     OPTIMIZE.set(marker, false);
 }
