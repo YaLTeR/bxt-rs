@@ -3,6 +3,7 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::AtomicBool;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use std::{mem, thread};
 
@@ -10,7 +11,6 @@ use color_eyre::eyre::{self, eyre, Context};
 use hltas::HLTAS;
 use ipc_channel::ipc::{IpcOneShotServer, IpcReceiver, IpcSender};
 use once_cell::sync::Lazy;
-use parking_lot::{const_mutex, Mutex};
 
 use super::optimizer::Frame;
 use crate::hooks::{bxt, engine};
@@ -120,7 +120,7 @@ impl State {
     }
 }
 
-static STATE: Mutex<State> = const_mutex(State::None);
+static STATE: Mutex<State> = Mutex::new(State::None);
 
 /// Whether the client connection thread should try connecting to the remote server.
 static SHOULD_CONNECT_TO_SERVER: AtomicBool = AtomicBool::new(false);
@@ -203,7 +203,7 @@ impl RemoteGame {
 
 #[instrument(name = "remote::start_server", skip_all)]
 pub fn start_server() -> eyre::Result<()> {
-    let mut state = STATE.lock();
+    let mut state = STATE.lock().unwrap();
 
     match *state {
         State::None => {}
@@ -268,7 +268,7 @@ fn server_thread(listener: TcpListener) {
             return;
         };
 
-        STATE.lock().unwrap_server().push(RemoteGame {
+        STATE.lock().unwrap().unwrap_server().push(RemoteGame {
             sender: hltas_sender,
             receiver: frames_receiver,
             state: RemoteGameState::Free,
@@ -343,7 +343,7 @@ fn client_connection_thread() {
 
         info!("Connected to a remote server.");
 
-        let mut state = STATE.lock();
+        let mut state = STATE.lock().unwrap();
         if state.is_none() {
             *state = State::Client(server);
         } else {
@@ -394,7 +394,7 @@ pub fn update_client_connection_condition(marker: MainThreadMarker) {
         SHOULD_CONNECT_TO_SERVER.store(false, std::sync::atomic::Ordering::SeqCst);
 
         // Disconnect if we were connected.
-        let mut state = STATE.lock();
+        let mut state = STATE.lock().unwrap();
         if state.is_client() {
             *state = State::None;
         }
@@ -402,7 +402,7 @@ pub fn update_client_connection_condition(marker: MainThreadMarker) {
         return;
     }
 
-    if !STATE.lock().is_none() {
+    if !STATE.lock().unwrap().is_none() {
         // Don't try to connect if we're already a client or a server.
         SHOULD_CONNECT_TO_SERVER.store(false, std::sync::atomic::Ordering::SeqCst);
         return;
@@ -413,7 +413,7 @@ pub fn update_client_connection_condition(marker: MainThreadMarker) {
 }
 
 pub fn is_connected_to_server() -> bool {
-    STATE.lock().is_client()
+    STATE.lock().unwrap().is_client()
 }
 
 /// Receives any completed simulation results from the remote clients and calls `process_result` to
@@ -424,7 +424,7 @@ pub fn is_connected_to_server() -> bool {
 pub fn receive_simulation_result_from_clients(
     mut process_result: impl FnMut(HLTAS, u16, Vec<Frame>),
 ) {
-    let mut state = STATE.lock();
+    let mut state = STATE.lock().unwrap();
     let games = state.unwrap_server();
 
     let mut errored_indices = Vec::new();
@@ -448,6 +448,7 @@ pub fn receive_simulation_result_from_clients(
 pub fn is_any_client_simulating_generation(generation: u16) -> bool {
     STATE
         .lock()
+        .unwrap()
         .unwrap_server()
         .iter()
         .any(|g| g.busy_generation() == Some(generation))
@@ -459,7 +460,7 @@ pub fn is_any_client_simulating_generation(generation: u16) -> bool {
 /// If an error occurs sending the HLTAS to the remote client, it will be silently dropped without
 /// simulating.
 pub fn simulate_in_available_clients(mut prepare_hltas: impl FnMut() -> (HLTAS, u16)) {
-    let mut state = STATE.lock();
+    let mut state = STATE.lock().unwrap();
     let games = state.unwrap_server();
 
     let mut errored_indices = Vec::new();
@@ -484,7 +485,7 @@ pub fn simulate_in_available_clients(mut prepare_hltas: impl FnMut() -> (HLTAS, 
 /// If there was no success in finding a free client and sending it the HLTAS, it is silently
 /// dropped without simulating.
 pub fn maybe_simulate_in_one_client(mut prepare_hltas: impl FnMut() -> (HLTAS, u16)) {
-    let mut state = STATE.lock();
+    let mut state = STATE.lock().unwrap();
     let games = state.unwrap_server();
 
     let mut payload = None;
@@ -509,7 +510,7 @@ pub fn maybe_simulate_in_one_client(mut prepare_hltas: impl FnMut() -> (HLTAS, u
 }
 
 pub fn receive_new_hltas_to_simulate() -> Option<HLTAS> {
-    let mut state = STATE.lock();
+    let mut state = STATE.lock().unwrap();
     let server = state.remote_server()?;
 
     if !server.simulation_state.is_idle() {
@@ -533,7 +534,7 @@ pub fn receive_new_hltas_to_simulate() -> Option<HLTAS> {
 }
 
 pub fn on_frame_simulated(get_frame_data: impl FnOnce() -> Frame) {
-    let mut state = STATE.lock();
+    let mut state = STATE.lock().unwrap();
     let server = match state.remote_server() {
         Some(x) => x,
         None => return,
@@ -550,7 +551,7 @@ pub fn on_frame_simulated(get_frame_data: impl FnOnce() -> Frame) {
 }
 
 pub fn send_simulation_result_to_server() {
-    let mut state = STATE.lock();
+    let mut state = STATE.lock().unwrap();
     let server = match state.remote_server() {
         Some(x) => x,
         None => return,
@@ -566,7 +567,7 @@ pub fn send_simulation_result_to_server() {
 }
 
 pub fn start_recording_frames() {
-    let mut state = STATE.lock();
+    let mut state = STATE.lock().unwrap();
     let server = match state.remote_server() {
         Some(x) => x,
         None => return,

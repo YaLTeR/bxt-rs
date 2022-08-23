@@ -422,6 +422,7 @@ impl<S: Step> Step for Strafe<S> {
                 let camera_yaw = angle_mod_rad(vel_yaw);
                 let entry = vct::get_static()
                     .read()
+                    .unwrap()
                     .find_best((vel_yaw + theta) - camera_yaw);
 
                 input.yaw = camera_yaw;

@@ -1,6 +1,7 @@
+use std::sync::{Once, RwLock};
+
 use arrayvec::ArrayVec;
 use ordered_float::NotNan;
-use parking_lot::{const_rwlock, Once, RwLock};
 
 use crate::normalize_rad;
 
@@ -21,10 +22,10 @@ pub struct Vct {
 pub const MAX_SPEED_CAP: f32 = 1023.;
 
 pub fn get_static() -> &'static RwLock<Vct> {
-    static VCT: RwLock<Vct> = const_rwlock(Vct::new());
+    static VCT: RwLock<Vct> = RwLock::new(Vct::new());
 
     static INIT: Once = Once::new();
-    INIT.call_once(|| VCT.write().compute());
+    INIT.call_once(|| VCT.write().unwrap().compute());
 
     &VCT
 }
