@@ -1,16 +1,31 @@
+//! Vectorial compensation table (VCT).
+//!
+//! This is extracted into a separate crate to be able to compile it with optimizations even in
+//! debug builds.
+
 use std::f32::consts::{PI, TAU};
 use std::sync::Once;
 
 use arrayvec::ArrayVec;
 use ordered_float::NotNan;
 
+/// VCT entry.
 #[derive(Debug, Clone, Copy)]
 pub struct Entry {
+    /// Forward input value.
     pub forward: i16,
+    /// Side input value.
     pub side: i16,
+    /// Movement vector angle, in radians, given by these inputs.
+    ///
+    /// Equal to `atan2(-side, forward)`.
     pub angle: NotNan<f32>,
 }
 
+/// Vectorial compensation table.
+///
+/// Instances of this type are HUGE (~78 MB), never put them on the stack. They are not
+/// heap-allocated to work around a memory corruption issue in some Half-Life engines.
 pub struct Vct {
     entries: ArrayVec<Entry, 10196504>,
 }
@@ -21,6 +36,11 @@ impl Vct {
     /// The VCT is exactly the same for any max_speed less than or equal to this value.
     pub const MAX_SPEED_CAP: f32 = 1023.;
 
+    /// Returns a statically allocated and computed VCT, valid for max_speed values up to
+    /// [`Vct::MAX_SPEED_CAP`].
+    ///
+    /// The VCT is computed the first time this function is called. This takes a few seconds. All
+    /// subsequent invocations are instant.
     pub fn get() -> &'static Vct {
         static mut VCT: Vct = Vct::empty();
         static INIT: Once = Once::new();
@@ -35,6 +55,7 @@ impl Vct {
         }
     }
 
+    /// Returns an empty VCT that needs to be computed.
     const fn empty() -> Self {
         Self {
             entries: ArrayVec::new_const(),
@@ -97,6 +118,9 @@ impl Vct {
         self.entries.sort_unstable_by_key(|entry| entry.angle);
     }
 
+    /// Finds and returns the VCT entry giving the closest angle to accel_angle.
+    ///
+    /// The angles are in radians.
     pub fn find_best(&self, accel_angle: f32) -> Entry {
         let accel_angle = NotNan::new(normalize_rad(accel_angle)).unwrap();
 
