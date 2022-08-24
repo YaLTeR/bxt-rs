@@ -6,6 +6,7 @@ use hltas::types::*;
 use tap::{Pipe, Tap};
 
 use super::*;
+use crate::vct::Vct;
 
 /// One step in the simulation chain.
 pub trait Step {
@@ -412,18 +413,15 @@ impl<S: Step> Step for Strafe<S> {
                 let vel_yaw = state.player.vel.y.atan2(state.player.vel.x);
 
                 assert!(
-                    parameters.max_speed <= vct::MAX_SPEED_CAP,
+                    parameters.max_speed <= Vct::MAX_SPEED_CAP,
                     "max_speed {} is larger than the maximum allowed value {}",
                     parameters.max_speed,
-                    vct::MAX_SPEED_CAP
+                    Vct::MAX_SPEED_CAP
                 );
 
                 // TODO: target_yaw velocity_lock
                 let camera_yaw = angle_mod_rad(vel_yaw);
-                let entry = vct::get_static()
-                    .read()
-                    .unwrap()
-                    .find_best((vel_yaw + theta) - camera_yaw);
+                let entry = Vct::get().find_best((vel_yaw + theta) - camera_yaw);
 
                 input.yaw = camera_yaw;
                 input.forward = entry.forward as f32;

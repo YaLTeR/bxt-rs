@@ -1,4 +1,4 @@
-use std::sync::{Once, RwLock};
+use std::sync::Once;
 
 use arrayvec::ArrayVec;
 use ordered_float::NotNan;
@@ -16,22 +16,27 @@ pub struct Vct {
     entries: ArrayVec<Entry, 10196504>,
 }
 
-/// The largest max_speed that the VCT is valid for.
-///
-/// The VCT is exactly the same for any max_speed less than or equal to this value.
-pub const MAX_SPEED_CAP: f32 = 1023.;
-
-pub fn get_static() -> &'static RwLock<Vct> {
-    static VCT: RwLock<Vct> = RwLock::new(Vct::new());
-
-    static INIT: Once = Once::new();
-    INIT.call_once(|| VCT.write().unwrap().compute());
-
-    &VCT
-}
-
 impl Vct {
-    pub const fn new() -> Self {
+    /// The largest max_speed that the VCT is valid for.
+    ///
+    /// The VCT is exactly the same for any max_speed less than or equal to this value.
+    pub const MAX_SPEED_CAP: f32 = 1023.;
+
+    pub fn get() -> &'static Vct {
+        static mut VCT: Vct = Vct::empty();
+        static INIT: Once = Once::new();
+
+        // SAFETY: VCT is only modified from a Once call, which is a synchronized access.
+        // This is exactly the use from the Once example:
+        // https://doc.rust-lang.org/std/sync/struct.Once.html#examples-1
+        unsafe {
+            INIT.call_once(|| VCT.compute());
+
+            &VCT
+        }
+    }
+
+    const fn empty() -> Self {
         Self {
             entries: ArrayVec::new_const(),
         }
@@ -56,7 +61,7 @@ impl Vct {
         }
     }
 
-    pub fn compute(&mut self) {
+    fn compute(&mut self) {
         eprintln!("Computing the vectorial compensation table.");
 
         /// Maximal value for forwardmove and sidemove.
