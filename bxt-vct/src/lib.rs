@@ -1,9 +1,8 @@
+use std::f32::consts::{PI, TAU};
 use std::sync::Once;
 
 use arrayvec::ArrayVec;
 use ordered_float::NotNan;
-
-use crate::normalize_rad;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Entry {
@@ -119,5 +118,17 @@ impl Vct {
                 }
             }
         }
+    }
+}
+
+fn normalize_rad(mut angle: f32) -> f32 {
+    angle %= TAU;
+
+    if angle >= PI {
+        angle - TAU
+    } else if angle < -PI {
+        angle + TAU
+    } else {
+        angle
     }
 }

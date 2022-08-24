@@ -1,12 +1,12 @@
 use std::f32::consts::{FRAC_PI_2, PI};
 
 use arrayvec::ArrayVec;
+use bxt_vct::Vct;
 use glam::{Vec2, Vec3, Vec3Swizzles};
 use hltas::types::*;
 use tap::{Pipe, Tap};
 
 use super::*;
-use crate::vct::Vct;
 
 /// One step in the simulation chain.
 pub trait Step {

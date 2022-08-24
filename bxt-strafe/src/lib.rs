@@ -8,8 +8,6 @@ use serde::{Deserialize, Serialize};
 mod steps;
 use steps::*;
 
-mod vct;
-
 /// Result of a trace operation.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct TraceResult {

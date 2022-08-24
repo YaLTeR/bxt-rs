@@ -1,0 +1,8 @@
+[package]
+name = "bxt-vct"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+arrayvec = "0.7.2"
+ordered-float = "3.0.0"

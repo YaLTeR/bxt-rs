@@ -47,6 +47,9 @@ gl_generator = "0.14.0"
 [profile.dev.package.bxt-patterns]
 opt-level = 3
 
+[profile.dev.package.bxt-vct]
+opt-level = 3
+
 [profile.dev.package.backtrace]
 opt-level = 3
 
@@ -55,4 +58,4 @@ debug = 1 # For lines in backtraces.
 overflow-checks = true # So no hidden unsoundness can sneak in.
 
 [workspace]
-members = [".", "bxt-macros", "bxt-patterns", "bxt-strafe"]
+members = [".", "bxt-macros", "bxt-patterns", "bxt-strafe", "bxt-vct"]
