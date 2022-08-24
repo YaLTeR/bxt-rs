@@ -36,6 +36,8 @@ impl Command {
     ///
     /// `description` and `function` are passed as a tuple to make it easier for the [`handler!`]
     /// macro.
+    ///
+    /// [`handler!`]: crate::handler
     pub const fn new(
         name: &'static [u8],
         (description, function): (&'static str, unsafe extern "C" fn()),
