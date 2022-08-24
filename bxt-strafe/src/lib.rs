@@ -439,6 +439,16 @@ mod tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig {
+            cases: if std::env::var_os("RUN_SLOW_TESTS").is_none() {
+                eprintln!("ignoring slow test");
+                0
+            } else {
+                ProptestConfig::default().cases
+            },
+            ..ProptestConfig::default()
+        })]
+
         #[test]
         fn simulation_does_not_panic(
             frame_bulks: Vec<FrameBulk>,
