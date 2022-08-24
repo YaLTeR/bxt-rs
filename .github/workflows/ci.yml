@@ -18,21 +18,15 @@ jobs:
       matrix:
         os: [ubuntu-20.04, windows-2019]
         rust: [stable, beta]
-        features: ['', vulkan-debug]
         configuration: [debug, release]
         cross: [false, true]
 
         exclude:
           - configuration: release
             rust: beta
-          - configuration: release
-            features: vulkan-debug
 
           - cross: true
             os: windows-2019
-
-          - rust: beta
-            features: vulkan-debug
 
         include:
           - os: ubuntu-20.04
@@ -58,7 +52,7 @@ jobs:
           - configuration: release
             release-flag: '--release'
 
-    name: ${{ matrix.rust }} - ${{ matrix.label }} - ${{ matrix.configuration }} - ${{ matrix.features }}
+    name: ${{ matrix.rust }} - ${{ matrix.label }} - ${{ matrix.configuration }}
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
 
@@ -98,7 +92,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --target ${{ matrix.target }} ${{ matrix.release-flag }} --features=${{ matrix.features }}
+          args: --target ${{ matrix.target }} ${{ matrix.release-flag }}
 
       - name: Test
         uses: actions-rs/cargo@v1
@@ -107,23 +101,23 @@ jobs:
           !matrix.cross
         with:
           command: test
-          args: --all --target ${{ matrix.target }} ${{ matrix.release-flag }} --features=${{ matrix.features }} -- --nocapture
+          args: --all --target ${{ matrix.target }} ${{ matrix.release-flag }} -- --nocapture
 
       - uses: actions/upload-artifact@v2
         if: matrix.rust == 'stable' && !matrix.cross
         with:
-          name: bxt-rs-${{ runner.os }}-${{ matrix.configuration }}-${{ matrix.features }}
+          name: bxt-rs-${{ runner.os }}-${{ matrix.configuration }}
           path: target/${{ matrix.target }}/${{ matrix.configuration }}/${{ matrix.filename }}
           if-no-files-found: error
 
       - name: Prepare Release
-        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && matrix.features == '' && !matrix.cross
+        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && !matrix.cross
         run: |
           cp target/${{ matrix.target }}/${{ matrix.configuration }}/${{ matrix.filename }} ${{ matrix.filename }}
           7z a bxt-rs-${{ runner.os }}.7z ${{ matrix.filename }} COPYING
 
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && matrix.features == '' && !matrix.cross
+        if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && !matrix.cross
         uses: softprops/action-gh-release@v1
         with:
           files: bxt-rs-${{ runner.os }}.7z
@@ -137,7 +131,6 @@ jobs:
           matrix.os == 'ubuntu-20.04' &&
           matrix.rust == 'stable' &&
           matrix.configuration == 'release' &&
-          matrix.features == '' &&
           !matrix.cross
         run: |
           mkdir temp_wiki_output
@@ -151,7 +144,6 @@ jobs:
           matrix.os == 'ubuntu-20.04' &&
           matrix.rust == 'stable' &&
           matrix.configuration == 'release' &&
-          matrix.features == '' &&
           !matrix.cross
         with:
           name: wiki

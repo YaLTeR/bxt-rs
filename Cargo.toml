@@ -56,6 +56,3 @@ overflow-checks = true # So no hidden unsoundness can sneak in.
 
 [workspace]
 members = [".", "bxt-macros", "bxt-patterns", "bxt-strafe"]
-
-[features]
-vulkan-debug = []

@@ -1,3 +1,6 @@
+use std::env;
+use std::os::raw::c_char;
+
 use ash::vk;
 use color_eyre::eyre;
 use once_cell::sync::Lazy;
@@ -14,18 +17,15 @@ pub struct Vulkan {
     #[allow(unused)] // Required to keep the library loaded.
     entry: ash::Entry,
     instance: ash::Instance,
-    #[cfg(feature = "vulkan-debug")]
-    debug_utils: ash::extensions::ext::DebugUtils,
-    #[cfg(feature = "vulkan-debug")]
-    debug_messenger: vk::DebugUtilsMessengerEXT,
+    debug: Option<(ash::extensions::ext::DebugUtils, vk::DebugUtilsMessengerEXT)>,
 }
 
 impl Drop for Vulkan {
     fn drop(&mut self) {
         unsafe {
-            #[cfg(feature = "vulkan-debug")]
-            self.debug_utils
-                .destroy_debug_utils_messenger(self.debug_messenger, None);
+            if let Some((utils, messenger)) = self.debug.take() {
+                utils.destroy_debug_utils_messenger(messenger, None);
+            }
             self.instance.destroy_instance(None);
         }
     }
@@ -42,44 +42,45 @@ impl Vulkan {
             api_version: vk::make_api_version(0, 1, 1, 0),
             ..Default::default()
         };
-        let extension_names = [
-            #[cfg(feature = "vulkan-debug")]
-            ash::extensions::ext::DebugUtils::name().as_ptr(),
-        ];
-        let layer_names = [
-            #[cfg(feature = "vulkan-debug")]
-            b"VK_LAYER_KHRONOS_validation\0".as_ptr().cast(),
-        ];
-        let create_info = vk::InstanceCreateInfo::builder()
-            .application_info(&app_info)
-            .enabled_extension_names(&extension_names)
-            .enabled_layer_names(&layer_names);
+
+        let mut create_info = vk::InstanceCreateInfo::builder().application_info(&app_info);
+        if env::var_os("BXT_RS_VULKAN_DEBUG").is_some() {
+            const EXTENSION_NAMES: [*const c_char; 1] =
+                [ash::extensions::ext::DebugUtils::name().as_ptr()];
+            const LAYER_NAMES: [*const c_char; 1] =
+                [b"VK_LAYER_KHRONOS_validation\0".as_ptr().cast()];
+
+            create_info = create_info
+                .enabled_extension_names(&EXTENSION_NAMES)
+                .enabled_layer_names(&LAYER_NAMES);
+        }
+
         let instance = unsafe { entry.create_instance(&create_info, None)? };
 
-        // Debug utils.
-        #[cfg(feature = "vulkan-debug")]
-        let debug_utils = ash::extensions::ext::DebugUtils::new(&entry, &instance);
-        #[cfg(feature = "vulkan-debug")]
-        let create_info = vk::DebugUtilsMessengerCreateInfoEXT {
-            message_severity: vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
-                | vk::DebugUtilsMessageSeverityFlagsEXT::ERROR,
-            message_type: vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
-                | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
-                | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE,
-            pfn_user_callback: Some(debug_utils_callback),
-            ..Default::default()
+        let debug = if env::var_os("BXT_RS_VULKAN_DEBUG").is_some() {
+            // Debug utils.
+            let debug_utils = ash::extensions::ext::DebugUtils::new(&entry, &instance);
+            let create_info = vk::DebugUtilsMessengerCreateInfoEXT {
+                message_severity: vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
+                    | vk::DebugUtilsMessageSeverityFlagsEXT::ERROR,
+                message_type: vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
+                    | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
+                    | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE,
+                pfn_user_callback: Some(debug_utils_callback),
+                ..Default::default()
+            };
+            let debug_messenger =
+                unsafe { debug_utils.create_debug_utils_messenger(&create_info, None)? };
+
+            Some((debug_utils, debug_messenger))
+        } else {
+            None
         };
-        #[cfg(feature = "vulkan-debug")]
-        let debug_messenger =
-            unsafe { debug_utils.create_debug_utils_messenger(&create_info, None)? };
 
         Ok(Self {
             entry,
             instance,
-            #[cfg(feature = "vulkan-debug")]
-            debug_utils,
-            #[cfg(feature = "vulkan-debug")]
-            debug_messenger,
+            debug,
         })
     }
 
@@ -88,7 +89,6 @@ impl Vulkan {
     }
 }
 
-#[cfg(feature = "vulkan-debug")]
 unsafe extern "system" fn debug_utils_callback(
     message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,
     message_types: vk::DebugUtilsMessageTypeFlagsEXT,
