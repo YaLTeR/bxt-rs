@@ -54,7 +54,6 @@ opt-level = 3
 opt-level = 3
 
 [profile.release]
-debug = 1 # For lines in backtraces.
 overflow-checks = true # So no hidden unsoundness can sneak in.
 
 [workspace]
