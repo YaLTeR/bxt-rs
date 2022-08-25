@@ -413,6 +413,7 @@ bxt_tas_optim_multiple_games, to start from scratch without having to replay the
 fn optim_reset(marker: MainThreadMarker) {
     if let Some(optimizer) = &mut *OPTIMIZER.borrow_mut(marker) {
         optimizer.reset(next_generation(marker));
+        OPTIMIZE.set(marker, false);
     } else {
         con_print(marker, "The optimizer is not initialized.\n");
     }
