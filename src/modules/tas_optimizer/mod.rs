@@ -286,6 +286,13 @@ unsafe fn get_cvar_f32(marker: MainThreadMarker, name: &str) -> Option<f32> {
     None
 }
 
+fn next_generation(marker: MainThreadMarker) -> u16 {
+    static GENERATION: MainThreadCell<u16> = MainThreadCell::new(0);
+    let generation = GENERATION.get(marker);
+    GENERATION.set(marker, generation.wrapping_add(1));
+    generation
+}
+
 fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
     if !TasOptimizer.is_enabled(marker) {
         return;
@@ -359,15 +366,11 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
         parameters,
     };
 
-    static GENERATION: MainThreadCell<u16> = MainThreadCell::new(0);
-    let generation = GENERATION.get(marker);
-    GENERATION.set(marker, generation.wrapping_add(1));
-
     *OPTIMIZER.borrow_mut(marker) = Some(Optimizer::new(
         hltas,
         first_frame,
         initial_frame,
-        generation,
+        next_generation(marker),
     ));
 
     if let Err(err) = remote::start_server() {
