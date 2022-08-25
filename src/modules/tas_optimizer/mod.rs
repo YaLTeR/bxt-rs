@@ -617,7 +617,7 @@ fn optim_save(marker: MainThreadMarker) {
     } else {
         con_print(
             marker,
-            "There's nothing to save. Call _bxt_tas_optim_init first!\n",
+            "There's nothing to save. Call bxt_tas_optim_init first!\n",
         );
     }
 }
@@ -642,7 +642,7 @@ fn optim_minimize(marker: MainThreadMarker) {
     } else {
         con_print(
             marker,
-            "There's nothing to minimize. Call _bxt_tas_optim_init first!\n",
+            "There's nothing to minimize. Call bxt_tas_optim_init first!\n",
         );
     }
 }
