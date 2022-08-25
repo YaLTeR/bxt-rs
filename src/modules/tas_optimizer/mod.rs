@@ -52,6 +52,7 @@ impl Module for TasOptimizer {
         static COMMANDS: &[&Command] = &[
             &BXT_TAS_OPTIM_INIT,
             &BXT_TAS_OPTIM_DISABLE,
+            &BXT_TAS_OPTIM_RESET,
             &BXT_TAS_OPTIM_START,
             &BXT_TAS_OPTIM_STOP,
             &BXT_TAS_OPTIM_SAVE,
@@ -394,6 +395,27 @@ Stops and disables the optimizer.",
 fn optim_disable(marker: MainThreadMarker) {
     *OPTIMIZER.borrow_mut(marker) = None;
     OPTIMIZE.set(marker, false);
+}
+
+static BXT_TAS_OPTIM_RESET: Command = Command::new(
+    b"bxt_tas_optim_reset\0",
+    handler!(
+        "bxt_tas_optim_reset
+
+Resets the optimizer path back to the non-optimized starting state.
+
+Use bxt_tas_optim_stop;bxt_tas_optim_reset after changing the optimization goal, or after toggling \
+bxt_tas_optim_multiple_games, to start from scratch without having to replay the whole TAS.",
+        optim_reset as fn(_)
+    ),
+);
+
+fn optim_reset(marker: MainThreadMarker) {
+    if let Some(optimizer) = &mut *OPTIMIZER.borrow_mut(marker) {
+        optimizer.reset(next_generation(marker));
+    } else {
+        con_print(marker, "The optimizer is not initialized.\n");
+    }
 }
 
 static BXT_TAS_OPTIM_START: Command = Command::new(

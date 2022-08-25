@@ -34,6 +34,9 @@ pub struct Optimizer {
     /// The first part of the script that we're not optimizing.
     prefix: HLTAS,
 
+    /// The original script being optimized, saved to allow resetting to the initial state.
+    original_hltas: HLTAS,
+
     /// The script being optimized.
     hltas: HLTAS,
 
@@ -75,12 +78,23 @@ impl Optimizer {
 
         Self {
             prefix,
+            original_hltas: hltas.clone(),
             hltas,
             frames: vec![initial_frame],
             last_mutation_frames: None,
             generation,
             erased_console_command,
         }
+    }
+
+    /// Resets the optimizer to the original non-optimized script.
+    ///
+    /// You need to pass it a new generation value so that frames arriving from remote clients don't
+    /// overwrite it again.
+    pub fn reset(&mut self, generation: u16) {
+        self.hltas = self.original_hltas.clone();
+        self.frames.truncate(1);
+        self.generation = generation;
     }
 
     pub fn draw(&self, tri: &TriangleApi) {
