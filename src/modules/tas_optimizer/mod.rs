@@ -299,12 +299,6 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
         return;
     }
 
-    if path.as_os_str().is_empty() {
-        *OPTIMIZER.borrow_mut(marker) = None;
-        OPTIMIZE.set(marker, false);
-        return;
-    }
-
     let script = match fs::read_to_string(path) {
         Ok(x) => x,
         Err(err) => {
