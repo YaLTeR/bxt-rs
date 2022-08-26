@@ -368,6 +368,8 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
         next_generation(marker),
     ));
 
+    OPTIMIZE.set(marker, false);
+
     if let Err(err) = remote::start_server() {
         con_print(
             marker,
