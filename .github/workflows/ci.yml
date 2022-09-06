@@ -87,6 +87,8 @@ jobs:
           target: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.configuration }}-${{ matrix.cross }}
 
       - name: Build
         uses: actions-rs/cargo@v1
