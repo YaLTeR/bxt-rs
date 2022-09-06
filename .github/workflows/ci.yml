@@ -96,6 +96,15 @@ jobs:
           command: build
           args: --target ${{ matrix.target }} ${{ matrix.release-flag }}
 
+      - name: Build Tests
+        uses: actions-rs/cargo@v1
+        # Testing cross-compiled build requires wine which is large. We test native Windows anyway so no need.
+        if: |
+          !matrix.cross
+        with:
+          command: test
+          args: --no-run --all --target ${{ matrix.target }} ${{ matrix.release-flag }}
+
       - name: Test
         uses: actions-rs/cargo@v1
         # Testing cross-compiled build requires wine which is large. We test native Windows anyway so no need.
