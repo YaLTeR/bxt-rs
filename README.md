@@ -2,7 +2,7 @@
 
 A few speedrunning and TAS-related tools for Half-Life and mods. Current features include:
 
-- Video recording (a successor to [hl-capture](https://github.com/YaLTeR/hl-capture)).
+- Video recording ([video tutorial](https://youtu.be/ZMjhCXA82tU)).
 - Brute-force optimizer for TASes ([video tutorial](https://youtu.be/ECuRruY3XLw)).
 - `bxt_hud_scale` to upscale the HUD for high-resolution video recording.
 - Commands to play many demos at once (`bxt_play_run`).
