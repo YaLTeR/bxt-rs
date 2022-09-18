@@ -687,6 +687,8 @@ pub static Sys_VID_FlipScreen: Pointer<unsafe extern "C" fn()> = Pointer::empty_
         pattern!(A1 ?? ?? ?? ?? 85 C0 74 ?? 8B 00),
         // 4554
         pattern!(A1 ?? ?? ?? ?? 50 FF 15 ?? ?? ?? ?? C3),
+        // CoF-5936
+        pattern!(55 8B EC A1 ?? ?? ?? ?? 50 FF 15 ?? ?? ?? ?? 5D),
     ]),
     my_Sys_VID_FlipScreen as _,
 );
@@ -699,8 +701,6 @@ pub static Sys_VID_FlipScreen_old: Pointer<unsafe extern "system" fn(*mut c_void
         Patterns(&[
             // 1712
             pattern!(8B 44 24 ?? 50 FF 15 ?? ?? ?? ?? C2 04 00),
-            // CoF-5936
-            pattern!(55 8B EC A1 ?? ?? ?? ?? 50 FF 15 ?? ?? ?? ?? 5D),
         ]),
         my_Sys_VID_FlipScreen_old as _,
     );
