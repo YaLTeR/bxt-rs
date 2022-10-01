@@ -5,14 +5,18 @@ use std::ptr::NonNull;
 
 use hltas::HLTAS;
 
-use crate::utils::{MainThreadMarker, Pointer, PointerTrait};
+use crate::utils::{abort_on_panic, MainThreadMarker, Pointer, PointerTrait};
 
+pub static BXT_ON_TAS_PLAYBACK_FRAME: Pointer<
+    *mut Option<unsafe extern "C" fn(OnTasPlaybackFrameData) -> c_int>,
+> = Pointer::empty(b"bxt_on_tas_playback_frame\0");
 pub static BXT_SIMULATION_IPC_IS_CLIENT_INITIALIZED: Pointer<unsafe extern "C" fn() -> c_int> =
     Pointer::empty(b"bxt_simulation_ipc_is_client_initialized\0");
 pub static BXT_TAS_LOAD_SCRIPT_FROM_STRING: Pointer<unsafe extern "C" fn(*const c_char)> =
     Pointer::empty(b"bxt_tas_load_script_from_string\0");
 
 static POINTERS: &[&dyn PointerTrait] = &[
+    &BXT_ON_TAS_PLAYBACK_FRAME,
     &BXT_SIMULATION_IPC_IS_CLIENT_INITIALIZED,
     &BXT_TAS_LOAD_SCRIPT_FROM_STRING,
 ];
@@ -49,6 +53,20 @@ pub unsafe fn find_pointers(marker: MainThreadMarker) {
         pointer.set(marker, ptr);
         pointer.log(marker);
     }
+
+    set_callbacks(marker);
+}
+
+fn set_callbacks(marker: MainThreadMarker) {
+    if let Some(bxt_on_tas_playback_frame) = BXT_ON_TAS_PLAYBACK_FRAME.get_opt(marker) {
+        // SAFETY: this is a global variable in BXT which is accessed only from the main game thread
+        // (which is the current thread as we have a marker).
+        unsafe {
+            let current_ptr = *bxt_on_tas_playback_frame;
+            assert!(current_ptr.is_none() || current_ptr == Some(on_tas_playback_frame));
+            *bxt_on_tas_playback_frame = Some(on_tas_playback_frame);
+        }
+    }
 }
 
 pub unsafe fn tas_load_script(marker: MainThreadMarker, script: &HLTAS) {
@@ -69,4 +87,19 @@ pub fn is_simulation_ipc_client(marker: MainThreadMarker) -> bool {
             // start and always valid.
             unsafe { f() } != 0)
         .unwrap_or(false)
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct OnTasPlaybackFrameData {
+    pub strafe_cycle_frame_count: u32,
+}
+
+unsafe extern "C" fn on_tas_playback_frame(data: OnTasPlaybackFrameData) -> c_int {
+    abort_on_panic(move || {
+        let marker = MainThreadMarker::new();
+
+        let stop = false;
+        stop.into()
+    })
 }
