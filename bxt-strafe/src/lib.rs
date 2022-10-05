@@ -51,6 +51,8 @@ pub struct Player {
     pub in_duck_animation: bool,
     /// Ducking animation timer.
     pub duck_time: i32,
+    // Stamina time, for game with stamina
+    pub stamina_time: f32,
 }
 
 impl Player {
@@ -81,6 +83,11 @@ pub struct Parameters {
     pub step_size: f32,
     pub bounce: f32,
     pub bhop_cap: bool,
+    pub bhop_cap_multiplier: f32,
+    pub bhop_cap_maxspeed_scale: f32,
+    pub use_slow: bool,
+    pub has_stamina: bool,
+    pub ducktap_slow: bool,
 }
 
 /// The type of player's position in the world.
@@ -257,6 +264,12 @@ mod tests {
             step_size: 18.,
             bounce: 1.,
             bhop_cap: false,
+            bhop_cap_multiplier: 0.65,
+            bhop_cap_maxspeed_scale: 1.7,
+            use_slow: true,
+            has_stamina: false,
+            ducktap_slow: false,
+            
         }
     }
 
@@ -268,6 +281,7 @@ mod tests {
             ducking: false,
             in_duck_animation: false,
             duck_time: 0,
+            stamina_time: 0.0,
         }
     }
 
@@ -431,8 +445,9 @@ mod tests {
             ducking in any::<bool>(),
             in_duck_animation in any::<bool>(),
             duck_time in 0..1000,
+            stamina_time in 0f32..1315.789429,
         ) -> Player {
-            Player { pos, vel, base_vel, ducking, in_duck_animation, duck_time }
+            Player { pos, vel, base_vel, ducking, in_duck_animation, duck_time, stamina_time }
         }
     }
 
