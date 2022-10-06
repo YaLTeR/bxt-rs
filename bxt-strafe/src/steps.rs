@@ -470,6 +470,7 @@ impl<S: Step> Step for Friction<S> {
             // stamina code is before the clamp_velocity
             if parameters.has_stamina {
                 state.player.vel.x *= (100. - (state.player.stamina_time/ 1000.) * 19.) / 100.; 
+                state.player.vel.y *= (100. - (state.player.stamina_time/ 1000.) * 19.) / 100.; 
             }
         }
 
@@ -526,7 +527,7 @@ impl<S: Step> Step for Jump<S> {
     ) -> (State, Input) {
         if parameters.has_stamina { 
             state.player.stamina_time = 
-                (state.player.stamina_time - (parameters.frame_time * 100.) as f32).max(0.);
+                (state.player.stamina_time - (parameters.frame_time * 1000.) as f32).max(0.);
         }
 
         if input.jump && !state.prev_frame_input.jump && state.place == Place::Ground {
@@ -545,7 +546,7 @@ impl<S: Step> Step for Jump<S> {
             state.player.vel.z = (2f32 * 800. * 45.).sqrt();
 
             if parameters.has_stamina {
-                state.player.vel.z = state.player.vel.z * ((100. - (state.player.stamina_time / 1000.) * 19.) / 100.);
+                state.player.vel.z *= (100. - (state.player.stamina_time / 1000.) * 19.) / 100.;
                 state.player.stamina_time = 25000f32 / 19.; // 1315.789429
             }
 
@@ -727,7 +728,7 @@ impl<S: Step> Step for Duck<S> {
             (state.player.duck_time - (parameters.frame_time * 1000.) as i32).max(0);
 
         // Duck()
-        if state.player.ducking || (parameters.ducktap_slow && state.player.in_duck_animation) {
+        if state.player.ducking || (parameters.ducktap_slow && (state.player.in_duck_animation || input.duck)) {
             state.wish_speed *= 0.333;
         }
 
