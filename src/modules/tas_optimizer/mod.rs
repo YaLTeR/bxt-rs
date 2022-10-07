@@ -341,46 +341,7 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
         let is_cstrike: bool = game_dir.eq("cstrike");
         let is_czero: bool = game_dir.eq("czero");
 
-        let max_speed: f32;
-        let bhop_cap_multiplier: f32;
-        let bhop_cap_maxspeed_scale: f32;
-        let use_slow: bool;
-        let has_stamina: bool;
-        let ducktap_slow: bool;
-
         let pmove: *mut playermove_s = *engine::pmove.get(marker);
-
-        if is_paranoia {
-            max_speed = (*pmove).clientmaxspeed
-                * get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.)
-                / 100.;
-        } else if (*pmove).clientmaxspeed > 0.0f32
-            && get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.) > (*pmove).clientmaxspeed
-        {
-            max_speed = (*pmove).clientmaxspeed;
-        } else {
-            max_speed = get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.);
-        }
-
-        if is_cstrike || is_czero {
-            bhop_cap_multiplier = 0.8;
-            bhop_cap_maxspeed_scale = 1.2;
-            has_stamina = match get_cvar_f32(marker, "bxt_remove_stamina") {
-                Some(x) => x != 1.0f32,
-                None => {
-                    con_print(marker, "Cannot find bxt_remove_stamina argument.\n");
-                    false
-                }
-            };
-            ducktap_slow = true;
-            use_slow = false;
-        } else {
-            bhop_cap_multiplier = 0.65;
-            bhop_cap_maxspeed_scale = 1.7;
-            has_stamina = false;
-            ducktap_slow = false;
-            use_slow = true;
-        }
 
         Parameters {
             frame_time: *engine::host_frametime.get(marker) as f32,
@@ -400,12 +361,42 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
             step_size: get_cvar_f32(marker, "sv_stepsize").unwrap_or(18.),
             bounce: get_cvar_f32(marker, "sv_bounce").unwrap_or(1.),
             bhop_cap: get_cvar_f32(marker, "bxt_bhopcap").unwrap_or(0.) != 0.,
-            max_speed,
-            bhop_cap_multiplier,
-            bhop_cap_maxspeed_scale,
-            use_slow,
-            has_stamina,
-            ducktap_slow,
+            max_speed: {
+                if is_paranoia {
+                    (*pmove).clientmaxspeed * get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.)
+                        / 100.
+                } else if (*pmove).clientmaxspeed > 0.0f32
+                    && get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.) > (*pmove).clientmaxspeed
+                {
+                    (*pmove).clientmaxspeed
+                } else {
+                    get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.)
+                }
+            },
+            bhop_cap_multiplier: {
+                if is_cstrike || is_czero {
+                    0.8f32
+                } else {
+                    0.65f32
+                }
+            },
+            bhop_cap_maxspeed_scale: {
+                if is_cstrike || is_czero {
+                    1.2f32
+                } else {
+                    1.7f32
+                }
+            },
+            use_slow: !(is_cstrike || is_czero),
+            has_stamina: (is_cstrike || is_czero)
+                && match get_cvar_f32(marker, "bxt_remove_stamina") {
+                    Some(x) => x != 1.0f32,
+                    None => {
+                        con_print(marker, "Cannot find bxt_remove_stamina argument.\n");
+                        false
+                    }
+                },
+            ducktap_slow: is_cstrike || is_czero,
         }
     };
 
