@@ -177,7 +177,7 @@ mod tests {
             ducking: false,
             in_duck_animation: false,
             duck_time: 0,
-            stamina_time: 0,
+            stamina_time: 0.0,
         }
     }
 

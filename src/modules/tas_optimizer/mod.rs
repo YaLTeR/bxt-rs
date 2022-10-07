@@ -1,9 +1,9 @@
 //! The TAS optimizer.
 
+use std::ffi::CStr;
 use std::fs::{self, File};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use std::ffi::CStr;
 
 use bxt_strafe::{Parameters, Player, State};
 use glam::Vec3;
@@ -15,12 +15,12 @@ use super::cvars::CVar;
 use super::triangle_drawing::{self, TriangleApi};
 use super::Module;
 use crate::ffi::edict;
+use crate::ffi::playermove::playermove_s;
 use crate::handler;
 use crate::hooks::bxt;
 use crate::hooks::engine::{self, con_print};
 use crate::modules::commands::{self, Command};
 use crate::utils::*;
-use crate::ffi::playermove::playermove_s;
 
 mod optimizer;
 use optimizer::Optimizer;
@@ -334,8 +334,8 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
     // TODO: get current parameters.
     let parameters = unsafe {
         let game_dir = CStr::from_ptr(engine::com_gamedir.get(marker).cast())
-                .to_str()
-                .unwrap();
+            .to_str()
+            .unwrap();
 
         let is_paranoia: bool = game_dir.eq("paranoia");
         let is_cstrike: bool = game_dir.eq("cstrike");
@@ -351,9 +351,12 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
         let pmove: *mut playermove_s = *engine::pmove.get(marker);
 
         if is_paranoia {
-            max_speed = (*pmove).clientmaxspeed * get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.) / 100.;
-        } else if 
-            (*pmove).clientmaxspeed > 0.0f32 && get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.) > (*pmove).clientmaxspeed {
+            max_speed = (*pmove).clientmaxspeed
+                * get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.)
+                / 100.;
+        } else if (*pmove).clientmaxspeed > 0.0f32
+            && get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.) > (*pmove).clientmaxspeed
+        {
             max_speed = (*pmove).clientmaxspeed;
         } else {
             max_speed = get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.);
@@ -365,10 +368,7 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
             has_stamina = match get_cvar_f32(marker, "bxt_remove_stamina") {
                 Some(x) => x != 1.0f32,
                 None => {
-                    con_print(
-                        marker,
-                     "Cannot find bxt_remove_stamina argument.\n",
-                    );
+                    con_print(marker, "Cannot find bxt_remove_stamina argument.\n");
                     false
                 }
             };
@@ -780,8 +780,8 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker) {
         let player = player_data(marker).unwrap();
 
         let game_dir = CStr::from_ptr(engine::com_gamedir.get(marker).cast())
-                .to_str()
-                .unwrap();
+            .to_str()
+            .unwrap();
 
         let is_paranoia: bool = game_dir.eq("paranoia");
         let is_cstrike: bool = game_dir.eq("cstrike");
@@ -797,9 +797,12 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker) {
         let pmove: *mut playermove_s = *engine::pmove.get(marker);
 
         if is_paranoia {
-            max_speed = (*pmove).clientmaxspeed * get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.) / 100.;
-        } else if 
-            (*pmove).clientmaxspeed > 0.0f32 && get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.) > (*pmove).clientmaxspeed {
+            max_speed = (*pmove).clientmaxspeed
+                * get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.)
+                / 100.;
+        } else if (*pmove).clientmaxspeed > 0.0f32
+            && get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.) > (*pmove).clientmaxspeed
+        {
             max_speed = (*pmove).clientmaxspeed;
         } else {
             max_speed = get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.);
@@ -811,10 +814,7 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker) {
             has_stamina = match get_cvar_f32(marker, "bxt_remove_stamina") {
                 Some(x) => x != 1.0f32,
                 None => {
-                    con_print(
-                        marker,
-                     "Cannot find bxt_remove_stamina argument.\n",
-                    );
+                    con_print(marker, "Cannot find bxt_remove_stamina argument.\n");
                     false
                 }
             };

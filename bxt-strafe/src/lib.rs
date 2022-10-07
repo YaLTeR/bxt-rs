@@ -51,7 +51,7 @@ pub struct Player {
     pub in_duck_animation: bool,
     /// Ducking animation timer.
     pub duck_time: i32,
-    // Stamina time, for game with stamina
+    /// For game with stamina like CS1.6
     pub stamina_time: f32,
 }
 
@@ -269,7 +269,6 @@ mod tests {
             use_slow: true,
             has_stamina: false,
             ducktap_slow: false,
-            
         }
     }
 

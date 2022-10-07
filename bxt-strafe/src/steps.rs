@@ -467,10 +467,9 @@ impl<S: Step> Step for Friction<S> {
                 state.player.vel *= new_speed / speed;
             }
 
-            // stamina code is before the clamp_velocity
             if parameters.has_stamina {
-                state.player.vel.x *= (100. - (state.player.stamina_time/ 1000.) * 19.) / 100.; 
-                state.player.vel.y *= (100. - (state.player.stamina_time/ 1000.) * 19.) / 100.; 
+                state.player.vel.x *= (100. - (state.player.stamina_time / 1000.) * 19.) / 100.;
+                state.player.vel.y *= (100. - (state.player.stamina_time / 1000.) * 19.) / 100.;
             }
         }
 
@@ -525,8 +524,8 @@ impl<S: Step> Step for Jump<S> {
         mut state: State,
         input: Input,
     ) -> (State, Input) {
-        if parameters.has_stamina { 
-            state.player.stamina_time = 
+        if parameters.has_stamina {
+            state.player.stamina_time =
                 (state.player.stamina_time - (parameters.frame_time * 1000.) as f32).max(0.);
         }
 
@@ -538,7 +537,8 @@ impl<S: Step> Step for Jump<S> {
                 if max_scaled_speed > 0. {
                     let speed = state.player.vel.length();
                     if speed > max_scaled_speed {
-                        state.player.vel *= (max_scaled_speed / speed) * parameters.bhop_cap_multiplier;
+                        state.player.vel *=
+                            (max_scaled_speed / speed) * parameters.bhop_cap_multiplier;
                     }
                 }
             }
@@ -728,7 +728,9 @@ impl<S: Step> Step for Duck<S> {
             (state.player.duck_time - (parameters.frame_time * 1000.) as i32).max(0);
 
         // Duck()
-        if state.player.ducking || (parameters.ducktap_slow && (state.player.in_duck_animation || input.duck)) {
+        if state.player.ducking
+            || (parameters.ducktap_slow && (state.player.in_duck_animation || input.duck))
+        {
             state.wish_speed *= 0.333;
         }
 
