@@ -15,7 +15,6 @@ use super::cvars::CVar;
 use super::triangle_drawing::{self, TriangleApi};
 use super::Module;
 use crate::ffi::edict;
-use crate::ffi::playermove::playermove_s;
 use crate::handler;
 use crate::hooks::bxt;
 use crate::hooks::engine::{self, con_print};
@@ -333,15 +332,21 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
 
     // TODO: get current parameters.
     let parameters = unsafe {
-        let game_dir = CStr::from_ptr(engine::com_gamedir.get(marker).cast())
-            .to_str()
-            .unwrap();
+        // Safety: the reference does not outlive this block, and com_gamedir can only be modified
+        // at engine start and while setting the HD models or the addon folder.
+        let game_dir = engine::com_gamedir
+            .get_opt(marker)
+            .and_then(|dir| CStr::from_ptr(dir.cast()).to_str().ok())
+            .unwrap_or("valve");
+        let is_paranoia = game_dir == "paranoia";
+        let is_cstrike = game_dir == "cstrike";
+        let is_czero = game_dir == "czero";
 
-        let is_paranoia: bool = game_dir.eq("paranoia");
-        let is_cstrike: bool = game_dir.eq("cstrike");
-        let is_czero: bool = game_dir.eq("czero");
-
-        let pmove: *mut playermove_s = *engine::pmove.get(marker);
+        let max_speed = get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.);
+        let client_max_speed = engine::pmove
+            .get_opt(marker)
+            .map(|pmove| (**pmove).clientmaxspeed)
+            .unwrap_or(if is_paranoia { 100. } else { 0. });
 
         Parameters {
             frame_time: *engine::host_frametime.get(marker) as f32,
@@ -363,14 +368,11 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
             bhop_cap: get_cvar_f32(marker, "bxt_bhopcap").unwrap_or(0.) != 0.,
             max_speed: {
                 if is_paranoia {
-                    (*pmove).clientmaxspeed * get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.)
-                        / 100.
-                } else if (*pmove).clientmaxspeed > 0.0f32
-                    && get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.) > (*pmove).clientmaxspeed
-                {
-                    (*pmove).clientmaxspeed
+                    max_speed * client_max_speed / 100.
+                } else if client_max_speed != 0. {
+                    max_speed.min(client_max_speed)
                 } else {
-                    get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.)
+                    max_speed
                 }
             },
             bhop_cap_multiplier: {
@@ -380,23 +382,19 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
                     0.65f32
                 }
             },
-            bhop_cap_maxspeed_scale: {
+            bhop_cap_max_speed_scale: {
                 if is_cstrike || is_czero {
                     1.2f32
                 } else {
                     1.7f32
                 }
             },
-            use_slow: !(is_cstrike || is_czero),
+            use_slow_down: !(is_cstrike || is_czero),
             has_stamina: (is_cstrike || is_czero)
-                && match get_cvar_f32(marker, "bxt_remove_stamina") {
-                    Some(x) => x != 1.0f32,
-                    None => {
-                        con_print(marker, "Cannot find bxt_remove_stamina argument.\n");
-                        false
-                    }
-                },
-            ducktap_slow: is_cstrike || is_czero,
+                && get_cvar_f32(marker, "bxt_remove_stamina")
+                    .map(|x| x != 1.)
+                    .unwrap_or(true),
+            duck_animation_slow_down: is_cstrike || is_czero,
         }
     };
 
@@ -770,54 +768,19 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker) {
     remote::on_frame_simulated(|| {
         let player = player_data(marker).unwrap();
 
-        let game_dir = CStr::from_ptr(engine::com_gamedir.get(marker).cast())
-            .to_str()
-            .unwrap();
+        let game_dir = engine::com_gamedir
+            .get_opt(marker)
+            .and_then(|dir| CStr::from_ptr(dir.cast()).to_str().ok())
+            .unwrap_or("valve");
+        let is_paranoia = game_dir == "paranoia";
+        let is_cstrike = game_dir == "cstrike";
+        let is_czero = game_dir == "czero";
 
-        let is_paranoia: bool = game_dir.eq("paranoia");
-        let is_cstrike: bool = game_dir.eq("cstrike");
-        let is_czero: bool = game_dir.eq("czero");
-
-        let max_speed: f32;
-        let bhop_cap_multiplier: f32;
-        let bhop_cap_maxspeed_scale: f32;
-        let use_slow: bool;
-        let has_stamina: bool;
-        let ducktap_slow: bool;
-
-        let pmove: *mut playermove_s = *engine::pmove.get(marker);
-
-        if is_paranoia {
-            max_speed = (*pmove).clientmaxspeed
-                * get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.)
-                / 100.;
-        } else if (*pmove).clientmaxspeed > 0.0f32
-            && get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.) > (*pmove).clientmaxspeed
-        {
-            max_speed = (*pmove).clientmaxspeed;
-        } else {
-            max_speed = get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.);
-        }
-
-        if is_cstrike || is_czero {
-            bhop_cap_multiplier = 0.8;
-            bhop_cap_maxspeed_scale = 1.2;
-            has_stamina = match get_cvar_f32(marker, "bxt_remove_stamina") {
-                Some(x) => x != 1.0f32,
-                None => {
-                    con_print(marker, "Cannot find bxt_remove_stamina argument.\n");
-                    false
-                }
-            };
-            ducktap_slow = true;
-            use_slow = false;
-        } else {
-            bhop_cap_multiplier = 0.65;
-            bhop_cap_maxspeed_scale = 1.7;
-            has_stamina = false;
-            ducktap_slow = false;
-            use_slow = true;
-        }
+        let max_speed = get_cvar_f32(marker, "sv_maxspeed").unwrap_or(320.);
+        let client_max_speed = engine::pmove
+            .get_opt(marker)
+            .map(|pmove| (**pmove).clientmaxspeed)
+            .unwrap_or(if is_paranoia { 100. } else { 0. });
 
         let parameters = Parameters {
             frame_time: *engine::host_frametime.get(marker) as f32,
@@ -833,12 +796,35 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker) {
             step_size: get_cvar_f32(marker, "sv_stepsize").unwrap_or(18.),
             bounce: get_cvar_f32(marker, "sv_bounce").unwrap_or(1.),
             bhop_cap: get_cvar_f32(marker, "bxt_bhopcap").unwrap_or(0.) != 0.,
-            max_speed,
-            bhop_cap_multiplier,
-            bhop_cap_maxspeed_scale,
-            use_slow,
-            has_stamina,
-            ducktap_slow,
+            max_speed: {
+                if is_paranoia {
+                    max_speed * client_max_speed / 100.
+                } else if client_max_speed != 0. {
+                    max_speed.min(client_max_speed)
+                } else {
+                    max_speed
+                }
+            },
+            bhop_cap_multiplier: {
+                if is_cstrike || is_czero {
+                    0.8f32
+                } else {
+                    0.65f32
+                }
+            },
+            bhop_cap_max_speed_scale: {
+                if is_cstrike || is_czero {
+                    1.2f32
+                } else {
+                    1.7f32
+                }
+            },
+            use_slow_down: !(is_cstrike || is_czero),
+            has_stamina: (is_cstrike || is_czero)
+                && get_cvar_f32(marker, "bxt_remove_stamina")
+                    .map(|x| x != 1.)
+                    .unwrap_or(true),
+            duck_animation_slow_down: is_cstrike || is_czero,
         };
 
         let tracer = Tracer::new(marker, false).unwrap();

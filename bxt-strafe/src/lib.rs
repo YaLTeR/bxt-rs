@@ -51,7 +51,7 @@ pub struct Player {
     pub in_duck_animation: bool,
     /// Ducking animation timer.
     pub duck_time: i32,
-    /// For game with stamina like CS1.6
+    /// Stamina timer for games like CS1.6.
     pub stamina_time: f32,
 }
 
@@ -84,10 +84,10 @@ pub struct Parameters {
     pub bounce: f32,
     pub bhop_cap: bool,
     pub bhop_cap_multiplier: f32,
-    pub bhop_cap_maxspeed_scale: f32,
-    pub use_slow: bool,
+    pub bhop_cap_max_speed_scale: f32,
+    pub use_slow_down: bool,
     pub has_stamina: bool,
-    pub ducktap_slow: bool,
+    pub duck_animation_slow_down: bool,
 }
 
 /// The type of player's position in the world.
@@ -265,10 +265,10 @@ mod tests {
             bounce: 1.,
             bhop_cap: false,
             bhop_cap_multiplier: 0.65,
-            bhop_cap_maxspeed_scale: 1.7,
-            use_slow: true,
+            bhop_cap_max_speed_scale: 1.7,
+            use_slow_down: true,
             has_stamina: false,
-            ducktap_slow: false,
+            duck_animation_slow_down: false,
         }
     }
 
