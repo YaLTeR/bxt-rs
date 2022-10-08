@@ -466,6 +466,12 @@ impl<S: Step> Step for Friction<S> {
 
                 state.player.vel *= new_speed / speed;
             }
+
+            if parameters.has_stamina {
+                let factor = (100. - (state.player.stamina_time / 1000.) * 19.) / 100.;
+                state.player.vel.x *= factor;
+                state.player.vel.y *= factor;
+            }
         }
 
         state.player.vel = clamp_velocity(state.player.vel, parameters.max_velocity);
@@ -519,20 +525,32 @@ impl<S: Step> Step for Jump<S> {
         mut state: State,
         input: Input,
     ) -> (State, Input) {
+        if parameters.has_stamina {
+            state.player.stamina_time =
+                (state.player.stamina_time - (parameters.frame_time * 1000.) as f32).max(0.);
+        }
+
         if input.jump && !state.prev_frame_input.jump && state.place == Place::Ground {
             state.jumped = true;
 
             if parameters.bhop_cap {
-                let max_scaled_speed = 1.7 * parameters.max_speed;
+                let max_scaled_speed = parameters.bhop_cap_max_speed_scale * parameters.max_speed;
                 if max_scaled_speed > 0. {
                     let speed = state.player.vel.length();
                     if speed > max_scaled_speed {
-                        state.player.vel *= (max_scaled_speed / speed) * 0.65;
+                        state.player.vel *=
+                            (max_scaled_speed / speed) * parameters.bhop_cap_multiplier;
                     }
                 }
             }
 
             state.player.vel.z = (2f32 * 800. * 45.).sqrt();
+
+            if parameters.has_stamina {
+                state.player.vel.z *= (100. - (state.player.stamina_time / 1000.) * 19.) / 100.;
+                state.player.stamina_time = 25000f32 / 19.; // 1315.789429
+            }
+
             state.player.vel = clamp_velocity(state.player.vel, parameters.max_velocity);
             state.update_place(tracer);
         }
@@ -553,7 +571,7 @@ impl<S: Step> Step for Use<S> {
         mut state: State,
         input: Input,
     ) -> (State, Input) {
-        if input.use_ && state.place == Place::Ground {
+        if parameters.use_slow_down && input.use_ && state.place == Place::Ground {
             state.player.vel *= 0.3;
         }
 
@@ -711,7 +729,10 @@ impl<S: Step> Step for Duck<S> {
             (state.player.duck_time - (parameters.frame_time * 1000.) as i32).max(0);
 
         // Duck()
-        if state.player.ducking {
+        if state.player.ducking
+            || (parameters.duck_animation_slow_down
+                && (state.player.in_duck_animation || input.duck))
+        {
             state.wish_speed *= 0.333;
         }
 

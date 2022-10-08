@@ -161,6 +161,11 @@ mod tests {
             step_size: 18.,
             bounce: 1.,
             bhop_cap: false,
+            bhop_cap_multiplier: 0.65,
+            bhop_cap_max_speed_scale: 1.7,
+            use_slow_down: true,
+            has_stamina: false,
+            duck_animation_slow_down: false,
         }
     }
 
@@ -172,6 +177,7 @@ mod tests {
             ducking: false,
             in_duck_animation: false,
             duck_time: 0,
+            stamina_time: 0.0,
         }
     }
 
