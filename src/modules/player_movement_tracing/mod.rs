@@ -8,6 +8,9 @@ use crate::ffi::playermove::TraceFlags;
 use crate::hooks::engine::{self};
 use crate::utils::*;
 
+pub mod tracer;
+pub use tracer::Tracer;
+
 pub struct PlayerMovementTracing;
 impl Module for PlayerMovementTracing {
     fn name(&self) -> &'static str {

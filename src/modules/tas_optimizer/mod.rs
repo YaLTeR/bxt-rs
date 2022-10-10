@@ -12,6 +12,7 @@ use hltas::HLTAS;
 use self::objective::{AttemptResult, Constraint, ConstraintType, Direction, Objective, Variable};
 use self::optimizer::Frame;
 use super::cvars::CVar;
+use super::player_movement_tracing::Tracer;
 use super::triangle_drawing::{self, TriangleApi};
 use super::Module;
 use crate::ffi::edict;
@@ -29,9 +30,6 @@ mod hltas_ext;
 mod objective;
 
 mod simulator;
-
-mod tracer;
-use tracer::Tracer;
 
 mod remote;
 pub use remote::{
