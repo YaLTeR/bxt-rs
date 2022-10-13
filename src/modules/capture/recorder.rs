@@ -254,6 +254,12 @@ impl Recorder {
         }
     }
 
+    fn current_frame_length(&self) -> usize {
+        // Push this frame as long as it takes up the most of the video frame.
+        // Remainder is > -0.5 at all times.
+        (self.video_remainder + 0.5) as usize
+    }
+
     #[instrument(skip_all)]
     unsafe fn acquire_image_if_needed(&mut self) {
         assert!(matches!(self.capture_type, CaptureType::Vulkan(_)));
@@ -262,7 +268,7 @@ impl Recorder {
             return;
         }
 
-        let frames = (self.video_remainder + 0.5) as usize;
+        let frames = self.current_frame_length();
         if frames == 0 {
             return;
         }
@@ -299,9 +305,7 @@ impl Recorder {
 
     #[instrument(skip_all)]
     pub unsafe fn record_last_frame(&mut self) -> eyre::Result<()> {
-        // Push this frame as long as it takes up the most of the video frame.
-        // Remainder is > -0.5 at all times.
-        let frames = (self.video_remainder + 0.5) as usize;
+        let frames = self.current_frame_length();
         self.video_remainder -= frames as f64;
 
         if frames > 0 {
