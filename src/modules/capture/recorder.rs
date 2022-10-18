@@ -53,9 +53,6 @@ pub struct Recorder {
 
     /// How we're capturing the frames.
     capture_type: CaptureType,
-
-    /// Buffer for capturing with ReadPixels.
-    buffer: Option<Box<[u8]>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,8 +66,8 @@ enum MainToThread {
     Finish,
     GiveExternalHandles,
     AcquireImage,
+    Captured { buffer: Box<[u8]> },
     Record { frames: usize },
-    Mux { pixels: Box<[u8]>, frames: usize },
     Audio(Vec<u8>),
 }
 
@@ -149,9 +146,21 @@ impl Recorder {
 
         let (to_thread_sender, from_main_receiver) = bounded(2);
         let (to_main_sender, from_thread_receiver) = bounded(2);
+
+        let pixels = if vulkan.is_none() {
+            let buffer: Box<[u8]> = vec![0u8; width as usize * height as usize * 3].into();
+            let pixels = buffer.clone();
+            to_main_sender
+                .send(ThreadToMain::PixelBuffer(buffer))
+                .unwrap();
+            Some(pixels)
+        } else {
+            None
+        };
+
         let thread = thread::Builder::new()
             .name("Recording Thread".to_string())
-            .spawn(move || thread(vulkan, muxer, to_main_sender, from_main_receiver))
+            .spawn(move || thread(vulkan, muxer, pixels, to_main_sender, from_main_receiver))
             .unwrap();
 
         Ok(Recorder {
@@ -169,7 +178,6 @@ impl Recorder {
             thread_error: None,
             ffmpeg_output: None,
             capture_type,
-            buffer: Some(vec![0u8; width as usize * height as usize * 3].into()),
         })
     }
 
@@ -244,22 +252,17 @@ impl Recorder {
                 self.opengl.as_ref().unwrap().capture()
             }
             CaptureType::ReadPixels => {
-                if self.buffer.is_none() {
-                    match self.recv_from_thread()? {
-                        ThreadToMain::PixelBuffer(buffer) => {
-                            self.buffer = Some(buffer);
-                        }
-                        _ => unreachable!(),
-                    }
-                }
+                let mut buffer = match self.recv_from_thread()? {
+                    ThreadToMain::PixelBuffer(buffer) => buffer,
+                    _ => unreachable!(),
+                };
 
-                opengl::capture_with_read_pixels(
-                    marker,
-                    self.width,
-                    self.height,
-                    self.buffer.as_mut().unwrap(),
-                )
-                .wrap_err("error capturing with glReadPixels")
+                opengl::capture_with_read_pixels(marker, self.width, self.height, &mut buffer)
+                    .wrap_err("error capturing with glReadPixels")?;
+
+                self.send_to_thread(MainToThread::Captured { buffer });
+
+                Ok(())
             }
         }
     }
@@ -290,15 +293,7 @@ impl Recorder {
 
     #[instrument(skip(self))]
     unsafe fn record(&mut self, frames: usize) {
-        match self.capture_type {
-            CaptureType::Vulkan(_) => {
-                self.send_to_thread(MainToThread::Record { frames });
-            }
-            CaptureType::ReadPixels => {
-                let pixels = self.buffer.take().unwrap();
-                self.send_to_thread(MainToThread::Mux { pixels, frames });
-            }
-        }
+        self.send_to_thread(MainToThread::Record { frames });
     }
 
     #[instrument(skip_all)]
@@ -390,11 +385,12 @@ impl Recorder {
 fn thread(
     vulkan: Option<Vulkan>,
     mut muxer: Muxer,
+    mut pixels: Option<Box<[u8]>>,
     s: Sender<ThreadToMain>,
     r: Receiver<MainToThread>,
 ) {
     while let Ok(message) = r.recv() {
-        match process_message(vulkan.as_ref(), &mut muxer, &s, message) {
+        match process_message(vulkan.as_ref(), &mut muxer, &s, &mut pixels, message) {
             Ok(done) => {
                 if done {
                     break;
@@ -415,6 +411,7 @@ fn process_message(
     vulkan: Option<&Vulkan>,
     muxer: &mut Muxer,
     s: &Sender<ThreadToMain>,
+    pixels: &mut Option<Box<[u8]>>,
     message: MainToThread,
 ) -> eyre::Result<bool> {
     match message {
@@ -432,19 +429,25 @@ fn process_message(
 
             s.send(ThreadToMain::AcquiredImage).unwrap();
         }
+        MainToThread::Captured { buffer } => {
+            let old_pixels = pixels.replace(buffer);
+
+            // Send the second buffer back to the main thread so it can use it for the next frame.
+            s.send(ThreadToMain::PixelBuffer(old_pixels.unwrap()))
+                .unwrap();
+        }
         MainToThread::Record { frames } => {
             let _span = info_span!("record").entered();
 
-            unsafe { vulkan.unwrap().convert_colors_and_mux(muxer, frames) }?;
-        }
-        MainToThread::Mux { pixels, frames } => {
-            let _span = info_span!("mux").entered();
+            assert!(pixels.is_some() || vulkan.is_some());
 
-            for _ in 0..frames {
-                muxer.write_video_frame(&pixels)?;
+            if let Some(pixels) = pixels {
+                for _ in 0..frames {
+                    muxer.write_video_frame(pixels)?;
+                }
+            } else {
+                unsafe { vulkan.unwrap().convert_colors_and_mux(muxer, frames) }?;
             }
-
-            s.send(ThreadToMain::PixelBuffer(pixels)).unwrap();
         }
         MainToThread::Audio(samples) => {
             let _span = info_span!("audio").entered();
