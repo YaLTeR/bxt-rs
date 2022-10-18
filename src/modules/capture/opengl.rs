@@ -251,6 +251,7 @@ pub unsafe fn init(
     })
 }
 
+#[instrument(name = "OpenGl::capture_with_read_pixels", skip_all)]
 pub unsafe fn capture_with_read_pixels(
     marker: MainThreadMarker,
     width: i32,
