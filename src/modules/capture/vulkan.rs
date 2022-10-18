@@ -40,9 +40,7 @@ pub struct Vulkan {
     buffer_color_conversion_output: vk::Buffer,
     buffer_color_conversion_output_memory: vk::DeviceMemory,
     sampler_sample: vk::Sampler,
-    sampler_frame: vk::Sampler,
     image_view_sample: vk::ImageView,
-    image_view_frame: vk::ImageView,
     descriptor_set_layout_color_conversion: vk::DescriptorSetLayout,
     descriptor_pool: vk::DescriptorPool,
     descriptor_set_color_conversion: vk::DescriptorSet,
@@ -84,8 +82,6 @@ impl Drop for Vulkan {
             self.device.destroy_sampler(self.sampler_sample, None);
             self.device.free_memory(self.image_sample_memory, None);
             self.device.destroy_image(self.image_sample, None);
-            self.device.destroy_image_view(self.image_view_frame, None);
-            self.device.destroy_sampler(self.sampler_frame, None);
             self.device.free_memory(self.image_frame_memory, None);
             self.device.destroy_image(self.image_frame, None);
             self.device.free_command_buffers(
@@ -638,28 +634,6 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
     #[cfg(windows)]
     let external_memory_win32 = ash::extensions::khr::ExternalMemoryWin32::new(instance, &device);
 
-    // Sampler for the image for the OpenGL frame.
-    let create_info = vk::SamplerCreateInfo::builder()
-        .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
-        .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
-        .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE)
-        .unnormalized_coordinates(true);
-    let sampler_frame = unsafe { device.create_sampler(&create_info, None)? };
-
-    // Image view for the image for the OpenGL frame.
-    let create_info = vk::ImageViewCreateInfo::builder()
-        .image(image_frame)
-        .view_type(vk::ImageViewType::TYPE_2D)
-        .format(vk::Format::R8G8B8A8_UNORM)
-        .subresource_range(vk::ImageSubresourceRange {
-            aspect_mask: vk::ImageAspectFlags::COLOR,
-            base_mip_level: 0,
-            level_count: 1,
-            base_array_layer: 0,
-            layer_count: 1,
-        });
-    let image_view_frame = unsafe { device.create_image_view(&create_info, None)? };
-
     // Image for the sampling buffer.
     let create_info = vk::ImageCreateInfo {
         image_type: vk::ImageType::TYPE_2D,
@@ -955,8 +929,6 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         external_memory_fd,
         #[cfg(windows)]
         external_memory_win32,
-        sampler_frame,
-        image_view_frame,
         image_sample,
         image_sample_memory,
         sampler_sample,
