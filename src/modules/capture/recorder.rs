@@ -233,6 +233,7 @@ impl Recorder {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     pub unsafe fn capture_opengl(&mut self, marker: MainThreadMarker) -> eyre::Result<()> {
         match self.capture_type {
             CaptureType::Vulkan(_) => {
