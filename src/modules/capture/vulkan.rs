@@ -645,7 +645,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
     // Image for the acquired frame buffer.
     let create_info = vk::ImageCreateInfo {
         image_type: vk::ImageType::TYPE_2D,
-        format: vk::Format::R16G16B16A16_UNORM,
+        format: vk::Format::R8G8B8A8_UNORM,
         extent: vk::Extent3D {
             width,
             height,
@@ -689,7 +689,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
     let create_info = vk::ImageViewCreateInfo::builder()
         .image(image_acquired)
         .view_type(vk::ImageViewType::TYPE_2D)
-        .format(vk::Format::R16G16B16A16_UNORM)
+        .format(vk::Format::R8G8B8A8_UNORM)
         .subresource_range(vk::ImageSubresourceRange {
             aspect_mask: vk::ImageAspectFlags::COLOR,
             base_mip_level: 0,
