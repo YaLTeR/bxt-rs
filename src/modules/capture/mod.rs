@@ -32,8 +32,10 @@ impl Module for Capture {
             &BXT_CAP_VOLUME,
             &BXT_CAP_SOUND_EXTRA,
             &BXT_CAP_SLOWDOWN,
+            &BXT_CAP_SAMPLING_EXPOSURE,
             &BXT_CAP_FORCE_FALLBACK,
             &BXT_CAP_OVERRIDE_FFMPEG_ARGS,
+            &BXT_CAP_SAMPLING_MIN_FPS,
         ];
         CVARS
     }
@@ -93,6 +95,23 @@ Slowdown factor for the recording.
 
 For example, `2` means that the video will be two times slower than the realtime playback. \
 Especially useful for TASes.",
+);
+static BXT_CAP_SAMPLING_MIN_FPS: CVar = CVar::new(
+    b"_bxt_cap_sampling_min_fps\0",
+    b"7200\0",
+    "Minimum recording FPS for frames that make up a sampled frame.",
+);
+static BXT_CAP_SAMPLING_EXPOSURE: CVar = CVar::new(
+    b"bxt_cap_sampling_exposure\0",
+    b"0\0",
+    "\
+How much of the sampled frame contributes to it. E.g. `1` means that the whole frame duration \
+is averaged, `0.5` means that half of the frame is averaged, `0.25` means that a quarter of the \
+frame is averaged, and so on. The averaging always happens towards the end of the frame: that is, \
+an exposure of `0.5` means that every frame is an average of the second half of that frame's \
+duration.
+
+`0` disables sampling.",
 );
 static BXT_CAP_FORCE_FALLBACK: CVar = CVar::new(
     b"_bxt_cap_force_fallback\0",
@@ -313,6 +332,12 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
         };
         let custom_ffmpeg_args = custom_ffmpeg_args.as_deref();
 
+        let sampling_exposure = BXT_CAP_SAMPLING_EXPOSURE.as_f32(marker).into();
+        let sampling_min_fps = BXT_CAP_SAMPLING_MIN_FPS
+            .as_f32(marker)
+            .max(fps as f32)
+            .into();
+
         match Recorder::init(
             width,
             height,
@@ -321,6 +346,8 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
             capture_type,
             filename,
             custom_ffmpeg_args,
+            sampling_exposure,
+            sampling_min_fps,
         ) {
             Ok(recorder) => {
                 if matches!(recorder.capture_type(), CaptureType::ReadPixels) {

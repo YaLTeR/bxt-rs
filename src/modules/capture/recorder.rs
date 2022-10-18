@@ -2,6 +2,7 @@ use std::thread::{self, JoinHandle};
 
 use color_eyre::eyre::{self, ensure, eyre, Context};
 use crossbeam_channel::{bounded, Receiver, Sender};
+use rayon::prelude::*;
 
 use super::muxer::{Muxer, MuxerInitError, PixelFormat};
 use super::opengl::{self, OpenGl, Uuids};
@@ -24,10 +25,21 @@ pub struct Recorder {
 
     /// Difference, in video frames, between how much time passed in-game and how much video we
     /// output.
+    ///
+    /// When sampling it is `>= 0`, otherwise it is `> -0.5`.
     video_remainder: f64,
 
     /// Difference, in seconds, between how much time passed in-game and how much audio we output.
     sound_remainder: f64,
+
+    /// How much time contributes to each frame's average when sampling. `0` means no sampling.
+    sampling_exposure: f64,
+
+    /// Time step to use when recording with sampling.
+    sampling_time_step: f64,
+
+    /// Last frame's start time for computing its weight for sampling.
+    sampling_last_frame_start: f64,
 
     /// OpenGL state; might be missing if the capturing just started or just after an engine
     /// restart.
@@ -68,6 +80,7 @@ enum MainToThread {
     AcquireImage,
     Captured { buffer: Box<[u8]> },
     Record { frames: usize },
+    Accumulate { weight: f32 },
     Audio(Vec<u8>),
 }
 
@@ -81,6 +94,7 @@ enum ThreadToMain {
 }
 
 impl Recorder {
+    #[allow(clippy::too_many_arguments)]
     #[instrument(name = "Recorder::init")]
     pub unsafe fn init(
         width: i32,
@@ -90,6 +104,8 @@ impl Recorder {
         mut capture_type: CaptureType,
         filename: &str,
         custom_ffmpeg_args: Option<&[&str]>,
+        sampling_exposure: f64,
+        sampling_min_fps: f64,
     ) -> eyre::Result<Recorder> {
         ensure!(
             width % 2 == 0 && height % 2 == 0,
@@ -98,8 +114,23 @@ impl Recorder {
             height,
         );
 
+        ensure!(
+            sampling_exposure >= 0.,
+            "sampling exposure must be >= 0, but it is {}",
+            sampling_exposure,
+        );
+
+        ensure!(
+            sampling_exposure <= 1.,
+            "sampling exposure must be <= 1, but it is {} (can't handle exposure longer \
+            than one frame yet)",
+            sampling_exposure,
+        );
+
+        let is_sampling = sampling_exposure != 0.;
+
         let vulkan = if let CaptureType::Vulkan(ref uuids) = capture_type {
-            match vulkan::init(width as u32, height as u32, uuids)
+            match vulkan::init(width as u32, height as u32, uuids, is_sampling)
                 .wrap_err("error initalizing Vulkan")
             {
                 Ok(vulkan) => Some(vulkan),
@@ -115,6 +146,20 @@ impl Recorder {
 
         let recording_fps = fps as f64 * slowdown;
         let time_base = 1. / recording_fps;
+
+        let sampling_exposure = sampling_exposure * time_base;
+
+        // Pick a sampling FPS >= the min FPS that divides the recording FPS evenly.
+        let sampling_fps = (sampling_min_fps / recording_fps).ceil() * recording_fps;
+        let sampling_time_step = 1. / sampling_fps;
+
+        let sampling_buffers = if is_sampling && vulkan.is_none() {
+            let count = width as usize * height as usize * 3;
+            Some((vec![0u16; count].into(), vec![0u8; count].into()))
+        } else {
+            None
+        };
+
         let pixel_format = if vulkan.is_some() {
             PixelFormat::I420
         } else {
@@ -145,7 +190,11 @@ impl Recorder {
             }
         };
 
-        let (to_thread_sender, from_main_receiver) = bounded(2);
+        // When recording with sampling and exposure < 1, muxing the final frame can span many
+        // in-game frames that send audio samples, but are ignored for the purposes of video
+        // capture. We make the main-to-thread channel size big so that sending those audio samples
+        // doesn't block on waiting for the frame to be muxed.
+        let (to_thread_sender, from_main_receiver) = bounded(64);
         let (to_main_sender, from_thread_receiver) = bounded(2);
 
         let pixels = if vulkan.is_none() {
@@ -161,7 +210,16 @@ impl Recorder {
 
         let thread = thread::Builder::new()
             .name("Recording Thread".to_string())
-            .spawn(move || thread(vulkan, muxer, pixels, to_main_sender, from_main_receiver))
+            .spawn(move || {
+                thread(
+                    vulkan,
+                    muxer,
+                    pixels,
+                    sampling_buffers,
+                    to_main_sender,
+                    from_main_receiver,
+                )
+            })
             .unwrap();
 
         Ok(Recorder {
@@ -171,6 +229,9 @@ impl Recorder {
             slowdown,
             video_remainder: 0.,
             sound_remainder: 0.,
+            sampling_exposure,
+            sampling_time_step,
+            sampling_last_frame_start: 0.,
             opengl: None,
             acquired_image: false,
             thread,
@@ -269,10 +330,25 @@ impl Recorder {
         }
     }
 
+    fn is_sampling(&self) -> bool {
+        self.sampling_exposure != 0.
+    }
+
     fn current_frame_length(&self) -> usize {
+        assert!(!self.is_sampling());
+
         // Push this frame as long as it takes up the most of the video frame.
         // Remainder is > -0.5 at all times.
         (self.video_remainder + 0.5) as usize
+    }
+
+    fn current_sampling_weight(&self) -> f64 {
+        assert!(self.is_sampling());
+
+        let sampling_start = self.frame_time() - self.sampling_exposure;
+        let frame_end = self.video_remainder * self.frame_time();
+        let frame_start = self.sampling_last_frame_start.max(sampling_start);
+        (frame_end.min(self.frame_time()) - frame_start) / self.sampling_exposure
     }
 
     #[instrument(skip_all)]
@@ -283,14 +359,31 @@ impl Recorder {
             return;
         }
 
-        let frames = self.current_frame_length();
-        if frames == 0 {
-            return;
+        if self.is_sampling() {
+            let weight = self.current_sampling_weight();
+            if weight <= 0. {
+                return;
+            }
+        } else {
+            let frames = self.current_frame_length();
+            if frames == 0 {
+                return;
+            }
         }
 
         self.acquired_image = true;
-
         self.send_to_thread(MainToThread::AcquireImage);
+    }
+
+    #[instrument(skip(self))]
+    fn accumulate(&mut self, weight: f32) {
+        assert!(self.is_sampling());
+
+        if matches!(self.capture_type, CaptureType::Vulkan(_)) {
+            assert!(self.acquired_image);
+        }
+
+        self.send_to_thread(MainToThread::Accumulate { weight });
     }
 
     #[instrument(skip(self))]
@@ -300,18 +393,57 @@ impl Recorder {
 
     #[instrument(skip_all)]
     pub unsafe fn record_last_frame(&mut self) -> eyre::Result<()> {
-        let frames = self.current_frame_length();
-        self.video_remainder -= frames as f64;
+        if self.is_sampling() {
+            loop {
+                let weight = self.current_sampling_weight();
 
-        if frames > 0 {
-            self.record(frames);
+                // This update must happen after computing the current weight.
+                self.sampling_last_frame_start = self.video_remainder * self.frame_time();
+
+                // Sanity check with some allowance for floating-point imprecision.
+                assert!(weight < 1.00001);
+                let weight = weight.min(1.);
+
+                if weight <= 0. {
+                    break;
+                }
+                self.accumulate(weight as f32);
+
+                // If we crossed a frame boundary, record the frame.
+                if self.video_remainder >= 1. {
+                    self.record(1);
+                    self.video_remainder -= 1.;
+                    self.sampling_last_frame_start = 0.;
+                }
+
+                // Optimization for long frames: if we crossed more frame boundaries, record this
+                // frame enough times right away.
+                let full_frames = self.video_remainder as usize;
+                if full_frames > 0 {
+                    self.accumulate(1.);
+                    self.record(full_frames);
+                    self.video_remainder -= full_frames as f64;
+                }
+            }
+
+            assert!(
+                (self.sampling_last_frame_start - self.video_remainder * self.frame_time()).abs()
+                    < 0.00001
+            );
+        } else {
+            let frames = self.current_frame_length();
+            self.video_remainder -= frames as f64;
+
+            if frames > 0 {
+                self.record(frames);
+            }
         }
 
         Ok(())
     }
 
     pub fn time_passed(&mut self, time: f64) {
-        self.video_remainder += time / self.time_for_current_frame();
+        self.video_remainder += time / self.frame_time();
         self.sound_remainder += time * self.slowdown;
 
         if let CaptureType::Vulkan(_) = self.capture_type {
@@ -375,8 +507,16 @@ impl Recorder {
         self.height
     }
 
-    pub fn time_for_current_frame(&self) -> f64 {
+    fn frame_time(&self) -> f64 {
         self.time_base
+    }
+
+    pub fn time_for_current_frame(&self) -> f64 {
+        if self.is_sampling() {
+            self.sampling_time_step
+        } else {
+            self.frame_time()
+        }
     }
 
     pub fn capture_type(&self) -> &CaptureType {
@@ -388,11 +528,19 @@ fn thread(
     vulkan: Option<Vulkan>,
     mut muxer: Muxer,
     mut pixels: Option<Box<[u8]>>,
+    mut sampling_buffers: Option<(Box<[u16]>, Box<[u8]>)>,
     s: Sender<ThreadToMain>,
     r: Receiver<MainToThread>,
 ) {
     while let Ok(message) = r.recv() {
-        match process_message(vulkan.as_ref(), &mut muxer, &s, &mut pixels, message) {
+        match process_message(
+            vulkan.as_ref(),
+            &mut muxer,
+            &s,
+            &mut pixels,
+            &mut sampling_buffers,
+            message,
+        ) {
             Ok(done) => {
                 if done {
                     break;
@@ -414,6 +562,7 @@ fn process_message(
     muxer: &mut Muxer,
     s: &Sender<ThreadToMain>,
     pixels: &mut Option<Box<[u8]>>,
+    sampling_buffers: &mut Option<(Box<[u16]>, Box<[u8]>)>,
     message: MainToThread,
 ) -> eyre::Result<bool> {
     match message {
@@ -438,12 +587,31 @@ fn process_message(
             s.send(ThreadToMain::PixelBuffer(old_pixels.unwrap()))
                 .unwrap();
         }
-        MainToThread::Record { frames } => {
-            let _span = info_span!("record").entered();
+        MainToThread::Accumulate { weight } => {
+            let _span = info_span!("accumulate").entered();
 
             assert!(pixels.is_some() || vulkan.is_some());
 
-            if let Some(pixels) = pixels {
+            if let Some(pixels) = pixels.as_ref() {
+                let (sampling_buffer, _output_buffer) = sampling_buffers.as_mut().unwrap();
+
+                accumulate(sampling_buffer, pixels, weight);
+            } else {
+                unsafe { vulkan.unwrap().accumulate(weight) }?;
+            }
+        }
+        MainToThread::Record { frames } => {
+            let _span = info_span!("record").entered();
+
+            assert!(sampling_buffers.is_some() || pixels.is_some() || vulkan.is_some());
+
+            if let Some((sampling_buffer, output_buffer)) = sampling_buffers.as_mut() {
+                convert_and_zero(output_buffer, sampling_buffer);
+
+                for _ in 0..frames {
+                    muxer.write_video_frame(output_buffer)?;
+                }
+            } else if let Some(pixels) = pixels {
                 for _ in 0..frames {
                     muxer.write_video_frame(pixels)?;
                 }
@@ -459,4 +627,40 @@ fn process_message(
     }
 
     Ok(false)
+}
+
+fn accumulate(sampling_buffer: &mut [u16], pixels: &[u8], weight: f32) {
+    assert!((0. ..=1.).contains(&weight));
+
+    // Expand range to u32 to operate in integers in the inner loop.
+    const ONE_IN_U32: u32 = 256 * 256 * 256;
+    let weight = (weight * ONE_IN_U32 as f32) as u32;
+    assert!(weight <= ONE_IN_U32);
+
+    // HACK: writing out this expression inline for some reason prevents the bounds checks from
+    // getting optimized out.
+    // https://github.com/rust-lang/rust/issues/103132
+    #[inline(always)]
+    fn f(x: u8, weight: u32) -> u32 {
+        assert!(weight <= ONE_IN_U32);
+        (x as u32 * weight + 256 * 256 / 2) / (256 * 256)
+    }
+
+    sampling_buffer
+        .par_iter_mut()
+        .zip(pixels)
+        .for_each(|(sample, buf)| {
+            *sample = sample.saturating_add(f(*buf, weight) as u16);
+        });
+}
+
+fn convert_and_zero(output_buffer: &mut [u8], sampling_buffer: &mut [u16]) {
+    for (out, sample) in output_buffer.iter_mut().zip(&*sampling_buffer) {
+        // Using saturating_add is 80% faster according to benchmarks, likely because it removes the
+        // bounds check, which allows the loop to be vectorized.
+        *out = (sample.saturating_add(128) / 256) as u8;
+    }
+
+    // Zeroing the buffer separately is 50% faster according to benchmarks.
+    sampling_buffer.fill(0);
 }

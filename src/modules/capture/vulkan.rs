@@ -15,11 +15,13 @@ use super::ExternalObject;
 pub struct Vulkan {
     width: u32,
     height: u32,
+    is_sampling: bool,
     queue_family_index: u32,
     device: ash::Device,
     command_pool: vk::CommandPool,
     command_buffer_sampling: vk::CommandBuffer,
     command_buffer_color_conversion: vk::CommandBuffer,
+    command_buffer_accumulate: vk::CommandBuffer,
     queue: vk::Queue,
     image_frame: vk::Image,
     image_frame_memory: vk::DeviceMemory,
@@ -30,6 +32,8 @@ pub struct Vulkan {
     external_memory_win32: ash::extensions::khr::ExternalMemoryWin32,
     image_acquired: vk::Image,
     image_acquired_memory: vk::DeviceMemory,
+    image_sample: vk::Image,
+    image_sample_memory: vk::DeviceMemory,
     semaphore: vk::Semaphore,
     #[cfg(unix)]
     external_semaphore_fd: ash::extensions::khr::ExternalSemaphoreFd,
@@ -40,13 +44,20 @@ pub struct Vulkan {
     buffer_color_conversion_output: vk::Buffer,
     buffer_color_conversion_output_memory: vk::DeviceMemory,
     sampler_acquired: vk::Sampler,
+    sampler_sample: vk::Sampler,
     image_view_acquired: vk::ImageView,
+    image_view_sample: vk::ImageView,
     descriptor_set_layout_color_conversion: vk::DescriptorSetLayout,
+    descriptor_set_layout_accumulate: vk::DescriptorSetLayout,
     descriptor_pool: vk::DescriptorPool,
     descriptor_set_color_conversion: vk::DescriptorSet,
+    descriptor_set_accumulate: vk::DescriptorSet,
     shader_module_color_conversion: vk::ShaderModule,
+    shader_module_accumulate: vk::ShaderModule,
     pipeline_layout_color_conversion: vk::PipelineLayout,
+    pipeline_layout_accumulate: vk::PipelineLayout,
     pipeline_color_conversion: vk::Pipeline,
+    pipeline_accumulate: vk::Pipeline,
 }
 
 #[derive(Debug)]
@@ -68,14 +79,21 @@ impl Drop for Vulkan {
                 warn!("error waiting for Vulkan queue to complete: {err:?}");
             }
 
+            self.device.destroy_pipeline(self.pipeline_accumulate, None);
             self.device
                 .destroy_pipeline(self.pipeline_color_conversion, None);
             self.device
+                .destroy_pipeline_layout(self.pipeline_layout_accumulate, None);
+            self.device
                 .destroy_pipeline_layout(self.pipeline_layout_color_conversion, None);
+            self.device
+                .destroy_shader_module(self.shader_module_accumulate, None);
             self.device
                 .destroy_shader_module(self.shader_module_color_conversion, None);
             self.device
                 .destroy_descriptor_pool(self.descriptor_pool, None);
+            self.device
+                .destroy_descriptor_set_layout(self.descriptor_set_layout_accumulate, None);
             self.device
                 .destroy_descriptor_set_layout(self.descriptor_set_layout_color_conversion, None);
             self.device
@@ -90,6 +108,10 @@ impl Drop for Vulkan {
             self.device.destroy_sampler(self.sampler_acquired, None);
             self.device.free_memory(self.image_acquired_memory, None);
             self.device.destroy_image(self.image_acquired, None);
+            self.device.destroy_image_view(self.image_view_sample, None);
+            self.device.destroy_sampler(self.sampler_sample, None);
+            self.device.free_memory(self.image_sample_memory, None);
+            self.device.destroy_image(self.image_sample, None);
             self.device.free_memory(self.image_frame_memory, None);
             self.device.destroy_image(self.image_frame, None);
             self.device.free_command_buffers(
@@ -97,6 +119,7 @@ impl Drop for Vulkan {
                 &[
                     self.command_buffer_sampling,
                     self.command_buffer_color_conversion,
+                    self.command_buffer_accumulate,
                 ],
             );
             self.device.destroy_command_pool(self.command_pool, None);
@@ -294,31 +317,59 @@ impl Vulkan {
             .begin_command_buffer(self.command_buffer_color_conversion, &begin_info)?;
 
         // Set a barrier for the color conversion stage.
-        let image_acquired_memory_barrier = vk::ImageMemoryBarrier::builder()
-            .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
-            .dst_access_mask(vk::AccessFlags::SHADER_READ)
-            .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
-            .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-            .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-            .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-            .image(self.image_acquired)
-            .subresource_range(vk::ImageSubresourceRange {
-                aspect_mask: vk::ImageAspectFlags::COLOR,
-                base_mip_level: 0,
-                level_count: 1,
-                base_array_layer: 0,
-                layer_count: 1,
-            });
+        if self.is_sampling {
+            let image_sample_memory_barrier = vk::ImageMemoryBarrier::builder()
+                .src_access_mask(vk::AccessFlags::SHADER_WRITE)
+                .dst_access_mask(vk::AccessFlags::SHADER_READ)
+                .old_layout(vk::ImageLayout::GENERAL)
+                .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .image(self.image_sample)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                });
 
-        self.device.cmd_pipeline_barrier(
-            self.command_buffer_color_conversion,
-            vk::PipelineStageFlags::TRANSFER,
-            vk::PipelineStageFlags::COMPUTE_SHADER,
-            vk::DependencyFlags::empty(),
-            &[],
-            &[],
-            &[*image_acquired_memory_barrier],
-        );
+            self.device.cmd_pipeline_barrier(
+                self.command_buffer_color_conversion,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[*image_sample_memory_barrier],
+            );
+        } else {
+            let image_acquired_memory_barrier = vk::ImageMemoryBarrier::builder()
+                .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                .dst_access_mask(vk::AccessFlags::SHADER_READ)
+                .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .image(self.image_acquired)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                });
+
+            self.device.cmd_pipeline_barrier(
+                self.command_buffer_color_conversion,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[*image_acquired_memory_barrier],
+            );
+        }
 
         // Run the color conversion shader.
         self.device.cmd_bind_pipeline(
@@ -391,31 +442,101 @@ impl Vulkan {
             &[],
         );
 
-        // Barrier for the next frame capture.
-        let image_acquired_memory_barrier = vk::ImageMemoryBarrier::builder()
-            .src_access_mask(vk::AccessFlags::empty())
-            .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
-            .old_layout(vk::ImageLayout::UNDEFINED)
-            .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
-            .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-            .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-            .image(self.image_acquired)
-            .subresource_range(vk::ImageSubresourceRange {
-                aspect_mask: vk::ImageAspectFlags::COLOR,
-                base_mip_level: 0,
-                level_count: 1,
-                base_array_layer: 0,
-                layer_count: 1,
-            });
-        self.device.cmd_pipeline_barrier(
-            self.command_buffer_color_conversion,
-            vk::PipelineStageFlags::COMPUTE_SHADER,
-            vk::PipelineStageFlags::TRANSFER,
-            vk::DependencyFlags::empty(),
-            &[],
-            &[],
-            &[*image_acquired_memory_barrier],
-        );
+        if self.is_sampling {
+            // Barrier for clearing.
+            let image_sample_memory_barrier = vk::ImageMemoryBarrier::builder()
+                .src_access_mask(vk::AccessFlags::empty())
+                .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                .old_layout(vk::ImageLayout::UNDEFINED)
+                .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .image(self.image_sample)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                });
+            self.device.cmd_pipeline_barrier(
+                self.command_buffer_color_conversion,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[*image_sample_memory_barrier],
+            );
+
+            // Clear the sampling buffer image.
+            self.device.cmd_clear_color_image(
+                self.command_buffer_color_conversion,
+                self.image_sample,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                &vk::ClearColorValue::default(),
+                &[vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                }],
+            );
+
+            // Transition the sampling buffer image to the correct layout (for accumulation).
+            let image_sample_memory_barrier = vk::ImageMemoryBarrier::builder()
+                .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                .dst_access_mask(vk::AccessFlags::SHADER_READ | vk::AccessFlags::SHADER_WRITE)
+                .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                .new_layout(vk::ImageLayout::GENERAL)
+                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .image(self.image_sample)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                });
+
+            self.device.cmd_pipeline_barrier(
+                self.command_buffer_color_conversion,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[*image_sample_memory_barrier],
+            );
+        } else {
+            // Barrier for the next frame capture.
+            let image_acquired_memory_barrier = vk::ImageMemoryBarrier::builder()
+                .src_access_mask(vk::AccessFlags::empty())
+                .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                .old_layout(vk::ImageLayout::UNDEFINED)
+                .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .image(self.image_acquired)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                });
+            self.device.cmd_pipeline_barrier(
+                self.command_buffer_color_conversion,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[*image_acquired_memory_barrier],
+            );
+        }
 
         self.device
             .end_command_buffer(self.command_buffer_color_conversion)?;
@@ -467,10 +588,155 @@ impl Vulkan {
 
         Ok(())
     }
+
+    #[instrument(skip(self))]
+    pub unsafe fn accumulate(&self, weight: f32) -> eyre::Result<()> {
+        let begin_info = vk::CommandBufferBeginInfo::builder()
+            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+        self.device
+            .begin_command_buffer(self.command_buffer_accumulate, &begin_info)?;
+
+        // Set a barrier for the accumulation stage.
+        let image_acquired_memory_barrier = vk::ImageMemoryBarrier::builder()
+            .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+            .dst_access_mask(vk::AccessFlags::SHADER_READ)
+            .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+            .new_layout(vk::ImageLayout::GENERAL)
+            .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .image(self.image_acquired)
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            });
+
+        // The sampling buffer must already be in the correct layout.
+
+        self.device.cmd_pipeline_barrier(
+            self.command_buffer_accumulate,
+            vk::PipelineStageFlags::TRANSFER,
+            vk::PipelineStageFlags::COMPUTE_SHADER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[],
+            &[*image_acquired_memory_barrier],
+        );
+
+        // Run the color conversion shader.
+        self.device.cmd_bind_pipeline(
+            self.command_buffer_accumulate,
+            vk::PipelineBindPoint::COMPUTE,
+            self.pipeline_accumulate,
+        );
+        self.device.cmd_bind_descriptor_sets(
+            self.command_buffer_accumulate,
+            vk::PipelineBindPoint::COMPUTE,
+            self.pipeline_layout_accumulate,
+            0,
+            &[self.descriptor_set_accumulate],
+            &[],
+        );
+
+        self.device.cmd_push_constants(
+            self.command_buffer_accumulate,
+            self.pipeline_layout_accumulate,
+            vk::ShaderStageFlags::COMPUTE,
+            0,
+            &weight.to_le_bytes()[..],
+        );
+
+        self.device.cmd_dispatch(
+            self.command_buffer_accumulate,
+            (self.width + 4 - 1) / 4,
+            (self.height + 4 - 1) / 4,
+            1,
+        );
+
+        // Barrier for the next frame capture.
+        let image_acquired_memory_barrier = vk::ImageMemoryBarrier::builder()
+            .src_access_mask(vk::AccessFlags::empty())
+            .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+            .old_layout(vk::ImageLayout::GENERAL)
+            .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+            .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .image(self.image_acquired)
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            });
+        self.device.cmd_pipeline_barrier(
+            self.command_buffer_accumulate,
+            vk::PipelineStageFlags::COMPUTE_SHADER,
+            vk::PipelineStageFlags::TRANSFER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[],
+            &[*image_acquired_memory_barrier],
+        );
+
+        // Barrier for the next use of the sampling buffer.
+        let image_sample_memory_barrier = vk::ImageMemoryBarrier::builder()
+            .src_access_mask(vk::AccessFlags::SHADER_WRITE)
+            .dst_access_mask(vk::AccessFlags::SHADER_READ | vk::AccessFlags::SHADER_WRITE)
+            .old_layout(vk::ImageLayout::GENERAL)
+            .new_layout(vk::ImageLayout::GENERAL)
+            .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .image(self.image_sample)
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            });
+        self.device.cmd_pipeline_barrier(
+            self.command_buffer_accumulate,
+            vk::PipelineStageFlags::COMPUTE_SHADER,
+            vk::PipelineStageFlags::COMPUTE_SHADER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[],
+            &[*image_sample_memory_barrier],
+        );
+
+        self.device
+            .end_command_buffer(self.command_buffer_accumulate)?;
+
+        // XXX: As far as I can tell, waiting for a fence here should not be required (and it makes
+        // the process quite slower). Unfortunately, I'm getting GPU fence timeouts if I don't do
+        // it. Maybe there's a synchronization bug in the code, but I don't see it, and the
+        // validation layers are silent too.
+        let create_info = vk::FenceCreateInfo::default();
+        let fence = self.device.create_fence(&create_info, None)?;
+
+        let command_buffers = [self.command_buffer_accumulate];
+        let submit_info = vk::SubmitInfo::builder().command_buffers(&command_buffers);
+        self.device
+            .queue_submit(self.queue, &[*submit_info], fence)?;
+
+        {
+            let _span = info_span!("wait for fence").entered();
+
+            self.device
+                .wait_for_fences(&[fence], true, u64::max_value())?;
+        }
+
+        self.device.destroy_fence(fence, None);
+
+        Ok(())
+    }
 }
 
 #[instrument(name = "vulkan::init", skip(uuids))]
-pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
+pub fn init(width: u32, height: u32, uuids: &Uuids, is_sampling: bool) -> eyre::Result<Vulkan> {
     // TODO: handle weird resolutions.
     ensure!(
         width % 2 == 0 && height % 2 == 0,
@@ -572,10 +838,11 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
     let create_info = vk::CommandBufferAllocateInfo::builder()
         .command_pool(command_pool)
         .level(vk::CommandBufferLevel::PRIMARY)
-        .command_buffer_count(2);
+        .command_buffer_count(3);
     let command_buffers = unsafe { device.allocate_command_buffers(&create_info)? };
     let command_buffer_sampling = command_buffers[0];
     let command_buffer_color_conversion = command_buffers[1];
+    let command_buffer_accumulate = command_buffers[2];
 
     // Queue.
     let queue = unsafe { device.get_device_queue(queue_family_index, 0) };
@@ -655,7 +922,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         array_layers: 1,
         samples: vk::SampleCountFlags::TYPE_1,
         tiling: vk::ImageTiling::OPTIMAL,
-        usage: vk::ImageUsageFlags::STORAGE // For updating during the sampling stage.
+        usage: vk::ImageUsageFlags::STORAGE // For reading during the sampling accumulation.
             | vk::ImageUsageFlags::TRANSFER_DST
             | vk::ImageUsageFlags::SAMPLED, // For reading during YUV conversion.
         sharing_mode: vk::SharingMode::EXCLUSIVE,
@@ -698,6 +965,63 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
             layer_count: 1,
         });
     let image_view_acquired = unsafe { device.create_image_view(&create_info, None)? };
+
+    // Image for the sampling buffer.
+    let create_info = vk::ImageCreateInfo {
+        image_type: vk::ImageType::TYPE_2D,
+        format: vk::Format::R16G16B16A16_UNORM,
+        extent: vk::Extent3D {
+            width,
+            height,
+            depth: 1,
+        },
+        mip_levels: 1,
+        array_layers: 1,
+        samples: vk::SampleCountFlags::TYPE_1,
+        tiling: vk::ImageTiling::OPTIMAL,
+        usage: vk::ImageUsageFlags::STORAGE // For updating during the sampling stage.
+            | vk::ImageUsageFlags::TRANSFER_DST // For clearing.
+            | vk::ImageUsageFlags::SAMPLED, // For reading during YUV conversion.
+        sharing_mode: vk::SharingMode::EXCLUSIVE,
+        ..Default::default()
+    };
+    let image_sample = unsafe { device.create_image(&create_info, None)? };
+
+    let image_sample_memory_requirements =
+        unsafe { device.get_image_memory_requirements(image_sample) };
+    let image_sample_memory_type_index = find_memorytype_index(
+        &image_sample_memory_requirements,
+        &memory_properties,
+        vk::MemoryPropertyFlags::DEVICE_LOCAL,
+    )
+    .ok_or_else(|| eyre!("couldn't find image_sample memory type"))?;
+    let create_info = vk::MemoryAllocateInfo::builder()
+        .allocation_size(image_sample_memory_requirements.size)
+        .memory_type_index(image_sample_memory_type_index);
+    let image_sample_memory = unsafe { device.allocate_memory(&create_info, None)? };
+    unsafe { device.bind_image_memory(image_sample, image_sample_memory, 0)? };
+
+    // Sampler for the image for the sampling buffer.
+    let create_info = vk::SamplerCreateInfo::builder()
+        .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+        .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+        .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+        .unnormalized_coordinates(true);
+    let sampler_sample = unsafe { device.create_sampler(&create_info, None)? };
+
+    // Image view for the image for the sampling buffer.
+    let create_info = vk::ImageViewCreateInfo::builder()
+        .image(image_sample)
+        .view_type(vk::ImageViewType::TYPE_2D)
+        .format(vk::Format::R16G16B16A16_UNORM)
+        .subresource_range(vk::ImageSubresourceRange {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            base_mip_level: 0,
+            level_count: 1,
+            base_array_layer: 0,
+            layer_count: 1,
+        });
+    let image_view_sample = unsafe { device.create_image_view(&create_info, None)? };
 
     // Semaphore.
     #[cfg(unix)]
@@ -784,9 +1108,28 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
     let descriptor_set_layout_color_conversion =
         unsafe { device.create_descriptor_set_layout(&create_info, None)? };
 
+    // Descriptor set layout for the accumulation shader.
+    let bindings = [
+        vk::DescriptorSetLayoutBinding::builder()
+            .binding(0)
+            .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+            .descriptor_count(1)
+            .stage_flags(vk::ShaderStageFlags::COMPUTE)
+            .build(),
+        vk::DescriptorSetLayoutBinding::builder()
+            .binding(1)
+            .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+            .descriptor_count(1)
+            .stage_flags(vk::ShaderStageFlags::COMPUTE)
+            .build(),
+    ];
+    let create_info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(&bindings);
+    let descriptor_set_layout_accumulate =
+        unsafe { device.create_descriptor_set_layout(&create_info, None)? };
+
     // Descriptor pool.
     let create_info = vk::DescriptorPoolCreateInfo::builder()
-        .max_sets(1)
+        .max_sets(2)
         .pool_sizes(&[
             vk::DescriptorPoolSize {
                 ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
@@ -796,21 +1139,36 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
                 ty: vk::DescriptorType::STORAGE_BUFFER,
                 descriptor_count: 1,
             },
+            vk::DescriptorPoolSize {
+                ty: vk::DescriptorType::STORAGE_IMAGE,
+                descriptor_count: 2,
+            },
         ]);
     let descriptor_pool = unsafe { device.create_descriptor_pool(&create_info, None)? };
 
     // Descriptor set.
-    let set_layouts = [descriptor_set_layout_color_conversion];
+    let set_layouts = [
+        descriptor_set_layout_color_conversion,
+        descriptor_set_layout_accumulate,
+    ];
     let create_info = vk::DescriptorSetAllocateInfo::builder()
         .descriptor_pool(descriptor_pool)
         .set_layouts(&set_layouts);
-    let descriptor_set_color_conversion =
-        unsafe { device.allocate_descriptor_sets(&create_info)?[0] };
+    let descriptor_sets = unsafe { device.allocate_descriptor_sets(&create_info)? };
+    let descriptor_set_color_conversion = descriptor_sets[0];
+    let descriptor_set_accumulate = descriptor_sets[1];
 
-    let image_info = vk::DescriptorImageInfo::builder()
-        .sampler(sampler_acquired)
-        .image_view(image_view_acquired)
-        .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
+    let image_info = if is_sampling {
+        vk::DescriptorImageInfo::builder()
+            .sampler(sampler_sample)
+            .image_view(image_view_sample)
+            .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+    } else {
+        vk::DescriptorImageInfo::builder()
+            .sampler(sampler_acquired)
+            .image_view(image_view_acquired)
+            .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+    };
     let image_info = [*image_info];
     let image_descriptor_set = vk::WriteDescriptorSet::builder()
         .dst_set(descriptor_set_color_conversion)
@@ -828,6 +1186,31 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
         .buffer_info(&buffer_info);
     unsafe { device.update_descriptor_sets(&[*image_descriptor_set, *buffer_descriptor_set], &[]) };
+
+    let image_info = vk::DescriptorImageInfo::builder()
+        .image_view(image_view_acquired)
+        .image_layout(vk::ImageLayout::GENERAL);
+    let image_info = [*image_info];
+    let image_acquired_descriptor_set = vk::WriteDescriptorSet::builder()
+        .dst_set(descriptor_set_accumulate)
+        .dst_binding(0)
+        .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+        .image_info(&image_info);
+    let image_info = vk::DescriptorImageInfo::builder()
+        .image_view(image_view_sample)
+        .image_layout(vk::ImageLayout::GENERAL);
+    let image_info = [*image_info];
+    let image_sample_descriptor_set = vk::WriteDescriptorSet::builder()
+        .dst_set(descriptor_set_accumulate)
+        .dst_binding(1)
+        .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+        .image_info(&image_info);
+    unsafe {
+        device.update_descriptor_sets(
+            &[*image_acquired_descriptor_set, *image_sample_descriptor_set],
+            &[],
+        )
+    };
 
     // Shader (color conversion).
     let shader_code = include_bytes!("color_conversion.spv");
@@ -853,6 +1236,40 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         .stage(*stage)
         .layout(pipeline_layout_color_conversion);
     let pipeline_color_conversion = unsafe {
+        device
+            .create_compute_pipelines(vk::PipelineCache::null(), &[*create_info], None)
+            .map_err(|(_, err)| err)?[0]
+    };
+
+    // Shader (accumulate).
+    let shader_code = include_bytes!("accumulate.spv");
+    let shader_code = read_spv(&mut Cursor::new(&shader_code[..]))?;
+
+    let create_info = vk::ShaderModuleCreateInfo::builder().code(&shader_code);
+    let shader_module_accumulate = unsafe { device.create_shader_module(&create_info, None)? };
+
+    // Pipeline (accumulate).
+    let set_layouts = [descriptor_set_layout_accumulate];
+    let push_constant_ranges = [vk::PushConstantRange::builder()
+        .offset(0)
+        .size(std::mem::size_of::<f32>() as u32)
+        .stage_flags(vk::ShaderStageFlags::COMPUTE)
+        .build()];
+    let create_info = vk::PipelineLayoutCreateInfo::builder()
+        .set_layouts(&set_layouts)
+        .push_constant_ranges(&push_constant_ranges);
+    let pipeline_layout_accumulate = unsafe { device.create_pipeline_layout(&create_info, None)? };
+
+    let name = b"main\0";
+    let name = unsafe { CStr::from_ptr(name.as_ptr().cast()) };
+    let stage = vk::PipelineShaderStageCreateInfo::builder()
+        .stage(vk::ShaderStageFlags::COMPUTE)
+        .module(shader_module_accumulate)
+        .name(name);
+    let create_info = vk::ComputePipelineCreateInfo::builder()
+        .stage(*stage)
+        .layout(pipeline_layout_accumulate);
+    let pipeline_accumulate = unsafe {
         device
             .create_compute_pipelines(vk::PipelineCache::null(), &[*create_info], None)
             .map_err(|(_, err)| err)?[0]
@@ -896,6 +1313,23 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
             layer_count: 1,
         });
 
+    // Transition the sampling buffer image to the correct layout (for clearing).
+    let image_sample_memory_barrier = vk::ImageMemoryBarrier::builder()
+        .src_access_mask(vk::AccessFlags::empty())
+        .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+        .old_layout(vk::ImageLayout::UNDEFINED)
+        .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+        .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+        .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+        .image(image_sample)
+        .subresource_range(vk::ImageSubresourceRange {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            base_mip_level: 0,
+            level_count: 1,
+            base_array_layer: 0,
+            layer_count: 1,
+        });
+
     unsafe {
         device.cmd_pipeline_barrier(
             command_buffer_sampling,
@@ -904,7 +1338,57 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
             vk::DependencyFlags::empty(),
             &[],
             &[],
-            &[*image_frame_memory_barrier, *image_acquired_memory_barrier],
+            &[
+                *image_frame_memory_barrier,
+                *image_acquired_memory_barrier,
+                *image_sample_memory_barrier,
+            ],
+        )
+    };
+
+    // Clear the sampling buffer image.
+    unsafe {
+        device.cmd_clear_color_image(
+            command_buffer_sampling,
+            image_sample,
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            &vk::ClearColorValue::default(),
+            &[vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            }],
+        )
+    };
+
+    // Transition the sampling buffer image to the correct layout (for accumulation).
+    let image_sample_memory_barrier = vk::ImageMemoryBarrier::builder()
+        .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+        .dst_access_mask(vk::AccessFlags::SHADER_READ | vk::AccessFlags::SHADER_WRITE)
+        .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+        .new_layout(vk::ImageLayout::GENERAL)
+        .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+        .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+        .image(image_sample)
+        .subresource_range(vk::ImageSubresourceRange {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            base_mip_level: 0,
+            level_count: 1,
+            base_array_layer: 0,
+            layer_count: 1,
+        });
+
+    unsafe {
+        device.cmd_pipeline_barrier(
+            command_buffer_sampling,
+            vk::PipelineStageFlags::TRANSFER,
+            vk::PipelineStageFlags::COMPUTE_SHADER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[],
+            &[*image_sample_memory_barrier],
         )
     };
 
@@ -926,10 +1410,12 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
     Ok(Vulkan {
         width,
         height,
+        is_sampling,
         queue_family_index,
         device,
         command_pool,
         command_buffer_sampling,
+        command_buffer_accumulate,
         command_buffer_color_conversion,
         queue,
         image_frame,
@@ -941,8 +1427,12 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         external_memory_win32,
         image_acquired,
         image_acquired_memory,
+        image_sample,
+        image_sample_memory,
         sampler_acquired,
+        sampler_sample,
         image_view_acquired,
+        image_view_sample,
         semaphore,
         #[cfg(unix)]
         external_semaphore_fd,
@@ -953,11 +1443,16 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         buffer,
         buffer_memory,
         descriptor_set_layout_color_conversion,
+        descriptor_set_layout_accumulate,
         descriptor_pool,
         descriptor_set_color_conversion,
+        descriptor_set_accumulate,
         shader_module_color_conversion,
+        shader_module_accumulate,
         pipeline_layout_color_conversion,
+        pipeline_layout_accumulate,
         pipeline_color_conversion,
+        pipeline_accumulate,
     })
 }
 

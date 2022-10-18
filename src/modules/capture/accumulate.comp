@@ -1,0 +1,28 @@
+#version 450
+
+// I selected the value that gave the best performance on this workflow.
+#define WORKGROUP_SIZE 4
+layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE, local_size_z = 1) in;
+
+layout (binding = 0, rgba8) uniform readonly image2D image_frame;
+layout (binding = 1, rgba16) uniform image2D image_sample;
+layout (push_constant) uniform push_constants {
+    float weight;
+};
+
+void main() {
+    ivec2 size = imageSize(image_frame);
+    uint width = uint(size.x), height = uint(size.y);
+
+    uint x = gl_GlobalInvocationID.x, y = gl_GlobalInvocationID.y;
+    if (x >= width || y >= height)
+        return;
+
+    ivec2 coords = ivec2(x, y);
+
+    vec4 frameColor = imageLoad(image_frame, coords);
+    vec4 sampleColor = imageLoad(image_sample, coords);
+
+    vec4 newColor = sampleColor + frameColor * weight;
+    imageStore(image_sample, coords, newColor);
+}
