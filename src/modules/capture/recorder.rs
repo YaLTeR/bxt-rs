@@ -79,7 +79,7 @@ enum ThreadToMain {
     Error(eyre::Report),
     ExternalHandles(ExternalHandles),
     AcquiredImage,
-    Muxed(Box<[u8]>),
+    PixelBuffer(Box<[u8]>),
     FfmpegOutput(String),
 }
 
@@ -236,7 +236,7 @@ impl Recorder {
             CaptureType::ReadPixels => {
                 if self.buffer.is_none() {
                     match self.recv_from_thread()? {
-                        ThreadToMain::Muxed(buffer) => {
+                        ThreadToMain::PixelBuffer(buffer) => {
                             self.buffer = Some(buffer);
                         }
                         _ => unreachable!(),
@@ -446,7 +446,7 @@ fn process_message(
                 muxer.write_video_frame(&pixels)?;
             }
 
-            s.send(ThreadToMain::Muxed(pixels)).unwrap();
+            s.send(ThreadToMain::PixelBuffer(pixels)).unwrap();
         }
         MainToThread::Audio(samples) => {
             let _span = info_span!("audio").entered();
