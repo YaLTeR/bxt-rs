@@ -113,7 +113,8 @@ impl Recorder {
             None
         };
 
-        let time_base = 1. / fps as f64;
+        let recording_fps = fps as f64 * slowdown;
+        let time_base = 1. / recording_fps;
         let pixel_format = if vulkan.is_some() {
             PixelFormat::I420
         } else {
@@ -309,7 +310,7 @@ impl Recorder {
     }
 
     pub fn time_passed(&mut self, time: f64) {
-        self.video_remainder += time / self.time_base * self.slowdown;
+        self.video_remainder += time / self.time_for_current_frame();
         self.sound_remainder += time * self.slowdown;
 
         if let CaptureType::Vulkan(_) = self.capture_type {
@@ -374,7 +375,7 @@ impl Recorder {
     }
 
     pub fn time_for_current_frame(&self) -> f64 {
-        self.time_base / self.slowdown
+        self.time_base
     }
 
     pub fn capture_type(&self) -> &CaptureType {
