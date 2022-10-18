@@ -63,6 +63,11 @@ unsafe impl Send for ExternalHandles {}
 impl Drop for Vulkan {
     fn drop(&mut self) {
         unsafe {
+            // Wait for in-progress command buffers to complete if there are any.
+            if let Err(err) = self.device.queue_wait_idle(self.queue) {
+                warn!("error waiting for Vulkan queue to complete: {err:?}");
+            }
+
             self.device
                 .destroy_pipeline(self.pipeline_color_conversion, None);
             self.device
