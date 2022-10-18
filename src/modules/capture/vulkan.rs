@@ -44,9 +44,9 @@ pub struct Vulkan {
     descriptor_set_layout_color_conversion: vk::DescriptorSetLayout,
     descriptor_pool: vk::DescriptorPool,
     descriptor_set_color_conversion: vk::DescriptorSet,
-    shader_module: vk::ShaderModule,
-    pipeline_layout: vk::PipelineLayout,
-    pipeline: vk::Pipeline,
+    shader_module_color_conversion: vk::ShaderModule,
+    pipeline_layout_color_conversion: vk::PipelineLayout,
+    pipeline_color_conversion: vk::Pipeline,
 }
 
 #[derive(Debug)]
@@ -63,10 +63,12 @@ unsafe impl Send for ExternalHandles {}
 impl Drop for Vulkan {
     fn drop(&mut self) {
         unsafe {
-            self.device.destroy_pipeline(self.pipeline, None);
             self.device
-                .destroy_pipeline_layout(self.pipeline_layout, None);
-            self.device.destroy_shader_module(self.shader_module, None);
+                .destroy_pipeline(self.pipeline_color_conversion, None);
+            self.device
+                .destroy_pipeline_layout(self.pipeline_layout_color_conversion, None);
+            self.device
+                .destroy_shader_module(self.shader_module_color_conversion, None);
             self.device
                 .destroy_descriptor_pool(self.descriptor_pool, None);
             self.device
@@ -317,12 +319,12 @@ impl Vulkan {
         self.device.cmd_bind_pipeline(
             self.command_buffer_color_conversion,
             vk::PipelineBindPoint::COMPUTE,
-            self.pipeline,
+            self.pipeline_color_conversion,
         );
         self.device.cmd_bind_descriptor_sets(
             self.command_buffer_color_conversion,
             vk::PipelineBindPoint::COMPUTE,
-            self.pipeline_layout,
+            self.pipeline_layout_color_conversion,
             0,
             &[self.descriptor_set_color_conversion],
             &[],
@@ -822,28 +824,30 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         .buffer_info(&buffer_info);
     unsafe { device.update_descriptor_sets(&[*image_descriptor_set, *buffer_descriptor_set], &[]) };
 
-    // Shader.
+    // Shader (color conversion).
     let shader_code = include_bytes!("color_conversion.spv");
     let shader_code = read_spv(&mut Cursor::new(&shader_code[..]))?;
 
     let create_info = vk::ShaderModuleCreateInfo::builder().code(&shader_code);
-    let shader_module = unsafe { device.create_shader_module(&create_info, None)? };
+    let shader_module_color_conversion =
+        unsafe { device.create_shader_module(&create_info, None)? };
 
-    // Pipeline.
+    // Pipeline (color conversion).
     let set_layouts = [descriptor_set_layout_color_conversion];
     let create_info = vk::PipelineLayoutCreateInfo::builder().set_layouts(&set_layouts);
-    let pipeline_layout = unsafe { device.create_pipeline_layout(&create_info, None)? };
+    let pipeline_layout_color_conversion =
+        unsafe { device.create_pipeline_layout(&create_info, None)? };
 
     let name = b"main\0";
     let name = unsafe { CStr::from_ptr(name.as_ptr().cast()) };
     let stage = vk::PipelineShaderStageCreateInfo::builder()
         .stage(vk::ShaderStageFlags::COMPUTE)
-        .module(shader_module)
+        .module(shader_module_color_conversion)
         .name(name);
     let create_info = vk::ComputePipelineCreateInfo::builder()
         .stage(*stage)
-        .layout(pipeline_layout);
-    let pipeline = unsafe {
+        .layout(pipeline_layout_color_conversion);
+    let pipeline_color_conversion = unsafe {
         device
             .create_compute_pipelines(vk::PipelineCache::null(), &[*create_info], None)
             .map_err(|(_, err)| err)?[0]
@@ -946,9 +950,9 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         descriptor_set_layout_color_conversion,
         descriptor_pool,
         descriptor_set_color_conversion,
-        shader_module,
-        pipeline_layout,
-        pipeline,
+        shader_module_color_conversion,
+        pipeline_layout_color_conversion,
+        pipeline_color_conversion,
     })
 }
 
