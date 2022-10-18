@@ -28,8 +28,8 @@ pub struct Vulkan {
     external_memory_fd: ash::extensions::khr::ExternalMemoryFd,
     #[cfg(windows)]
     external_memory_win32: ash::extensions::khr::ExternalMemoryWin32,
-    image_sample: vk::Image,
-    image_sample_memory: vk::DeviceMemory,
+    image_acquired: vk::Image,
+    image_acquired_memory: vk::DeviceMemory,
     semaphore: vk::Semaphore,
     #[cfg(unix)]
     external_semaphore_fd: ash::extensions::khr::ExternalSemaphoreFd,
@@ -39,8 +39,8 @@ pub struct Vulkan {
     buffer_memory: vk::DeviceMemory,
     buffer_color_conversion_output: vk::Buffer,
     buffer_color_conversion_output_memory: vk::DeviceMemory,
-    sampler_sample: vk::Sampler,
-    image_view_sample: vk::ImageView,
+    sampler_acquired: vk::Sampler,
+    image_view_acquired: vk::ImageView,
     descriptor_set_layout_color_conversion: vk::DescriptorSetLayout,
     descriptor_pool: vk::DescriptorPool,
     descriptor_set_color_conversion: vk::DescriptorSet,
@@ -78,10 +78,11 @@ impl Drop for Vulkan {
             self.device.free_memory(self.buffer_memory, None);
             self.device.destroy_buffer(self.buffer, None);
             self.device.destroy_semaphore(self.semaphore, None);
-            self.device.destroy_image_view(self.image_view_sample, None);
-            self.device.destroy_sampler(self.sampler_sample, None);
-            self.device.free_memory(self.image_sample_memory, None);
-            self.device.destroy_image(self.image_sample, None);
+            self.device
+                .destroy_image_view(self.image_view_acquired, None);
+            self.device.destroy_sampler(self.sampler_acquired, None);
+            self.device.free_memory(self.image_acquired_memory, None);
+            self.device.destroy_image(self.image_acquired, None);
             self.device.free_memory(self.image_frame_memory, None);
             self.device.destroy_image(self.image_frame, None);
             self.device.free_command_buffers(
@@ -192,7 +193,7 @@ impl Vulkan {
 
         // Barrier for the sampling image must've been inserted by previous code.
 
-        // Blit image_frame to image_sample.
+        // Blit image_frame to image_acquired.
         let image_blit = vk::ImageBlit::builder()
             .src_subresource(vk::ImageSubresourceLayers {
                 aspect_mask: vk::ImageAspectFlags::COLOR,
@@ -225,7 +226,7 @@ impl Vulkan {
             self.command_buffer_sampling,
             self.image_frame,
             vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
-            self.image_sample,
+            self.image_acquired,
             vk::ImageLayout::TRANSFER_DST_OPTIMAL,
             &[*image_blit],
             vk::Filter::NEAREST,
@@ -286,14 +287,14 @@ impl Vulkan {
             .begin_command_buffer(self.command_buffer_color_conversion, &begin_info)?;
 
         // Set a barrier for the color conversion stage.
-        let image_sample_memory_barrier = vk::ImageMemoryBarrier::builder()
+        let image_acquired_memory_barrier = vk::ImageMemoryBarrier::builder()
             .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
             .dst_access_mask(vk::AccessFlags::SHADER_READ)
             .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
             .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
             .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
             .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-            .image(self.image_sample)
+            .image(self.image_acquired)
             .subresource_range(vk::ImageSubresourceRange {
                 aspect_mask: vk::ImageAspectFlags::COLOR,
                 base_mip_level: 0,
@@ -309,7 +310,7 @@ impl Vulkan {
             vk::DependencyFlags::empty(),
             &[],
             &[],
-            &[*image_sample_memory_barrier],
+            &[*image_acquired_memory_barrier],
         );
 
         // Run the color conversion shader.
@@ -384,14 +385,14 @@ impl Vulkan {
         );
 
         // Barrier for the next frame capture.
-        let image_sample_memory_barrier = vk::ImageMemoryBarrier::builder()
+        let image_acquired_memory_barrier = vk::ImageMemoryBarrier::builder()
             .src_access_mask(vk::AccessFlags::empty())
             .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
             .old_layout(vk::ImageLayout::UNDEFINED)
             .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
             .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
             .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-            .image(self.image_sample)
+            .image(self.image_acquired)
             .subresource_range(vk::ImageSubresourceRange {
                 aspect_mask: vk::ImageAspectFlags::COLOR,
                 base_mip_level: 0,
@@ -406,7 +407,7 @@ impl Vulkan {
             vk::DependencyFlags::empty(),
             &[],
             &[],
-            &[*image_sample_memory_barrier],
+            &[*image_acquired_memory_barrier],
         );
 
         self.device
@@ -634,7 +635,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
     #[cfg(windows)]
     let external_memory_win32 = ash::extensions::khr::ExternalMemoryWin32::new(instance, &device);
 
-    // Image for the sampling buffer.
+    // Image for the acquired frame buffer.
     let create_info = vk::ImageCreateInfo {
         image_type: vk::ImageType::TYPE_2D,
         format: vk::Format::R16G16B16A16_UNORM,
@@ -653,21 +654,21 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         sharing_mode: vk::SharingMode::EXCLUSIVE,
         ..Default::default()
     };
-    let image_sample = unsafe { device.create_image(&create_info, None)? };
+    let image_acquired = unsafe { device.create_image(&create_info, None)? };
 
-    let image_sample_memory_requirements =
-        unsafe { device.get_image_memory_requirements(image_sample) };
-    let image_sample_memory_type_index = find_memorytype_index(
-        &image_sample_memory_requirements,
+    let image_acquired_memory_requirements =
+        unsafe { device.get_image_memory_requirements(image_acquired) };
+    let image_acquired_memory_type_index = find_memorytype_index(
+        &image_acquired_memory_requirements,
         &memory_properties,
         vk::MemoryPropertyFlags::DEVICE_LOCAL,
     )
-    .ok_or_else(|| eyre!("couldn't find image_sample memory type"))?;
+    .ok_or_else(|| eyre!("couldn't find image_acquired memory type"))?;
     let create_info = vk::MemoryAllocateInfo::builder()
-        .allocation_size(image_sample_memory_requirements.size)
-        .memory_type_index(image_sample_memory_type_index);
-    let image_sample_memory = unsafe { device.allocate_memory(&create_info, None)? };
-    unsafe { device.bind_image_memory(image_sample, image_sample_memory, 0)? };
+        .allocation_size(image_acquired_memory_requirements.size)
+        .memory_type_index(image_acquired_memory_type_index);
+    let image_acquired_memory = unsafe { device.allocate_memory(&create_info, None)? };
+    unsafe { device.bind_image_memory(image_acquired, image_acquired_memory, 0)? };
 
     // Sampler for the image for the sampling buffer.
     let create_info = vk::SamplerCreateInfo::builder()
@@ -675,11 +676,11 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
         .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE)
         .unnormalized_coordinates(true);
-    let sampler_sample = unsafe { device.create_sampler(&create_info, None)? };
+    let sampler_acquired = unsafe { device.create_sampler(&create_info, None)? };
 
     // Image view for the image for the sampling buffer.
     let create_info = vk::ImageViewCreateInfo::builder()
-        .image(image_sample)
+        .image(image_acquired)
         .view_type(vk::ImageViewType::TYPE_2D)
         .format(vk::Format::R16G16B16A16_UNORM)
         .subresource_range(vk::ImageSubresourceRange {
@@ -689,7 +690,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
             base_array_layer: 0,
             layer_count: 1,
         });
-    let image_view_sample = unsafe { device.create_image_view(&create_info, None)? };
+    let image_view_acquired = unsafe { device.create_image_view(&create_info, None)? };
 
     // Semaphore.
     #[cfg(unix)]
@@ -800,8 +801,8 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         unsafe { device.allocate_descriptor_sets(&create_info)?[0] };
 
     let image_info = vk::DescriptorImageInfo::builder()
-        .sampler(sampler_sample)
-        .image_view(image_view_sample)
+        .sampler(sampler_acquired)
+        .image_view(image_view_acquired)
         .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
     let image_info = [*image_info];
     let image_descriptor_set = vk::WriteDescriptorSet::builder()
@@ -869,15 +870,15 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
             layer_count: 1,
         });
 
-    // Transition the sampling buffer image to the correct layout.
-    let image_sample_memory_barrier = vk::ImageMemoryBarrier::builder()
+    // Transition the acquired image to the correct layout.
+    let image_acquired_memory_barrier = vk::ImageMemoryBarrier::builder()
         .src_access_mask(vk::AccessFlags::empty())
         .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
         .old_layout(vk::ImageLayout::UNDEFINED)
         .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
         .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
         .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-        .image(image_sample)
+        .image(image_acquired)
         .subresource_range(vk::ImageSubresourceRange {
             aspect_mask: vk::ImageAspectFlags::COLOR,
             base_mip_level: 0,
@@ -894,7 +895,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
             vk::DependencyFlags::empty(),
             &[],
             &[],
-            &[*image_frame_memory_barrier, *image_sample_memory_barrier],
+            &[*image_frame_memory_barrier, *image_acquired_memory_barrier],
         )
     };
 
@@ -929,10 +930,10 @@ pub fn init(width: u32, height: u32, uuids: &Uuids) -> eyre::Result<Vulkan> {
         external_memory_fd,
         #[cfg(windows)]
         external_memory_win32,
-        image_sample,
-        image_sample_memory,
-        sampler_sample,
-        image_view_sample,
+        image_acquired,
+        image_acquired_memory,
+        sampler_acquired,
+        image_view_acquired,
         semaphore,
         #[cfg(unix)]
         external_semaphore_fd,
