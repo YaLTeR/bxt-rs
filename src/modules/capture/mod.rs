@@ -452,9 +452,9 @@ pub unsafe fn on_host_filter_time(marker: MainThreadMarker) -> bool {
         return false;
     }
 
-    *engine::host_frametime.get(marker) = recorder.frame_time();
-    let realtime = engine::realtime.get(marker);
-    *realtime += recorder.frame_time();
+    let time = recorder.time_for_current_frame();
+    *engine::host_frametime.get(marker) = time;
+    *engine::realtime.get(marker) += time;
 
     true
 }

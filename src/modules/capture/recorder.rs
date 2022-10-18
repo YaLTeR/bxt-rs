@@ -373,7 +373,7 @@ impl Recorder {
         self.height
     }
 
-    pub fn frame_time(&self) -> f64 {
+    pub fn time_for_current_frame(&self) -> f64 {
         self.time_base / self.slowdown
     }
 
