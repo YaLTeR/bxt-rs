@@ -231,6 +231,16 @@ impl Recorder {
                     self.initialize_opengl_capturing(marker)?;
                 }
 
+                if self.acquired_image {
+                    // Must wait for this before OpenGL capture can run.
+                    assert!(matches!(
+                        self.recv_from_thread()?,
+                        ThreadToMain::AcquiredImage
+                    ));
+
+                    self.acquired_image = false;
+                }
+
                 self.opengl.as_ref().unwrap().capture()
             }
             CaptureType::ReadPixels => {
@@ -279,19 +289,9 @@ impl Recorder {
     }
 
     #[instrument(skip(self))]
-    unsafe fn record(&mut self, frames: usize) -> eyre::Result<()> {
+    unsafe fn record(&mut self, frames: usize) {
         match self.capture_type {
             CaptureType::Vulkan(_) => {
-                assert!(self.acquired_image);
-
-                // Must wait for this before OpenGL capture can run.
-                assert!(matches!(
-                    self.recv_from_thread()?,
-                    ThreadToMain::AcquiredImage
-                ));
-
-                self.acquired_image = false;
-
                 self.send_to_thread(MainToThread::Record { frames });
             }
             CaptureType::ReadPixels => {
@@ -299,8 +299,6 @@ impl Recorder {
                 self.send_to_thread(MainToThread::Mux { pixels, frames });
             }
         }
-
-        Ok(())
     }
 
     #[instrument(skip_all)]
@@ -309,7 +307,7 @@ impl Recorder {
         self.video_remainder -= frames as f64;
 
         if frames > 0 {
-            self.record(frames)?;
+            self.record(frames);
         }
 
         Ok(())
