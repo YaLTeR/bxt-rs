@@ -91,7 +91,7 @@ fn open_library() -> Option<libloading::Library> {
 ///
 /// [`reset_pointers()`] must be called before SDL is unloaded so the pointers don't go stale.
 #[instrument(name = "sdl::find_pointers", skip_all)]
-pub unsafe fn find_pointers(marker: MainThreadMarker) { 
+pub unsafe fn find_pointers(marker: MainThreadMarker) {
     let library = match open_library() {
         Some(library) => library,
         None => {
@@ -178,7 +178,7 @@ pub mod exported {
     pub unsafe extern "C" fn my_SDL_WaitEventTimeout(event: *mut c_void, time: c_int) -> c_int {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
-            
+
             SDL_WaitEventTimeout.get(marker)(event, 0)
         })
     }
