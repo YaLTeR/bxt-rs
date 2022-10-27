@@ -20,11 +20,18 @@ pub static SDL_WarpMouseInWindow: Pointer<unsafe extern "C" fn(*mut c_void, c_in
         Patterns(&[]),
         my_SDL_WarpMouseInWindow as _,
     );
+pub static SDL_WaitEventTimeout: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
+    Pointer::empty_patterns(
+        b"SDL_WaitEventTimeout\0",
+        Patterns(&[]),
+        my_SDL_WaitEventTimeout as _,
+    );
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &SDL_GL_ExtensionSupported,
     &SDL_GL_GetProcAddress,
     &SDL_WarpMouseInWindow,
+    &SDL_WaitEventTimeout,
 ];
 
 #[cfg(windows)]
@@ -84,7 +91,7 @@ fn open_library() -> Option<libloading::Library> {
 ///
 /// [`reset_pointers()`] must be called before SDL is unloaded so the pointers don't go stale.
 #[instrument(name = "sdl::find_pointers", skip_all)]
-pub unsafe fn find_pointers(marker: MainThreadMarker) {
+pub unsafe fn find_pointers(marker: MainThreadMarker) { 
     let library = match open_library() {
         Some(library) => library,
         None => {
@@ -164,6 +171,15 @@ pub mod exported {
             }
 
             SDL_WarpMouseInWindow.get(marker)(window, x, y);
+        })
+    }
+
+    #[export_name = "SDL_WaitEventTimeout"]
+    pub unsafe extern "C" fn my_SDL_WaitEventTimeout(event: *mut c_void, time: c_int) -> c_int {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+            
+            SDL_WaitEventTimeout.get(marker)(event, 0)
         })
     }
 }
