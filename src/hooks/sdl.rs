@@ -175,7 +175,7 @@ pub mod exported {
     }
 
     #[export_name = "SDL_WaitEventTimeout"]
-    pub unsafe extern "C" fn my_SDL_WaitEventTimeout(event: *mut c_void, time: c_int) -> c_int {
+    pub unsafe extern "C" fn my_SDL_WaitEventTimeout(event: *mut c_void, _time: c_int) -> c_int {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
