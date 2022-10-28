@@ -540,7 +540,9 @@ pub static R_DrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_pat
     b"R_DrawViewModel\0",
     Patterns(&[
         // 8684
-        pattern!(55 8B EC 83 EC 50 D9 05 ?? ?? ?? ?? D8 1D),
+        pattern!(55 8B EC 83 EC 50 D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? 56 57 33 FF C7 45),
+        // 4554
+        pattern!(83 EC ?? D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? 56 57 33 FF C7 44),
     ]),
     my_R_DrawViewModel as _,
 );
