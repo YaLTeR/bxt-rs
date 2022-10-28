@@ -537,6 +537,11 @@ pub static R_DrawSkyBox: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
     my_R_DrawSkyBox as _,
 );
 pub static R_DrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    // To find, search for "R_RenderView" function.
+    // There will be an assignment of `mirror = false` and a function call follows.
+    // The next line should be branching of `r_refdef.onlyClientDraws == false`, which will repeat again in R_RenderView().
+    // R_DrawViewModel is called in the block where branch appears the second time.
+    // In that branch block, it contains two functions called. The first one is R_DrawViewModel().
     b"R_DrawViewModel\0",
     Patterns(&[
         // 8684
@@ -547,6 +552,10 @@ pub static R_DrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_pat
     my_R_DrawViewModel as _,
 );
 pub static R_PreDrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    // To find, search for "R_RenderView" function.
+    // There will be an assignment of `mirror = false` and a function call follows.
+    // The next line should be branching of `r_refdef.onlyClientDraws == false`, which will repeat again in R_RenderView().
+    // In that branching block, there is one function called, that is R_PreDrawViewModel().
     b"R_PreDrawViewModel\0",
     Patterns(&[
         // 8684
@@ -1738,7 +1747,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if viewmodel::is_remove(marker) {
+            if viewmodel::is_removed(marker) {
                 return;
             }
 
@@ -1751,7 +1760,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if viewmodel::is_remove(marker) {
+            if viewmodel::is_removed(marker) {
                 return;
             }
 
