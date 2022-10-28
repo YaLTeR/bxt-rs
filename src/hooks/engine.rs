@@ -536,6 +536,33 @@ pub static R_DrawSkyBox: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
     ]),
     my_R_DrawSkyBox as _,
 );
+pub static R_DrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    // To find, search for "R_RenderView". This is R_RenderView.
+    // There will be an assignment of `mirror = false` and a function call follows.
+    // The next line should be branching of `r_refdef.onlyClientDraws == false`, which will repeat again in R_RenderView().
+    // R_DrawViewModel is called in the block where branch appears the second time.
+    // In that branch block, it contains two functions called. The first one is R_DrawViewModel().
+    b"R_DrawViewModel\0",
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 83 EC 50 D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? 56 57 33 FF C7 45),
+        // 4554
+        pattern!(83 EC ?? D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? 56 57 33 FF C7 44),
+    ]),
+    my_R_DrawViewModel as _,
+);
+pub static R_PreDrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    // To find, search for "R_RenderView". This is R_RenderView.
+    // There will be an assignment of `mirror = false` and a function call follows.
+    // The next line should be branching of `r_refdef.onlyClientDraws == false`, which will repeat again in R_RenderView().
+    // In that branching block, there is one function called, that is R_PreDrawViewModel().
+    b"R_PreDrawViewModel\0",
+    Patterns(&[
+        // 8684
+        pattern!(D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? 56 C7 05),
+    ]),
+    my_R_PreDrawViewModel as _,
+);
 pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"R_SetFrustum\0",
     // To find, search for "R_RenderView". This is R_RenderView(). The call between two if (global
@@ -843,6 +870,8 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &R_Clear,
     &R_DrawSequentialPoly,
     &R_DrawSkyBox,
+    &R_DrawViewModel,
+    &R_PreDrawViewModel,
     &S_PaintChannels,
     &S_TransferStereo16,
     &SCR_DrawLoading,
@@ -1710,6 +1739,32 @@ pub mod exported {
             }
 
             R_DrawSkyBox.get(marker)();
+        })
+    }
+
+    #[export_name = "R_DrawViewModel"]
+    pub unsafe extern "C" fn my_R_DrawViewModel() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if viewmodel::is_removed(marker) {
+                return;
+            }
+
+            R_DrawViewModel.get(marker)();
+        })
+    }
+
+    #[export_name = "R_PreDrawViewModel"]
+    pub unsafe extern "C" fn my_R_PreDrawViewModel() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if viewmodel::is_removed(marker) {
+                return;
+            }
+
+            R_PreDrawViewModel.get(marker)();
         })
     }
 

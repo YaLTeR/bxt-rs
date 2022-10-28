@@ -39,6 +39,7 @@ pub mod tas_optimizer;
 pub mod tas_recording;
 pub mod tas_server_time_fix;
 pub mod triangle_drawing;
+pub mod viewmodel;
 pub mod wallhack;
 
 /// Trait for getting module information.
@@ -94,5 +95,6 @@ pub static MODULES: &[&dyn Module] = &[
     &tas_recording::TasRecording,
     &tas_server_time_fix::TasServerTimeFix,
     &triangle_drawing::TriangleDrawing,
+    &viewmodel::Viewmodel,
     &wallhack::Wallhack,
 ];
