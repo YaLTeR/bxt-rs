@@ -1,4 +1,4 @@
-//! `bxt_viewmodel`
+//! `bxt_viewmodel_remove`
 
 use super::Module;
 use crate::hooks::engine;
@@ -8,11 +8,11 @@ use crate::utils::*;
 pub struct Viewmodel;
 impl Module for Viewmodel {
     fn name(&self) -> &'static str {
-        "Viewmodel stuffs."
+        "bxt_viewmodel_remove"
     }
 
     fn description(&self) -> &'static str {
-        "Do viewmodel stuffs."
+        "Removing the viewmodel."
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
@@ -31,7 +31,7 @@ static BXT_VIEWMODEL_REMOVE: CVar = CVar::new(
     "Set to `1` to disable rendering viewmodel.",
 );
 
-pub fn is_remove(marker: MainThreadMarker) -> bool {
+pub fn is_removed(marker: MainThreadMarker) -> bool {
     if !Viewmodel.is_enabled(marker) {
         return false;
     }
