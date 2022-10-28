@@ -20,11 +20,18 @@ pub static SDL_WarpMouseInWindow: Pointer<unsafe extern "C" fn(*mut c_void, c_in
         Patterns(&[]),
         my_SDL_WarpMouseInWindow as _,
     );
+pub static SDL_WaitEventTimeout: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
+    Pointer::empty_patterns(
+        b"SDL_WaitEventTimeout\0",
+        Patterns(&[]),
+        my_SDL_WaitEventTimeout as _,
+    );
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &SDL_GL_ExtensionSupported,
     &SDL_GL_GetProcAddress,
     &SDL_WarpMouseInWindow,
+    &SDL_WaitEventTimeout,
 ];
 
 #[cfg(windows)]
@@ -164,6 +171,15 @@ pub mod exported {
             }
 
             SDL_WarpMouseInWindow.get(marker)(window, x, y);
+        })
+    }
+
+    #[export_name = "SDL_WaitEventTimeout"]
+    pub unsafe extern "C" fn my_SDL_WaitEventTimeout(event: *mut c_void, _time: c_int) -> c_int {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            SDL_WaitEventTimeout.get(marker)(event, 0)
         })
     }
 }
