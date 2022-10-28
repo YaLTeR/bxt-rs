@@ -537,7 +537,7 @@ pub static R_DrawSkyBox: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
     my_R_DrawSkyBox as _,
 );
 pub static R_DrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
-    // To find, search for "R_RenderView" function.
+    // To find, search for "R_RenderView". This is R_RenderView.
     // There will be an assignment of `mirror = false` and a function call follows.
     // The next line should be branching of `r_refdef.onlyClientDraws == false`, which will repeat again in R_RenderView().
     // R_DrawViewModel is called in the block where branch appears the second time.
