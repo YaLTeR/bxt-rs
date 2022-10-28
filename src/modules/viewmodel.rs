@@ -2,7 +2,7 @@
 
 use super::Module;
 use crate::hooks::engine;
-use crate::modules::cvars::{self, CVar};
+use crate::modules::cvars::CVar;
 use crate::utils::*;
 
 pub struct Viewmodel;
@@ -21,7 +21,7 @@ impl Module for Viewmodel {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        engine::R_DrawViewModel.is_set(marker)
+        engine::R_DrawViewModel.is_set(marker) && engine::R_PreDrawViewModel.is_set(marker)
     }
 }
 

@@ -538,6 +538,11 @@ pub static R_DrawSkyBox: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
 );
 pub static R_DrawViewModel: Pointer<unsafe extern "C" fn()> =
     Pointer::empty_patterns(b"R_DrawViewModel\0", Patterns(&[]), my_R_DrawViewModel as _);
+pub static R_PreDrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"R_PreDrawViewModel\0",
+    Patterns(&[]),
+    my_R_PreDrawViewModel as _,
+);
 pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"R_SetFrustum\0",
     // To find, search for "R_RenderView". This is R_RenderView(). The call between two if (global
@@ -846,6 +851,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &R_DrawSequentialPoly,
     &R_DrawSkyBox,
     &R_DrawViewModel,
+    &R_PreDrawViewModel,
     &S_PaintChannels,
     &S_TransferStereo16,
     &SCR_DrawLoading,
@@ -1726,6 +1732,19 @@ pub mod exported {
             }
 
             R_DrawViewModel.get(marker)();
+        })
+    }
+
+    #[export_name = "R_PreDrawViewModel"]
+    pub unsafe extern "C" fn my_R_PreDrawViewModel() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if viewmodel::is_remove(marker) {
+                return;
+            }
+
+            R_PreDrawViewModel.get(marker)();
         })
     }
 
