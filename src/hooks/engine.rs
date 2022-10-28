@@ -536,11 +536,20 @@ pub static R_DrawSkyBox: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
     ]),
     my_R_DrawSkyBox as _,
 );
-pub static R_DrawViewModel: Pointer<unsafe extern "C" fn()> =
-    Pointer::empty_patterns(b"R_DrawViewModel\0", Patterns(&[]), my_R_DrawViewModel as _);
+pub static R_DrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"R_DrawViewModel\0",
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 83 EC 50 D9 05 ?? ?? ?? ?? D8 1D),
+    ]),
+    my_R_DrawViewModel as _,
+);
 pub static R_PreDrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"R_PreDrawViewModel\0",
-    Patterns(&[]),
+    Patterns(&[
+        // 8684
+        pattern!(D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? 56 C7 05),
+    ]),
     my_R_PreDrawViewModel as _,
 );
 pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
