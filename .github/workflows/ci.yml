@@ -57,7 +57,7 @@ jobs:
     container: ${{ matrix.container }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           # We need the full history to find the tag
           fetch-depth: 0
@@ -79,42 +79,31 @@ jobs:
           sudo apt-get install -y libc6-dev-i386 ${{ matrix.cross-dep }}
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
-          toolchain: ${{ matrix.rust }}
-          target: ${{ matrix.target }}
+        run: |
+          rustup toolchain install --profile minimal ${{ matrix.rust }}
+          rustup override set ${{ matrix.rust }}
+          rustup target add ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.configuration }}-${{ matrix.cross }}
 
       - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --target ${{ matrix.target }} ${{ matrix.release-flag }}
+        run: cargo build --target ${{ matrix.target }} ${{ matrix.release-flag }}
 
       - name: Build Tests
-        uses: actions-rs/cargo@v1
         # Testing cross-compiled build requires wine which is large. We test native Windows anyway so no need.
         if: |
           !matrix.cross
-        with:
-          command: test
-          args: --no-run --all --target ${{ matrix.target }} ${{ matrix.release-flag }}
+        run: cargo test --no-run --all --target ${{ matrix.target }} ${{ matrix.release-flag }}
 
       - name: Test
-        uses: actions-rs/cargo@v1
         # Testing cross-compiled build requires wine which is large. We test native Windows anyway so no need.
         if: |
           !matrix.cross
-        with:
-          command: test
-          args: --all --target ${{ matrix.target }} ${{ matrix.release-flag }} -- --nocapture
+        run: cargo test --all --target ${{ matrix.target }} ${{ matrix.release-flag }} -- --nocapture
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         if: matrix.rust == 'stable' && !matrix.cross
         with:
           name: bxt-rs-${{ runner.os }}-${{ matrix.configuration }}
@@ -148,7 +137,7 @@ jobs:
           cargo run --target ${{ matrix.target }} --release --bin gen-wiki > temp_wiki_output/Features.md
 
       - name: Upload Wiki Page Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: >
           github.event_name == 'push' &&
           github.ref == 'refs/heads/master' &&
@@ -178,7 +167,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Install dependencies
         if: matrix.os == 'ubuntu-20.04'
@@ -187,42 +176,28 @@ jobs:
           sudo apt-get install libc6-dev-i386
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
-          toolchain: stable
-          target: ${{ matrix.target }}
-          components: clippy
+        run: |
+          rustup toolchain install --profile minimal --component clippy stable
+          rustup target add ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
 
       - name: Run clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --target ${{ matrix.target }}
-          name: clippy - ${{ matrix.label }}
+        run: cargo clippy --all-targets --target ${{ matrix.target }}
 
   rustfmt:
     runs-on: ubuntu-20.04
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
-          toolchain: nightly
-          components: rustfmt
+        run: |
+          rustup toolchain install --profile minimal --component rustfmt nightly
+          rustup override set nightly
 
       - name: Run rustfmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all -- --check
 
   publish-wiki:
     name: Publish Wiki
