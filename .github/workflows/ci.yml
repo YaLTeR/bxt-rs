@@ -80,7 +80,7 @@ jobs:
 
       - name: Install Rust
         run: |
-          rustup toolchain install --profile minimal ${{ matrix.rust }}
+          rustup toolchain install ${{ matrix.rust }} --profile minimal
           rustup override set ${{ matrix.rust }}
           rustup target add ${{ matrix.target }}
 
@@ -177,7 +177,7 @@ jobs:
 
       - name: Install Rust
         run: |
-          rustup toolchain install --profile minimal --component clippy stable
+          rustup toolchain install stable --profile minimal --component clippy
           rustup target add ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
@@ -193,7 +193,7 @@ jobs:
 
       - name: Install Rust
         run: |
-          rustup toolchain install --profile minimal --component rustfmt nightly
+          rustup toolchain install nightly --profile minimal --component rustfmt
           rustup override set nightly
 
       - name: Run rustfmt
