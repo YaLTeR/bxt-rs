@@ -62,12 +62,7 @@ pub unsafe fn with_scaled_projection_matrix<T>(
     marker: MainThreadMarker,
     f: impl FnOnce() -> T,
 ) -> T {
-    let scale = match scale(marker) {
-        Some(scale) => scale,
-        None => {
-            return f();
-        }
-    };
+    let Some(scale) = scale(marker) else { return f() };
 
     {
         let (width, height) = engine::get_resolution(marker);

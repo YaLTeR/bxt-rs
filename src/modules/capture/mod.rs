@@ -436,10 +436,7 @@ pub unsafe fn capture_sound(marker: MainThreadMarker, mode: SoundCaptureMode) {
 
 pub unsafe fn on_s_transfer_stereo_16(marker: MainThreadMarker, end: i32) {
     let mut state = STATE.borrow_mut(marker);
-    let recorder = match *state {
-        State::Recording(ref mut recorder) => recorder,
-        _ => return,
-    };
+    let State::Recording(ref mut recorder) = *state else { return };
 
     let painted_time = *engine::paintedtime.get(marker);
     let paint_buffer = &*engine::paintbuffer.get(marker);
@@ -466,10 +463,7 @@ pub unsafe fn on_s_transfer_stereo_16(marker: MainThreadMarker, end: i32) {
 
 pub unsafe fn on_host_filter_time(marker: MainThreadMarker) -> bool {
     let mut state = STATE.borrow_mut(marker);
-    let recorder = match *state {
-        State::Recording(ref mut recorder) => recorder,
-        _ => return false,
-    };
+    let State::Recording(ref mut recorder) = *state else { return false };
 
     if (*engine::cls_demos.get(marker)).demoplayback == 0 {
         return false;
@@ -517,10 +511,7 @@ pub fn prevent_toggle_console(marker: MainThreadMarker) -> bool {
 
 pub unsafe fn time_passed(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let recorder = match *state {
-        State::Recording(ref mut recorder) => recorder,
-        _ => return,
-    };
+    let State::Recording(ref mut recorder) = *state else { return };
 
     // Accumulate time for the last frame.
     let time = *engine::host_frametime.get(marker);

@@ -31,12 +31,9 @@ fn open_library() -> Option<libloading::Library> {
 /// stale.
 #[instrument(name = "opengl32::find_pointers", skip_all)]
 pub unsafe fn find_pointers(marker: MainThreadMarker) {
-    let library = match open_library() {
-        Some(library) => library,
-        None => {
-            warn!("error loading opengl32.dll");
-            return;
-        }
+    let Some(library) = open_library() else {
+        warn!("error loading opengl32.dll");
+        return;
     };
 
     for pointer in POINTERS {

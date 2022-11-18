@@ -92,12 +92,9 @@ fn open_library() -> Option<libloading::Library> {
 /// [`reset_pointers()`] must be called before SDL is unloaded so the pointers don't go stale.
 #[instrument(name = "sdl::find_pointers", skip_all)]
 pub unsafe fn find_pointers(marker: MainThreadMarker) {
-    let library = match open_library() {
-        Some(library) => library,
-        None => {
-            warn!("error loading SDL2");
-            return;
-        }
+    let Some(library) = open_library() else {
+        warn!("error loading SDL2");
+        return;
     };
 
     for pointer in POINTERS {

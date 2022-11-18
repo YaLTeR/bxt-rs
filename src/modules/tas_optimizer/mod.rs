@@ -317,15 +317,9 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
     // TODO: this function must be marked as unsafe. Getting the player data should be safe in a
     // console command callback, however by being safe, this function can be called from anywhere
     // else in the code.
-    let player = match unsafe { player_data(marker) } {
-        Some(x) => x,
-        None => {
-            con_print(
-                marker,
-                "Cannot enable the TAS optimizer outside of gameplay.\n",
-            );
-            return;
-        }
+    let Some(player) = (unsafe { player_data(marker) }) else {
+        con_print(marker, "Cannot enable the TAS optimizer outside of gameplay.\n");
+        return;
     };
 
     // TODO: get current parameters.
@@ -742,10 +736,7 @@ fn optim_simulation_done(_marker: MainThreadMarker) {
 }
 
 pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker) {
-    let cls = match engine::cls.get_opt(marker) {
-        Some(x) => x,
-        None => return,
-    };
+    let Some(cls) = engine::cls.get_opt(marker) else { return };
 
     let client_state = (*cls).state;
     if client_state != 1 && client_state != 5 {

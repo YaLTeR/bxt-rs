@@ -793,10 +793,7 @@ impl<S: Step> Step for LeaveGround<S> {
             .0
             .simulate(tracer, parameters, frame_bulk, state.clone(), input);
 
-        let action = match frame_bulk.auto_actions.leave_ground_action {
-            Some(x) => x,
-            None => return do_nothing,
-        };
+        let Some(action) = frame_bulk.auto_actions.leave_ground_action else { return do_nothing };
 
         if action.times != Times::UnlimitedWithinFrameBulk {
             return do_nothing;

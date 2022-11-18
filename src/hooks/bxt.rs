@@ -36,12 +36,9 @@ fn open_library() -> Option<libloading::Library> {
 
 #[instrument(name = "bxt::find_pointers", skip_all)]
 pub unsafe fn find_pointers(marker: MainThreadMarker) {
-    let library = match open_library() {
-        Some(library) => library,
-        None => {
-            debug!("could not find Bunnymod XT");
-            return;
-        }
+    let Some(library) = open_library() else {
+        debug!("could not find Bunnymod XT");
+        return;
     };
 
     for pointer in POINTERS {
