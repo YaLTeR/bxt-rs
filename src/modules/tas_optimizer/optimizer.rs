@@ -561,8 +561,7 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
             StrafeDir::LeftRight(count) | StrafeDir::RightLeft(count) => {
                 *count = NonZeroU32::new(
                     (count.get().conv::<i64>() + rng.gen_range(-10..10))
-                        .max(1)
-                        .min(u32::MAX.into())
+                        .clamp(1, u32::MAX.into())
                         .try_conv()
                         .unwrap(),
                 )
@@ -644,8 +643,7 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
 
                 *count = NonZeroU32::new(
                     (count.get().conv::<i64>() + rng.gen_range(frame_count_difference_range))
-                        .max(1)
-                        .min(u32::MAX.into())
+                        .clamp(1, u32::MAX.into())
                         .try_conv()
                         .unwrap(),
                 )

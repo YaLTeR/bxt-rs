@@ -428,7 +428,7 @@ pub unsafe fn capture_sound(marker: MainThreadMarker, mode: SoundCaptureMode) {
         let samples = recorder.samples_to_capture(samples_per_second, mode);
 
         let painted_time = *engine::paintedtime.get(marker);
-        painted_time + samples as i32
+        painted_time + samples
     };
 
     engine::S_PaintChannels.get(marker)(end_time);
@@ -454,12 +454,8 @@ pub unsafe fn on_s_transfer_stereo_16(marker: MainThreadMarker, end: i32) {
         .zip(buf.chunks_exact_mut(4))
     {
         // Clamping as done in Snd_WriteLinearBlastStereo16().
-        let l16 = ((sample.left.wrapping_mul(volume)) >> 8)
-            .min(32767)
-            .max(-32768) as i16;
-        let r16 = ((sample.right.wrapping_mul(volume)) >> 8)
-            .min(32767)
-            .max(-32768) as i16;
+        let l16 = ((sample.left.wrapping_mul(volume)) >> 8).clamp(-32768, 32767) as i16;
+        let r16 = ((sample.right.wrapping_mul(volume)) >> 8).clamp(-32768, 32767) as i16;
 
         buf[0..2].copy_from_slice(&l16.to_le_bytes());
         buf[2..4].copy_from_slice(&r16.to_le_bytes());
