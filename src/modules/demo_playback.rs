@@ -162,12 +162,11 @@ pub fn queue_for_playing(
 
         let demo = path.into_os_string().into_string().unwrap();
 
-        // Since we're using only a single cls.demos entry at a time, it should be possible to use
-        // the whole cls.demos storage to significantly increase the character limit, if needed.
-        if demo.len() >= 16 {
+        // We have 16 * 32 = 512 bytes of storage in the cls.demos array.
+        if demo.len() >= 512 {
             con_print(
                 marker,
-                &format!("Error: filename {demo} is longer than 15 characters.\n"),
+                &format!("Error: filename {demo} is longer than 511 characters.\n"),
             );
             return;
         }
@@ -199,13 +198,17 @@ pub fn set_next_demo(marker: MainThreadMarker) {
 
         match demos.pop() {
             Some(demo) => {
-                // Replace the first startdemos entry with the next demo and set the next demo as
+                // Zero the whole array out so we don't have to deal with tracking the final byte.
+                cls_demos.demos.fill([0; 16]);
+
+                // Fill the startdemos array with the next demo name and set the next demo as
                 // the first one.
                 cls_demos.demonum = 0;
 
                 let demo = demo.as_slice_of().unwrap();
-                cls_demos.demos[0][..demo.len()].copy_from_slice(demo);
-                cls_demos.demos[1][0] = 0;
+                for (i, chunk) in demo.chunks(cls_demos.demos[0].len()).enumerate() {
+                    cls_demos.demos[i][..chunk.len()].copy_from_slice(chunk);
+                }
             }
             None => {
                 cls_demos.demonum = -1;
