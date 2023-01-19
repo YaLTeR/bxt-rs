@@ -118,22 +118,15 @@ pub struct Input {
 /// To simulate the next frame, call [`State::simulate()`] on the previous state.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct State {
-    player: Player,
-    place: Place,
-    wish_speed: f32,
-    prev_frame_input: Input,
-    jumped: bool,
-    move_traces: ArrayVec<TraceResult, 4>,
+    pub player: Player,
+    pub place: Place,
+    pub wish_speed: f32,
+    pub prev_frame_input: Input,
+    pub jumped: bool,
+    pub move_traces: ArrayVec<TraceResult, 4>,
     // Number of frames for [`StrafeDir::LeftRight`] or [`StrafeDir::RightLeft`] which goes from `0`
     // to `count - 1`.
-    strafe_cycle_frame_count: u32,
-}
-
-impl State {
-    /// Returns the player data.
-    pub fn player(&self) -> Player {
-        self.player
-    }
+    pub strafe_cycle_frame_count: u32,
 }
 
 impl State {

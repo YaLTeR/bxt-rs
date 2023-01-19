@@ -106,8 +106,8 @@ impl Optimizer {
         for pair in self.frames.windows(2) {
             let (prev, next) = (&pair[0], &pair[1]);
 
-            tri.vertex(prev.state.player().pos);
-            tri.vertex(next.state.player().pos);
+            tri.vertex(prev.state.player.pos);
+            tri.vertex(next.state.player.pos);
         }
 
         if let Some(frames) = &self.last_mutation_frames {
@@ -116,8 +116,8 @@ impl Optimizer {
             for pair in frames.windows(2) {
                 let (prev, next) = (&pair[0], &pair[1]);
 
-                tri.vertex(prev.state.player().pos);
-                tri.vertex(next.state.player().pos);
+                tri.vertex(prev.state.player.pos);
+                tri.vertex(next.state.player.pos);
             }
         }
 
@@ -375,7 +375,7 @@ impl Optimizer {
                 if frame_bulk.action_keys.use_ {
                     frame_bulk.action_keys.use_ = false;
                     let state_new = simulate(frame_bulk);
-                    if state_original.player() == state_new.player() {
+                    if state_original.player == state_new.player {
                         state_original = state_new;
                     } else {
                         frame_bulk.action_keys.use_ = true;
@@ -389,7 +389,7 @@ impl Optimizer {
                         type_: preferred_leave_ground_action_type,
                     });
                     let state_new = simulate(frame_bulk);
-                    if state_original.player() == state_new.player() {
+                    if state_original.player == state_new.player {
                         state_original = state_new;
                     } else {
                         frame_bulk.auto_actions.leave_ground_action = Some(action);
@@ -399,7 +399,7 @@ impl Optimizer {
                 if let Some(action) = frame_bulk.auto_actions.duck_before_ground {
                     frame_bulk.auto_actions.duck_before_ground = None;
                     let state_new = simulate(frame_bulk);
-                    if state_original.player() == state_new.player() {
+                    if state_original.player == state_new.player {
                         state_original = state_new;
                     } else {
                         frame_bulk.auto_actions.duck_before_ground = Some(action);

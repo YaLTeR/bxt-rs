@@ -23,13 +23,13 @@ pub enum Variable {
 impl Variable {
     fn get(self, state: &State) -> f32 {
         match self {
-            Variable::PosX => state.player().pos.x,
-            Variable::PosY => state.player().pos.y,
-            Variable::PosZ => state.player().pos.z,
-            Variable::VelX => state.player().vel.x,
-            Variable::VelY => state.player().vel.y,
-            Variable::VelZ => state.player().vel.z,
-            Variable::Speed => state.player().vel.xy().length(),
+            Variable::PosX => state.player.pos.x,
+            Variable::PosY => state.player.pos.y,
+            Variable::PosZ => state.player.pos.z,
+            Variable::VelX => state.player.vel.x,
+            Variable::VelY => state.player.vel.y,
+            Variable::VelZ => state.player.vel.z,
+            Variable::Speed => state.player.vel.xy().length(),
         }
     }
 }
@@ -204,10 +204,10 @@ impl Objective {
                     if should_pass_all_frames {
                         frames
                             .iter()
-                            .map(|f| to_dynamic(f.state.player()).unwrap())
+                            .map(|f| to_dynamic(f.state.player).unwrap())
                             .collect::<rhai::Dynamic>()
                     } else {
-                        to_dynamic(frames.last().unwrap().state.player()).unwrap()
+                        to_dynamic(frames.last().unwrap().state.player).unwrap()
                     }
                 };
 
