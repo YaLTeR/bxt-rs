@@ -1,0 +1,9 @@
+[package]
+name = "bxt-ipc-types"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bxt-strafe = { version = "0.1.0", path = "../bxt-strafe" }
+hltas = { version = "0.7.0", features = ["serde1"], git = "https://github.com/HLTAS/hltas.git" }
+serde = { version = "1.0.152", features = ["derive"] }

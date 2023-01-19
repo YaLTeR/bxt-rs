@@ -7,12 +7,12 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use std::{mem, thread};
 
+use bxt_ipc_types::Frame;
 use color_eyre::eyre::{self, eyre, Context};
 use hltas::HLTAS;
 use ipc_channel::ipc::{IpcOneShotServer, IpcReceiver, IpcSender};
 use once_cell::sync::Lazy;
 
-use super::optimizer::Frame;
 use crate::hooks::{bxt, engine};
 use crate::utils::{MainThreadCell, MainThreadMarker, PointerTrait};
 

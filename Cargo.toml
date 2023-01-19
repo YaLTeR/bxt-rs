@@ -10,7 +10,9 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 ash = "0.37.2"
+bincode = "1.3.3"
 bitflags = "1.3.2"
+bxt-ipc-types = { version = "0.1.0", path = "bxt-ipc-types" }
 bxt-macros = { path = "bxt-macros" }
 bxt-patterns = { path = "bxt-patterns" }
 bxt-strafe = { path = "bxt-strafe" }
@@ -19,14 +21,16 @@ color-eyre = { version = "0.6.2", default-features = false }
 crossbeam-channel = "0.5.6"
 git-version = "0.3.5"
 glam = "0.22.0"
-hltas = { version = "0.7.0", features = ["serde1"] }
+hltas = { version = "0.7.0", features = ["serde1"], git = "https://github.com/HLTAS/hltas.git" }
 ipc-channel = "0.16.0"
+itertools = "0.10.5"
 libc = "0.2.139"
 libloading = "0.7.4"
 once_cell = "1.17.0"
 rand = "0.8.5"
 rayon = "1.6.1"
 rhai = { version = "1.12.0", features = ["no_closure", "no_custom_syntax", "no_module", "no_time", "f32_float", "serde"] }
+rusqlite = { version = "0.28.0", features = ["bundled"] }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.91"
 tap = "1.0.1"
@@ -41,6 +45,9 @@ minhook-sys = "0.1.1"
 [target."cfg(windows)".dependencies.winapi]
 version = "0.3.9"
 features = ["libloaderapi", "psapi", "winuser", "synchapi", "handleapi", "processthreadsapi", "winbase", "winerror"]
+
+[dev-dependencies]
+expect-test = "1.4.0"
 
 [build-dependencies]
 gl_generator = "0.14.0"
@@ -58,4 +65,4 @@ opt-level = 3
 overflow-checks = true # So no hidden unsoundness can sneak in.
 
 [workspace]
-members = [".", "bxt-macros", "bxt-patterns", "bxt-strafe", "bxt-vct"]
+members = [".", "bxt-ipc-types", "bxt-macros", "bxt-patterns", "bxt-strafe", "bxt-vct"]

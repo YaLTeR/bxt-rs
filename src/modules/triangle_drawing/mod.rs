@@ -1,6 +1,6 @@
 //! Triangle drawing.
 
-use super::{tas_optimizer, Module};
+use super::{tas_optimizer, tas_studio, Module};
 use crate::hooks::engine::{self};
 use crate::utils::*;
 
@@ -31,6 +31,7 @@ pub unsafe fn on_draw_transparent_triangles(marker: MainThreadMarker) {
 
     // TODO: set white texture.
 
+    tas_studio::draw(marker, &tri);
     tas_optimizer::draw(marker, &tri);
 
     // Required for the WON DLLs.

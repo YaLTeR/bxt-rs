@@ -78,17 +78,3 @@ pub fn with_wallhack<T>(marker: MainThreadMarker, f: impl FnOnce() -> T) -> T {
 
     rv
 }
-
-pub fn on_r_clear(marker: MainThreadMarker) {
-    if !is_active(marker) {
-        return;
-    }
-
-    let gl = crate::gl::GL.borrow(marker);
-    let gl = gl.as_ref().unwrap();
-
-    unsafe {
-        gl.ClearColor(0., 0., 0., 1.);
-        gl.Clear(gl::COLOR_BUFFER_BIT);
-    }
-}

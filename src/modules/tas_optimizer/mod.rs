@@ -5,12 +5,12 @@ use std::fs::{self, File};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use bxt_ipc_types::Frame;
 use bxt_strafe::{Parameters, Player, State};
 use glam::Vec3;
 use hltas::HLTAS;
 
 use self::objective::{AttemptResult, Constraint, ConstraintType, Direction, Objective, Variable};
-use self::optimizer::Frame;
 use super::cvars::CVar;
 use super::player_movement_tracing::Tracer;
 use super::triangle_drawing::{self, TriangleApi};
@@ -29,7 +29,7 @@ mod hltas_ext;
 
 mod objective;
 
-mod simulator;
+pub mod simulator;
 
 mod remote;
 pub use remote::{
@@ -270,7 +270,7 @@ arguments) provided in Bunnymod XT, which sets the script name and frame number 
 );
 
 // TODO: make good
-unsafe fn parameters(marker: MainThreadMarker) -> Parameters {
+pub unsafe fn parameters(marker: MainThreadMarker) -> Parameters {
     unsafe fn get_cvar_f32(marker: MainThreadMarker, name: &str) -> Option<f32> {
         let mut ptr = *engine::cvar_vars.get(marker);
         while !ptr.is_null() {
@@ -772,7 +772,7 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker) {
     });
 }
 
-unsafe fn player_data(marker: MainThreadMarker) -> Option<Player> {
+pub unsafe fn player_data(marker: MainThreadMarker) -> Option<Player> {
     // SAFETY: we're not calling any engine functions while the reference is alive.
     let edict = engine::player_edict(marker)?.as_ref();
 

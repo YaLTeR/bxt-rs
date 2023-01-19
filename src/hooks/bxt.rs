@@ -5,11 +5,14 @@ use std::ptr::NonNull;
 
 use hltas::HLTAS;
 
+use crate::modules::tas_studio;
 use crate::utils::{abort_on_panic, MainThreadMarker, Pointer, PointerTrait};
 
 pub static BXT_ON_TAS_PLAYBACK_FRAME: Pointer<
     *mut Option<unsafe extern "C" fn(OnTasPlaybackFrameData) -> c_int>,
 > = Pointer::empty(b"bxt_on_tas_playback_frame\0");
+pub static BXT_ON_TAS_PLAYBACK_STOPPED: Pointer<*mut Option<unsafe extern "C" fn()>> =
+    Pointer::empty(b"bxt_on_tas_playback_stopped\0");
 pub static BXT_SIMULATION_IPC_IS_CLIENT_INITIALIZED: Pointer<unsafe extern "C" fn() -> c_int> =
     Pointer::empty(b"bxt_simulation_ipc_is_client_initialized\0");
 pub static BXT_TAS_LOAD_SCRIPT_FROM_STRING: Pointer<unsafe extern "C" fn(*const c_char)> =
@@ -17,6 +20,7 @@ pub static BXT_TAS_LOAD_SCRIPT_FROM_STRING: Pointer<unsafe extern "C" fn(*const 
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &BXT_ON_TAS_PLAYBACK_FRAME,
+    &BXT_ON_TAS_PLAYBACK_STOPPED,
     &BXT_SIMULATION_IPC_IS_CLIENT_INITIALIZED,
     &BXT_TAS_LOAD_SCRIPT_FROM_STRING,
 ];
@@ -67,6 +71,16 @@ fn set_callbacks(marker: MainThreadMarker) {
             *bxt_on_tas_playback_frame = Some(on_tas_playback_frame);
         }
     }
+
+    if let Some(bxt_on_tas_playback_stopped) = BXT_ON_TAS_PLAYBACK_STOPPED.get_opt(marker) {
+        // SAFETY: this is a global variable in BXT which is accessed only from the main game thread
+        // (which is the current thread as we have a marker).
+        unsafe {
+            let current_ptr = *bxt_on_tas_playback_stopped;
+            assert!(current_ptr.is_none() || current_ptr == Some(on_tas_playback_stopped));
+            *bxt_on_tas_playback_stopped = Some(on_tas_playback_stopped);
+        }
+    }
 }
 
 pub unsafe fn tas_load_script(marker: MainThreadMarker, script: &HLTAS) {
@@ -93,13 +107,23 @@ pub fn is_simulation_ipc_client(marker: MainThreadMarker) -> bool {
 #[repr(C)]
 pub struct OnTasPlaybackFrameData {
     pub strafe_cycle_frame_count: u32,
+    pub prev_predicted_trace_fractions: [f32; 4],
+    pub prev_predicted_trace_normal_zs: [f32; 4],
 }
 
 unsafe extern "C" fn on_tas_playback_frame(data: OnTasPlaybackFrameData) -> c_int {
     abort_on_panic(move || {
         let marker = MainThreadMarker::new();
 
-        let stop = false;
+        let stop = tas_studio::on_tas_playback_frame(marker, data);
         stop.into()
+    })
+}
+
+unsafe extern "C" fn on_tas_playback_stopped() {
+    abort_on_panic(move || {
+        let marker = MainThreadMarker::new();
+
+        tas_studio::on_tas_playback_stopped(marker);
     })
 }

@@ -29,6 +29,7 @@ pub mod disable_loading_text;
 pub mod fade_remove;
 pub mod force_fov;
 pub mod help;
+pub mod hud;
 pub mod hud_scale;
 pub mod novis;
 pub mod player_movement_tracing;
@@ -40,6 +41,7 @@ pub mod tas_logging;
 pub mod tas_optimizer;
 pub mod tas_recording;
 pub mod tas_server_time_fix;
+pub mod tas_studio;
 pub mod triangle_drawing;
 pub mod viewmodel;
 pub mod wallhack;
@@ -87,6 +89,7 @@ pub static MODULES: &[&dyn Module] = &[
     &fade_remove::FadeRemove,
     &force_fov::ForceFov,
     &help::Help,
+    &hud::Hud,
     &hud_scale::HudScale,
     &novis::NoVis,
     &player_movement_tracing::PlayerMovementTracing,
@@ -98,6 +101,7 @@ pub static MODULES: &[&dyn Module] = &[
     &tas_optimizer::TasOptimizer,
     &tas_recording::TasRecording,
     &tas_server_time_fix::TasServerTimeFix,
+    &tas_studio::TasStudio,
     &triangle_drawing::TriangleDrawing,
     &viewmodel::Viewmodel,
     &wallhack::Wallhack,

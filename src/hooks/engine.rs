@@ -42,6 +42,8 @@ pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::emp
     ]),
     null_mut(),
 );
+pub static CBaseUI__HideGameUI: Pointer<unsafe extern "fastcall" fn(*mut c_void)> =
+    Pointer::empty(b"_ZN7CBaseUI10HideGameUIEv\0");
 pub static Cbuf_AddFilteredText: Pointer<unsafe extern "C" fn(*const c_char)> =
     Pointer::empty_patterns(
         b"Cbuf_AddFilteredText\0",
@@ -108,6 +110,10 @@ pub static CL_PlayDemo_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
     ]),
     my_CL_PlayDemo_f as _,
 );
+pub static ClientDLL_ActivateMouse: Pointer<unsafe extern "C" fn()> =
+    Pointer::empty(b"ClientDLL_ActivateMouse\0");
+pub static ClientDLL_DeactivateMouse: Pointer<unsafe extern "C" fn()> =
+    Pointer::empty(b"ClientDLL_DeactivateMouse\0");
 pub static ClientDLL_DemoUpdateClientData: Pointer<unsafe extern "C" fn(*mut c_void)> =
     Pointer::empty_patterns(
         b"ClientDLL_DemoUpdateClientData\0",
@@ -251,6 +257,11 @@ pub static Cvar_RegisterVariable: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
         null_mut(),
     );
 pub static cvar_vars: Pointer<*mut *mut cvar_s> = Pointer::empty(b"cvar_vars\0");
+pub static Draw_FillRGBABlend: Pointer<
+    unsafe extern "C" fn(c_int, c_int, c_int, c_int, c_int, c_int, c_int, c_int),
+> = Pointer::empty(b"Draw_FillRGBABlend\0");
+pub static Draw_String: Pointer<unsafe extern "C" fn(c_int, c_int, *const c_char) -> c_int> =
+    Pointer::empty(b"Draw_String\0");
 pub static DrawCrosshair: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer::empty_patterns(
     b"DrawCrosshair\0",
     // To find, search for "Client.dll SPR_DrawHoles error:  invalid frame". This is
@@ -442,6 +453,8 @@ pub static hudGetScreenInfo: Pointer<unsafe extern "C" fn(*mut SCREENINFO) -> c_
         ]),
         my_hudGetScreenInfo as _,
     );
+pub static hudGetViewAngles: Pointer<unsafe extern "C" fn(*mut [c_float; 3])> =
+    Pointer::empty(b"hudGetViewAngles\0");
 pub static idum: Pointer<*mut c_int> = Pointer::empty(
     // Not a real symbol name.
     b"idum\0",
@@ -829,6 +842,7 @@ pub static client_s_edict_offset: MainThreadCell<Option<usize>> = MainThreadCell
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &build_number,
+    &CBaseUI__HideGameUI,
     &Cbuf_AddFilteredText,
     &Cbuf_AddText,
     &Cbuf_AddTextToBuffer,
@@ -837,6 +851,8 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &CL_GameDir_f,
     &CL_Move,
     &CL_PlayDemo_f,
+    &ClientDLL_ActivateMouse,
+    &ClientDLL_DeactivateMouse,
     &ClientDLL_DemoUpdateClientData,
     &ClientDLL_DrawTransparentTriangles,
     &ClientDLL_HudRedraw,
@@ -854,6 +870,8 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Cvar_RegisterVariable,
     &cvar_vars,
     &DrawCrosshair,
+    &Draw_FillRGBABlend,
+    &Draw_String,
     &frametime_remainder,
     &GL_BeginRendering,
     &gEntityInterface,
@@ -869,6 +887,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Host_Tell_f,
     &Host_ValidSave,
     &hudGetScreenInfo,
+    &hudGetViewAngles,
     &idum,
     &Memory_Init,
     &Mem_Free,
@@ -984,6 +1003,7 @@ pub struct server_static_s {
 
 #[allow(clippy::upper_case_acronyms)]
 #[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SCREENINFO {
     pub iSize: c_int,
     pub iWidth: c_int,
@@ -991,6 +1011,19 @@ pub struct SCREENINFO {
     pub iFlags: c_int,
     pub iCharHeight: c_int,
     pub charWidths: [c_short; 256],
+}
+
+impl SCREENINFO {
+    pub const fn zeroed() -> Self {
+        Self {
+            iSize: 0,
+            iWidth: 0,
+            iHeight: 0,
+            iFlags: 0,
+            iCharHeight: 0,
+            charWidths: [0; 256],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -1128,6 +1161,16 @@ pub unsafe fn player_edict(marker: MainThreadMarker) -> Option<NonNull<edict_s>>
         None
     } else {
         NonNull::new(*svs_.clients.add(offset).cast())
+    }
+}
+
+pub fn activate_mouse(marker: MainThreadMarker, activate: bool) {
+    // SAFETY: the engine checks a zero-initialized global variable and whether the function pointer
+    // is present before dispatching to it.
+    if activate {
+        unsafe { ClientDLL_ActivateMouse.get(marker)() };
+    } else {
+        unsafe { ClientDLL_DeactivateMouse.get(marker)() };
     }
 }
 
@@ -1635,6 +1678,7 @@ pub mod exported {
     #![allow(clippy::missing_safety_doc)]
 
     use super::*;
+    use crate::gl;
 
     #[export_name = "Memory_Init"]
     pub unsafe extern "C" fn my_Memory_Init(buf: *mut c_void, size: c_int) -> c_int {
@@ -1675,6 +1719,7 @@ pub mod exported {
             commands::deregister_disabled_module_commands(marker);
 
             tas_optimizer::maybe_start_client_connection_thread(marker);
+            tas_studio::maybe_start_client_connection_thread(marker);
 
             rv
         })
@@ -1735,9 +1780,18 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             // Half-Life normally doesn't clear the screen every frame, which is a problem with
-            // wallhack as there's no solid background.
-            wallhack::on_r_clear(marker);
-            skybox_remove::on_r_clear(marker);
+            // wallhack as there's no solid background. Removing the skybox also removes the solid
+            // background. Finally, while in the TAS editor we're frequently out of bounds, so we
+            // want to clear to make it easier to see.
+            if wallhack::is_active(marker)
+                || skybox_remove::is_active(marker)
+                || tas_studio::should_clear(marker)
+            {
+                if let Some(gl) = gl::GL.borrow(marker).as_ref() {
+                    gl.ClearColor(0., 0., 0., 1.);
+                    gl.Clear(gl::COLOR_BUFFER_BIT);
+                }
+            }
 
             R_Clear.get(marker)()
         })
@@ -1933,6 +1987,9 @@ pub mod exported {
 
                 tas_optimizer::update_client_connection_condition(marker);
                 tas_optimizer::maybe_receive_messages_from_remote_server(marker);
+
+                tas_studio::update_client_connection_condition(marker);
+                tas_studio::maybe_receive_messages_from_remote_server(marker);
             }
 
             rv
@@ -2013,6 +2070,8 @@ pub mod exported {
                 hud_scale::maybe_scale_screen_info(marker, &mut *info);
             }
 
+            hud::update_screen_info(marker, *info);
+
             rv
         })
     }
@@ -2054,7 +2113,9 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             hud_scale::with_scaled_projection_matrix(marker, move || {
-                ClientDLL_HudRedraw.get(marker)(intermission)
+                ClientDLL_HudRedraw.get(marker)(intermission);
+
+                hud::draw_hud(marker);
             });
         })
     }
@@ -2101,6 +2162,10 @@ pub mod exported {
 
             let text = comment_overflow_fix::strip_prefix_comments(text);
             let text = scoreboard_remove::strip_showscores(marker, text);
+
+            if tas_studio::should_skip_command(marker, text) {
+                return;
+            }
 
             tas_recording::on_cbuf_addtext(marker, text);
 
@@ -2155,6 +2220,17 @@ pub mod exported {
             player_movement_tracing::maybe_adjust_distance_limit(marker, mins, maxs);
 
             SV_AddLinksToPM_.get(marker)(node, mins, maxs);
+        })
+    }
+
+    #[export_name = "_ZN7CBaseUI10HideGameUIEv"]
+    pub unsafe extern "C" fn my_CBaseUI__HideGameUI(this: *mut c_void) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            tas_studio::maybe_prevent_unpause(marker, || {
+                CBaseUI__HideGameUI.get(marker)(this);
+            });
         })
     }
 }

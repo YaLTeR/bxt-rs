@@ -4,13 +4,13 @@ use std::num::NonZeroU32;
 use std::result::Result;
 use std::{iter, mem};
 
-use bxt_strafe::{Parameters, State, Trace};
+use bxt_ipc_types::Frame;
+use bxt_strafe::Trace;
 use hltas::types::*;
 use hltas::HLTAS;
 use rand::distributions::Uniform;
 use rand::prelude::Distribution;
 use rand::Rng;
-use serde::{Deserialize, Serialize};
 use tap::{Conv, Pipe, Tap, TryConv};
 
 use super::hltas_ext::HLTASExt;
@@ -19,16 +19,6 @@ use super::remote;
 use super::simulator::Simulator;
 use crate::modules::triangle_drawing::triangle_api::{Primitive, RenderMode};
 use crate::modules::triangle_drawing::TriangleApi;
-
-/// A movement frame.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Frame {
-    /// Parameters used for simulating this frame.
-    pub parameters: Parameters,
-
-    /// Final state after this frame.
-    pub state: State,
-}
 
 pub struct Optimizer {
     /// The first part of the script that we're not optimizing.

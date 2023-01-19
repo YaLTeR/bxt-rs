@@ -1,8 +1,7 @@
+use bxt_ipc_types::Frame;
 /// Frame simulator.
 use bxt_strafe::Trace;
 use hltas::types::Line;
-
-use super::Frame;
 
 /// Frame simulator.
 ///
