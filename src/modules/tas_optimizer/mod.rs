@@ -794,7 +794,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                     BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
-                    &*OBJECTIVE.borrow(marker),
+                    &OBJECTIVE.borrow(marker),
                     |value| {
                         con_print(marker, &format!("Found new best value: {value}\n"));
                     },
@@ -815,7 +815,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                     BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
-                    &*OBJECTIVE.borrow(marker),
+                    &OBJECTIVE.borrow(marker),
                 ) {
                     let start = Instant::now();
 
