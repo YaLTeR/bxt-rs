@@ -104,6 +104,20 @@ impl<'a> TriangleApi<'a> {
         world
     }
 
+    /// Converts world coordinates to screen coordinates.
+    ///
+    /// The screen coordinate system ranges from -1 to 1 where (-1, -1) is the bottom-left corner
+    /// of the screen.
+    ///
+    /// Returns `None` if the world point is behind the camera.
+    pub fn world_to_screen(&self, world: Vec3) -> Option<Vec2> {
+        let mut screen = Vec3::ZERO;
+        let is_in_front = unsafe {
+            (self.api.WorldToScreen)(world.as_ref().as_ptr(), screen.as_mut().as_mut_ptr())
+        } == 0;
+        is_in_front.then_some(screen.truncate())
+    }
+
     /// Draws a pyramid.
     pub fn pyramid(&self, position: Vec3, width: f32, height: f32) {
         let half_width = width * 0.5;
