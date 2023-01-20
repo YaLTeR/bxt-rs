@@ -1,19 +1,25 @@
 #![allow(non_snake_case, non_upper_case_globals)]
 
 use std::ffi::CString;
-use std::os::raw::{c_char, c_int, c_void};
+use std::os::raw::*;
 use std::ptr::NonNull;
 
+use bitflags::bitflags;
 use bxt_patterns::Patterns;
+use glam::IVec2;
 
 use crate::gl;
 use crate::modules::tas_optimizer;
 use crate::utils::*;
 
+pub static SDL_GetMouseState: Pointer<unsafe extern "C" fn(*mut c_int, *mut c_int) -> c_uint> =
+    Pointer::empty(b"SDL_GetMouseState\0");
 pub static SDL_GL_ExtensionSupported: Pointer<unsafe extern "C" fn(*const c_char) -> c_int> =
     Pointer::empty(b"SDL_GL_ExtensionSupported\0");
 pub static SDL_GL_GetProcAddress: Pointer<unsafe extern "C" fn(*const c_char) -> *const c_void> =
     Pointer::empty(b"SDL_GL_GetProcAddress\0");
+pub static SDL_SetRelativeMouseMode: Pointer<unsafe extern "C" fn(c_int) -> c_int> =
+    Pointer::empty(b"SDL_SetRelativeMouseMode\0");
 pub static SDL_WarpMouseInWindow: Pointer<unsafe extern "C" fn(*mut c_void, c_int, c_int)> =
     Pointer::empty_patterns(
         b"SDL_WarpMouseInWindow\0",
@@ -28,8 +34,10 @@ pub static SDL_WaitEventTimeout: Pointer<unsafe extern "C" fn(*mut c_void, c_int
     );
 
 static POINTERS: &[&dyn PointerTrait] = &[
+    &SDL_GetMouseState,
     &SDL_GL_ExtensionSupported,
     &SDL_GL_GetProcAddress,
+    &SDL_SetRelativeMouseMode,
     &SDL_WarpMouseInWindow,
     &SDL_WaitEventTimeout,
 ];
@@ -147,6 +155,82 @@ pub fn reset_pointers(marker: MainThreadMarker) {
             assert_eq!(unsafe { MH_RemoveHook(function) }, MH_OK);
         }
     }
+}
+
+bitflags! {
+    /// Mouse buttons that can be pressed.
+    #[derive(Default)]
+    pub struct MouseButtons: u32 {
+        /// Half-Life's `mouse1`.
+        const Left = 1 << 0;
+        /// Half-Life's `mouse3`.
+        const Middle = 1 << 1;
+        /// Half-Life's `mouse2`.
+        const Right = 1 << 2;
+        /// Half-Life's `mouse4`.
+        const X1 = 1 << 3;
+        /// Half-Life's `mouse5`.
+        const X2 = 1 << 4;
+    }
+}
+
+#[allow(dead_code)]
+impl MouseButtons {
+    pub fn is_left_down(self) -> bool {
+        self.contains(Self::Left)
+    }
+
+    pub fn is_middle_down(self) -> bool {
+        self.contains(Self::Middle)
+    }
+
+    pub fn is_right_down(self) -> bool {
+        self.contains(Self::Right)
+    }
+
+    pub fn is_mouse4_down(self) -> bool {
+        self.contains(Self::X1)
+    }
+
+    pub fn is_mouse5_down(self) -> bool {
+        self.contains(Self::X2)
+    }
+}
+
+/// Mouse position and buttons.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct MouseState {
+    /// Position.
+    pub pos: IVec2,
+    /// Pressed buttons.
+    pub buttons: MouseButtons,
+}
+
+/// Returns current mouse state.
+///
+/// Returned position is relative to the window, with (0, 0) being the top-left corner.
+///
+/// # Panics
+///
+/// Panics if `SDL_GetMouseState` was not found.
+pub fn mouse_state(marker: MainThreadMarker) -> MouseState {
+    let mut rv = MouseState::default();
+    // SAFETY: we set SDL_GetMouseState when it is safe to call and unset before it's unsafe.
+    let state = unsafe { SDL_GetMouseState.get(marker)(&mut rv.pos.x, &mut rv.pos.y) };
+    rv.buttons = MouseButtons::from_bits_truncate(state);
+    rv
+}
+
+/// Controls relative mouse mode.
+///
+/// Set to `false` to show mouse cursor, set to `true` to hide mouse cursor for 3D navigation.
+///
+/// # Panics
+///
+/// Panics if `SDL_SetRelativeMouseMode` was not found.
+pub fn set_relative_mouse_mode(marker: MainThreadMarker, value: bool) {
+    // SAFETY: we set SDL_SetRelativeMouseMode when it is safe to call and unset before it's unsafe.
+    unsafe { SDL_SetRelativeMouseMode.get(marker)(value.into()) };
 }
 
 use exported::*;
