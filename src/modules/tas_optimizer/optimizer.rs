@@ -71,10 +71,11 @@ impl Optimizer {
         //
         // This is so when the single-frame mutation mode splits that frame bulk, it does not lead
         // to bxt_tas_optim_init and other unwanted commands running in the remote client.
-        let erased_console_command = match &mut hltas.lines[0] {
-            Line::FrameBulk(frame_bulk) => frame_bulk.console_command.take(),
-            _ => unreachable!(),
-        };
+        let erased_console_command = hltas.lines[0]
+            .frame_bulk_mut()
+            .unwrap()
+            .console_command
+            .take();
 
         Self {
             prefix,
@@ -210,13 +211,10 @@ impl Optimizer {
         self.prefix.lines.extend(self.hltas.lines.iter().cloned());
 
         // Replace the TAS optimizer / TAS optim commands with the start sending frames command.
-        match &mut self.prefix.lines[len] {
-            Line::FrameBulk(frame_bulk) => {
-                frame_bulk.console_command =
-                    Some("_bxt_tas_optim_simulation_start_recording_frames".to_owned());
-            }
-            _ => unreachable!(),
-        }
+        self.prefix.lines[len]
+            .frame_bulk_mut()
+            .unwrap()
+            .console_command = Some("_bxt_tas_optim_simulation_start_recording_frames".to_owned());
 
         // Add a toggleconsole command in the end.
         self.prefix.lines.push(Line::FrameBulk(
@@ -307,10 +305,10 @@ impl Optimizer {
                     .collect();
 
                 // Remove the start sending frames command.
-                match &mut self.hltas.lines[0] {
-                    Line::FrameBulk(frame_bulk) => frame_bulk.console_command = None,
-                    _ => unreachable!(),
-                };
+                self.hltas.lines[0]
+                    .frame_bulk_mut()
+                    .unwrap()
+                    .console_command = None;
 
                 self.frames = frames;
                 on_improvement(&value);
@@ -515,24 +513,14 @@ fn mutate_frame_bulk<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
 }
 
 fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
-    let count = hltas
-        .lines
-        .iter()
-        .filter(|line| matches!(line, Line::FrameBulk(..)))
-        .count();
+    let count = hltas.lines.iter().filter_map(Line::frame_bulk).count();
 
     let index = rng.gen_range(0..count);
 
     let frame_bulk = hltas
         .lines
         .iter_mut()
-        .filter_map(|line| {
-            if let Line::FrameBulk(frame_bulk) = line {
-                Some(frame_bulk)
-            } else {
-                None
-            }
-        })
+        .filter_map(Line::frame_bulk_mut)
         .nth(index)
         .unwrap();
 
@@ -601,13 +589,7 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
         let next_frame_bulk = hltas
             .lines
             .iter_mut()
-            .filter_map(|line| {
-                if let Line::FrameBulk(frame_bulk) = line {
-                    Some(frame_bulk)
-                } else {
-                    None
-                }
-            })
+            .filter_map(Line::frame_bulk_mut)
             .nth(index + 1)
             .unwrap();
 
@@ -628,13 +610,7 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
             let frame_bulk = hltas
                 .lines
                 .iter_mut()
-                .filter_map(|line| {
-                    if let Line::FrameBulk(frame_bulk) = line {
-                        Some(frame_bulk)
-                    } else {
-                        None
-                    }
-                })
+                .filter_map(Line::frame_bulk_mut)
                 .nth(index)
                 .unwrap();
 
@@ -655,13 +631,7 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
             let next_frame_bulk = hltas
                 .lines
                 .iter_mut()
-                .filter_map(|line| {
-                    if let Line::FrameBulk(frame_bulk) = line {
-                        Some(frame_bulk)
-                    } else {
-                        None
-                    }
-                })
+                .filter_map(Line::frame_bulk_mut)
                 .nth(index + 1)
                 .unwrap();
 
@@ -676,13 +646,7 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
     let frame = hltas
         .lines
         .iter_mut()
-        .filter_map(|line| {
-            if let Line::FrameBulk(frame_bulk) = line {
-                Some(frame_bulk)
-            } else {
-                None
-            }
-        })
+        .filter_map(Line::frame_bulk_mut)
         .take(index)
         .map(|frame_bulk| frame_bulk.frame_count.get().try_conv::<usize>().unwrap())
         .sum();

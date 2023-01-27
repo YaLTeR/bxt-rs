@@ -27,13 +27,7 @@ impl HLTASExt for HLTAS {
         self.lines
             .iter()
             .enumerate()
-            .filter_map(|(l, line)| {
-                if let Line::FrameBulk(frame_bulk) = line {
-                    Some((l, frame_bulk))
-                } else {
-                    None
-                }
-            })
+            .filter_map(|(l, line)| line.frame_bulk().map(|bulk| (l, bulk)))
             .flat_map(|(l, frame_bulk)| (0..frame_bulk.frame_count.get()).map(move |r| (l, r)))
             .nth(frame)
     }
@@ -41,11 +35,7 @@ impl HLTASExt for HLTAS {
     fn split_at_frame(&mut self, frame: usize) -> Option<&mut FrameBulk> {
         let (l, r) = self.line_and_repeat_at_frame(frame)?;
 
-        let mut frame_bulk = if let Line::FrameBulk(frame_bulk) = &mut self.lines[l] {
-            frame_bulk
-        } else {
-            unreachable!()
-        };
+        let frame_bulk = self.lines[l].frame_bulk_mut().unwrap();
 
         let index = if r == 0 {
             // The frame bulk already starts here.
@@ -60,11 +50,7 @@ impl HLTASExt for HLTAS {
             l + 1
         };
 
-        if let Line::FrameBulk(frame_bulk) = &mut self.lines[index] {
-            Some(frame_bulk)
-        } else {
-            unreachable!()
-        }
+        Some(self.lines[index].frame_bulk_mut().unwrap())
     }
 
     fn split_single_at_frame(&mut self, frame: usize) -> Option<&mut FrameBulk> {

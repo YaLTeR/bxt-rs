@@ -8,6 +8,7 @@ use std::mem;
 use std::os::raw::c_char;
 use std::path::PathBuf;
 
+use hltas::types::Line;
 use hltas::HLTAS;
 
 use super::Module;
@@ -252,7 +253,7 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s, random_seed
         });
     }
 
-    if let Some(hltas::types::Line::FrameBulk(last_frame_bulk)) = recorder.hltas.lines.last_mut() {
+    if let Some(Line::FrameBulk(last_frame_bulk)) = recorder.hltas.lines.last_mut() {
         if last_frame_bulk.frame_time.is_empty() && cmd.msec != 0 && !recorder.last_cmd_was_zero_ms
         {
             // This command is a part of a command-split sequence that we already made a frame bulk
@@ -270,7 +271,7 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s, random_seed
 
     if recorder.was_loading {
         // Loads can vary in length, thus record the seed change.
-        recorder.hltas.lines.push(hltas::types::Line::SharedSeed(
+        recorder.hltas.lines.push(Line::SharedSeed(
             random_seed - recorder.last_shared_seed_before_load,
         ));
     }
@@ -422,10 +423,7 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s, random_seed
 
     frame_bulk.console_command = Some(commands.join(";"));
 
-    recorder
-        .hltas
-        .lines
-        .push(hltas::types::Line::FrameBulk(frame_bulk));
+    recorder.hltas.lines.push(Line::FrameBulk(frame_bulk));
 
     recorder.keys.clear_impulses();
 }
@@ -443,13 +441,7 @@ pub unsafe fn on_sv_frame_end(marker: MainThreadMarker) {
         .lines
         .iter_mut()
         .rev()
-        .filter_map(|line| {
-            if let hltas::types::Line::FrameBulk(frame_bulk) = line {
-                Some(frame_bulk)
-            } else {
-                None
-            }
-        })
+        .filter_map(Line::frame_bulk_mut)
         .take_while(|frame_bulk| frame_bulk.frame_time.is_empty())
     {
         had_cmd = true;
