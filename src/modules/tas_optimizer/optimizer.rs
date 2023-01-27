@@ -513,16 +513,9 @@ fn mutate_frame_bulk<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
 }
 
 fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
-    let count = hltas.lines.iter().filter_map(Line::frame_bulk).count();
-
+    let count = hltas.frame_bulks().count();
     let index = rng.gen_range(0..count);
-
-    let frame_bulk = hltas
-        .lines
-        .iter_mut()
-        .filter_map(Line::frame_bulk_mut)
-        .nth(index)
-        .unwrap();
+    let frame_bulk = hltas.frame_bulks_mut().nth(index).unwrap();
 
     if let Some(AutoMovement::Strafe(StrafeSettings { type_, dir, .. })) =
         frame_bulk.auto_actions.movement.as_mut()
@@ -586,12 +579,7 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
     if index + 1 < count {
         let frame_time = frame_bulk.frame_time.clone();
 
-        let next_frame_bulk = hltas
-            .lines
-            .iter_mut()
-            .filter_map(Line::frame_bulk_mut)
-            .nth(index + 1)
-            .unwrap();
+        let next_frame_bulk = hltas.frame_bulks_mut().nth(index + 1).unwrap();
 
         // Can only move the boundary between frame bulks if the frame times match.
         if frame_time == next_frame_bulk.frame_time {
@@ -607,13 +595,7 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
             let frame_count_difference_range =
                 min_frame_count_difference..max_frame_count_difference;
 
-            let frame_bulk = hltas
-                .lines
-                .iter_mut()
-                .filter_map(Line::frame_bulk_mut)
-                .nth(index)
-                .unwrap();
-
+            let frame_bulk = hltas.frame_bulks_mut().nth(index).unwrap();
             let difference = frame_bulk.frame_count.pipe_ref_mut(|count| {
                 let orig_count = count.get();
 
@@ -628,13 +610,7 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
                 orig_count.conv::<i64>() - count.get().conv::<i64>()
             });
 
-            let next_frame_bulk = hltas
-                .lines
-                .iter_mut()
-                .filter_map(Line::frame_bulk_mut)
-                .nth(index + 1)
-                .unwrap();
-
+            let next_frame_bulk = hltas.frame_bulks_mut().nth(index + 1).unwrap();
             next_frame_bulk.frame_count.pipe_ref_mut(|count| {
                 *count =
                     NonZeroU32::new((count.get().conv::<i64>() + difference).try_conv().unwrap())
@@ -644,9 +620,7 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
     }
 
     let frame = hltas
-        .lines
-        .iter_mut()
-        .filter_map(Line::frame_bulk_mut)
+        .frame_bulks_mut()
         .take(index)
         .map(|frame_bulk| frame_bulk.frame_count.get().try_conv::<usize>().unwrap())
         .sum();

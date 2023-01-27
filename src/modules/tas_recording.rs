@@ -438,10 +438,8 @@ pub unsafe fn on_sv_frame_end(marker: MainThreadMarker) {
     let mut had_cmd = false;
     for frame_bulk in recorder
         .hltas
-        .lines
-        .iter_mut()
+        .frame_bulks_mut()
         .rev()
-        .filter_map(Line::frame_bulk_mut)
         .take_while(|frame_bulk| frame_bulk.frame_time.is_empty())
     {
         had_cmd = true;
