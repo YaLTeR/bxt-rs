@@ -32,6 +32,7 @@ pub mod hud_scale;
 pub mod novis;
 pub mod player_movement_tracing;
 pub mod rng_set;
+pub mod scoreboard_remove;
 pub mod shake_remove;
 pub mod skybox_remove;
 pub mod tas_logging;
@@ -88,6 +89,7 @@ pub static MODULES: &[&dyn Module] = &[
     &novis::NoVis,
     &player_movement_tracing::PlayerMovementTracing,
     &rng_set::RngSet,
+    &scoreboard_remove::ScoreboardRemove,
     &shake_remove::ShakeRemove,
     &skybox_remove::SkyboxRemove,
     &tas_logging::TasLogging,
