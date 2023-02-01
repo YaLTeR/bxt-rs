@@ -183,7 +183,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Run clippy
-        run: cargo clippy --all-targets --target ${{ matrix.target }}
+        run: cargo clippy --all --all-targets --target ${{ matrix.target }}
 
   rustfmt:
     runs-on: ubuntu-20.04
