@@ -6,9 +6,9 @@ edition = "2021"
 [dependencies]
 arrayvec = { version = "0.7.2", features = ["serde"] }
 bxt-vct = { path = "../bxt-vct" }
-glam = { version = "0.21.3", features = ["serde"] }
+glam = { version = "0.22.0", features = ["serde"] }
 hltas = "0.7.0"
-serde = { version = "1.0.144", features = ["derive"] }
+serde = { version = "1.0.152", features = ["derive"] }
 tap = "1.0.1"
 
 [dev-dependencies]

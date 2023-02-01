@@ -482,14 +482,15 @@ fn optim_start(marker: MainThreadMarker) {
                 let engine = rhai::Engine::new();
                 match engine.compile(code) {
                     Ok(ast) => {
-                        let does_function_exist = |name, args: &mut [rhai::Dynamic]| {
-                            let rv = engine.call_fn_raw(
+                        let does_function_exist = |name, args: Vec<rhai::Dynamic>| {
+                            let options = rhai::CallFnOptions::new()
+                                .eval_ast(false)
+                                .rewind_scope(false);
+                            let rv = engine.call_fn_with_options::<rhai::Dynamic>(
+                                options,
                                 &mut rhai::Scope::new(),
                                 &ast,
-                                false,
-                                false,
                                 name,
-                                None,
                                 args,
                             );
 
@@ -501,10 +502,10 @@ fn optim_start(marker: MainThreadMarker) {
 
                         if does_function_exist(
                             "is_better",
-                            &mut [rhai::Dynamic::UNIT, rhai::Dynamic::UNIT],
+                            vec![rhai::Dynamic::UNIT, rhai::Dynamic::UNIT],
                         ) {
-                            if does_function_exist("is_valid", &mut [rhai::Dynamic::UNIT]) {
-                                if does_function_exist("to_string", &mut [rhai::Dynamic::UNIT]) {
+                            if does_function_exist("is_valid", vec![rhai::Dynamic::UNIT]) {
+                                if does_function_exist("to_string", vec![rhai::Dynamic::UNIT]) {
                                     *OBJECTIVE.borrow_mut(marker) = Objective::Rhai { engine, ast };
                                     set_with_script = true;
                                 } else {

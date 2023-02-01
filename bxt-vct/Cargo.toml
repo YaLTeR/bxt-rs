@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 arrayvec = "0.7.2"
-ordered-float = "3.0.0"
+ordered-float = "3.4.0"

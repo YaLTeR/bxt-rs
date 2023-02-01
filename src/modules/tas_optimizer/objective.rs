@@ -213,14 +213,15 @@ impl Objective {
 
                 let new_frames = convert(new_frames);
 
+                let options = rhai::CallFnOptions::new()
+                    .eval_ast(false)
+                    .rewind_scope(false);
                 match engine
-                    .call_fn_raw(
+                    .call_fn_with_options(
+                        options,
                         &mut scope,
                         ast,
-                        false,
-                        false,
                         "is_valid",
-                        None,
                         [new_frames.clone()],
                     )
                     .as_ref()
@@ -240,14 +241,15 @@ impl Objective {
 
                 let old_frames = convert(old_frames);
 
+                let options = rhai::CallFnOptions::new()
+                    .eval_ast(false)
+                    .rewind_scope(false);
                 match engine
-                    .call_fn_raw(
+                    .call_fn_with_options(
+                        options,
                         &mut scope,
                         ast,
-                        false,
-                        false,
                         "is_better",
-                        None,
                         [new_frames.clone(), old_frames],
                     )
                     .as_ref()
@@ -265,16 +267,11 @@ impl Objective {
                     }
                 }
 
+                let options = rhai::CallFnOptions::new()
+                    .eval_ast(false)
+                    .rewind_scope(false);
                 let value = match engine
-                    .call_fn_raw(
-                        &mut scope,
-                        ast,
-                        false,
-                        false,
-                        "to_string",
-                        None,
-                        [new_frames],
-                    )
+                    .call_fn_with_options(options, &mut scope, ast, "to_string", [new_frames])
                     .map(rhai::Dynamic::into_string)
                 {
                     Ok(Ok(value)) => value,
