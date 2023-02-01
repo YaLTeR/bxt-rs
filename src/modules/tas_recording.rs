@@ -182,7 +182,7 @@ fn tas_recording_stop(marker: MainThreadMarker) {
         let file = match File::create(filename) {
             Ok(file) => file,
             Err(err) => {
-                con_print(marker, &format!("Error opening the output file: {}\n", err));
+                con_print(marker, &format!("Error opening the output file: {err}\n"));
                 return;
             }
         };
@@ -190,7 +190,7 @@ fn tas_recording_stop(marker: MainThreadMarker) {
         if let Err(err) = hltas.to_writer(file) {
             con_print(
                 marker,
-                &format!("Error writing to the output file: {}\n", err),
+                &format!("Error writing to the output file: {err}\n"),
             );
         }
 
@@ -412,7 +412,7 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s, random_seed
 
     if recorder.hltas.lines.is_empty() {
         if let Some(rng_state) = engine::rng_state(marker) {
-            commands.push(format!("_bxt_rng_set \"{}\"", rng_state));
+            commands.push(format!("_bxt_rng_set \"{rng_state}\""));
         }
     }
 

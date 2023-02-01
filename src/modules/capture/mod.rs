@@ -271,7 +271,7 @@ fn cap_stop(marker: MainThreadMarker) {
             let output = ffmpeg_output.trim();
             if !output.is_empty() {
                 warn!("FFmpeg output:\n{}", output);
-                con_print(marker, &format!("FFmpeg output:\n{}\n", output));
+                con_print(marker, &format!("FFmpeg output:\n{output}\n"));
             }
         }
     }
@@ -357,7 +357,7 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
             }
             Err(err) => {
                 error!("error initializing the recorder: {:?}", err);
-                con_print(marker, &format!("Error initializing recording: {}.\n", err));
+                con_print(marker, &format!("Error initializing recording: {err}.\n"));
                 *state = State::Idle;
                 return;
             }

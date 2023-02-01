@@ -1008,7 +1008,7 @@ impl fmt::Display for RngState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {}", self.idum, self.iy)?;
         for x in self.iv {
-            write!(f, " {}", x)?;
+            write!(f, " {x}")?;
         }
         Ok(())
     }

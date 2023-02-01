@@ -86,7 +86,7 @@ where
     let paths = match enumerate_demos(&full_prefix) {
         Ok(paths) => paths,
         Err(err) => {
-            con_print(marker, &format!("Error: {}.\n", err));
+            con_print(marker, &format!("Error: {err}.\n"));
             return;
         }
     };

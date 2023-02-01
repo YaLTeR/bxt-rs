@@ -369,7 +369,7 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
     let script = match fs::read_to_string(path) {
         Ok(x) => x,
         Err(err) => {
-            con_print(marker, &format!("Error reading the script: {}\n", err));
+            con_print(marker, &format!("Error reading the script: {err}\n"));
             return;
         }
     };
@@ -377,7 +377,7 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
     let hltas = match HLTAS::from_str(&script) {
         Ok(x) => x,
         Err(err) => {
-            con_print(marker, &format!("Error parsing the script: {}\n", err));
+            con_print(marker, &format!("Error parsing the script: {err}\n"));
             return;
         }
     };

@@ -57,7 +57,7 @@ fn setup_logging_hooks() {
     let term_layer = tracing_subscriber::fmt::layer().fmt_fields(
         tracing_subscriber::fmt::format::debug_fn(|writer, field, value| {
             if field.name() == "message" {
-                write!(writer, "{:?}", value)
+                write!(writer, "{value:?}")
             } else {
                 Ok(())
             }

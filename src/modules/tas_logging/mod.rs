@@ -86,7 +86,7 @@ fn tas_log(marker: MainThreadMarker, enabled: i32) {
             if let Err(err) = tas_log.close() {
                 con_print(
                     marker,
-                    &format!("TAS logging stopped with an error: {}\n", err),
+                    &format!("TAS logging stopped with an error: {err}\n"),
                 );
             } else {
                 con_print(marker, "TAS logging stopped.\n");
@@ -133,7 +133,7 @@ fn tas_log(marker: MainThreadMarker, enabled: i32) {
 
             *tas_log = Some(tas_log_new)
         }
-        Err(err) => con_print(marker, &format!("Unable to start TAS logging: {}\n", err)),
+        Err(err) => con_print(marker, &format!("Unable to start TAS logging: {err}\n")),
     }
 }
 
@@ -157,7 +157,7 @@ pub unsafe fn begin_physics_frame(marker: MainThreadMarker) {
             engine::rng_state(marker),
             BXT_TAS_LOG_WRITE_FULL_RNG_STATE.as_bool(marker),
         ) {
-            con_print(marker, &format!("Error writing to the TAS log: {}", err));
+            con_print(marker, &format!("Error writing to the TAS log: {err}"));
         }
     }
 }
@@ -165,7 +165,7 @@ pub unsafe fn begin_physics_frame(marker: MainThreadMarker) {
 pub fn end_physics_frame(marker: MainThreadMarker) {
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.end_physics_frame() {
-            con_print(marker, &format!("Error writing to the TAS log: {}", err));
+            con_print(marker, &format!("Error writing to the TAS log: {err}"));
         }
     }
 }
@@ -178,7 +178,7 @@ pub fn begin_cmd_frame(marker: MainThreadMarker, cmd: usercmd_s, random_seed: u3
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.begin_cmd_frame(None, None, &cmd, random_seed) {
-            con_print(marker, &format!("Error writing to the TAS log: {}", err));
+            con_print(marker, &format!("Error writing to the TAS log: {err}"));
         }
     }
 }
@@ -194,7 +194,7 @@ pub unsafe fn write_pre_pm_state(marker: MainThreadMarker, ppmove: *const player
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.write_pre_pm_state(&*ppmove) {
-            con_print(marker, &format!("Error writing to the TAS log: {}", err));
+            con_print(marker, &format!("Error writing to the TAS log: {err}"));
         }
     }
 }
@@ -210,7 +210,7 @@ pub unsafe fn write_post_pm_state(marker: MainThreadMarker, ppmove: *const playe
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.write_post_pm_state(&*ppmove) {
-            con_print(marker, &format!("Error writing to the TAS log: {}", err));
+            con_print(marker, &format!("Error writing to the TAS log: {err}"));
         }
     }
 }
@@ -223,7 +223,7 @@ pub fn end_cmd_frame(marker: MainThreadMarker) {
 
     if let Some(tas_log) = TAS_LOG.borrow_mut(marker).as_mut() {
         if let Err(err) = tas_log.end_cmd_frame() {
-            con_print(marker, &format!("Error writing to the TAS log: {}", err));
+            con_print(marker, &format!("Error writing to the TAS log: {err}"));
         }
     }
 }

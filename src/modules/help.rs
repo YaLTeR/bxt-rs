@@ -159,10 +159,9 @@ fn help_about(marker: MainThreadMarker, what: String) {
     con_print(
         marker,
         &format!(
-            "Could not find anything matching `{}`.
+            "Could not find anything matching `{what}`.
         
 Use `bxt_help name` to view help for a module, a console command or a console variable.\n",
-            what
         ),
     );
 }
