@@ -80,6 +80,7 @@ jobs:
 
       - name: Install Rust
         run: |
+          rustup set auto-self-update check-only
           rustup toolchain install ${{ matrix.rust }} --profile minimal
           rustup override set ${{ matrix.rust }}
           rustup target add ${{ matrix.target }}
@@ -177,6 +178,7 @@ jobs:
 
       - name: Install Rust
         run: |
+          rustup set auto-self-update check-only
           rustup toolchain install stable --profile minimal --component clippy
           rustup target add ${{ matrix.target }}
 
@@ -193,6 +195,7 @@ jobs:
 
       - name: Install Rust
         run: |
+          rustup set auto-self-update check-only
           rustup toolchain install nightly --profile minimal --component rustfmt
           rustup override set nightly
 
