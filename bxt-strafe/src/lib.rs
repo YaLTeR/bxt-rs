@@ -37,7 +37,7 @@ pub trait Trace {
 }
 
 /// Player data.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct Player {
     /// Position.
     pub pos: Vec3,
@@ -67,7 +67,7 @@ impl Player {
 }
 
 /// Movement parameters.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct Parameters {
     pub frame_time: f32,
     pub max_velocity: f32,
@@ -91,9 +91,10 @@ pub struct Parameters {
 }
 
 /// The type of player's position in the world.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Place {
     /// The player is on the ground.
+    #[default]
     Ground,
     /// The player is in the air.
     Air,
@@ -116,7 +117,7 @@ pub struct Input {
 /// The state updated and acted upon by the simulation.
 ///
 /// To simulate the next frame, call [`State::simulate()`] on the previous state.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct State {
     pub player: Player,
     pub place: Place,
