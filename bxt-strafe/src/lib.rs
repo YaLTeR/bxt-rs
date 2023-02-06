@@ -109,6 +109,7 @@ pub struct Input {
     pub duck: bool,
     pub use_: bool,
 
+    pub pitch: f32,
     pub yaw: f32,
     pub forward: f32,
     pub side: f32,

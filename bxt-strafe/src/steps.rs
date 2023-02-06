@@ -498,6 +498,10 @@ impl<S: Step> Step for ResetFields<S> {
         if let Some(AutoMovement::SetYaw(yaw)) = frame_bulk.auto_actions.movement {
             input.yaw = yaw.to_radians();
         }
+        if let Some(pitch) = frame_bulk.pitch {
+            input.pitch = pitch.to_radians();
+        }
+
         state.wish_speed = parameters.max_speed;
         state.jumped = false;
         state.move_traces = ArrayVec::new();
