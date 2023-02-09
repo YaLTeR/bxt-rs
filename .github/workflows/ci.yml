@@ -62,6 +62,11 @@ jobs:
           # We need the full history to find the tag
           fetch-depth: 0
 
+      # Containers have wrong permissions for the folder, so git freaks out.
+      # https://github.com/actions/runner/issues/2033
+      - if: job.container
+        run: chown -R $(id -u):$(id -g) .
+
       # We need the tags for the version string inside bxt-rs
       - run: git fetch --force --tags
 
