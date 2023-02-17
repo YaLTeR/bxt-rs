@@ -5,7 +5,7 @@ use std::mem;
 use color_eyre::eyre::Context;
 
 use super::cvars::CVar;
-use super::Module;
+use super::{capture_video_per_demo, Module};
 use crate::hooks::engine::{self, con_print};
 use crate::modules::commands::Command;
 use crate::utils::*;
@@ -216,7 +216,7 @@ fn cap_start(marker: MainThreadMarker) {
     cap_start_with_filename(marker, "output.mp4".to_string());
 }
 
-fn cap_start_with_filename(marker: MainThreadMarker, filename: String) {
+pub fn cap_start_with_filename(marker: MainThreadMarker, filename: String) {
     if !Capture.is_enabled(marker) {
         return;
     }
@@ -248,7 +248,7 @@ Stops capturing video.",
     ),
 );
 
-fn cap_stop(marker: MainThreadMarker) {
+pub fn cap_stop(marker: MainThreadMarker) {
     unsafe {
         let mut state = STATE.borrow_mut(marker);
         if let State::Recording(ref mut recorder) = *state {
@@ -279,6 +279,8 @@ fn cap_stop(marker: MainThreadMarker) {
     if stopped {
         con_print(marker, "Recording stopped.\n");
     }
+
+    capture_video_per_demo::stop(marker);
 }
 
 pub unsafe fn capture_frame(marker: MainThreadMarker) {

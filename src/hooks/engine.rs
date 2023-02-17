@@ -95,6 +95,15 @@ pub static CL_Move: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     ]),
     my_CL_Move as _,
 );
+pub static CL_PlayDemo_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"CL_PlayDemo_f\0",
+    // To find, search for "playdemo <demoname> <replayspeed>: plays a demo".
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 81 EC 00 01 00 00 A1 ?? ?? ?? ?? 53),
+    ]),
+    my_CL_PlayDemo_f as _,
+);
 pub static ClientDLL_DemoUpdateClientData: Pointer<unsafe extern "C" fn(*mut c_void)> =
     Pointer::empty_patterns(
         b"ClientDLL_DemoUpdateClientData\0",
@@ -823,6 +832,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &CL_Disconnect,
     &CL_GameDir_f,
     &CL_Move,
+    &CL_PlayDemo_f,
     &ClientDLL_DemoUpdateClientData,
     &ClientDLL_DrawTransparentTriangles,
     &ClientDLL_HudRedraw,
@@ -1930,7 +1940,9 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            capture::on_cl_disconnect(marker);
+            if !capture_video_per_demo::on_cl_disconnect(marker) {
+                capture::on_cl_disconnect(marker);
+            }
 
             CL_Disconnect.get(marker)();
         })
@@ -2064,6 +2076,17 @@ pub mod exported {
             tas_recording::on_cl_move(marker);
 
             CL_Move.get(marker)();
+        })
+    }
+
+    #[export_name = "CL_PlayDemo_f"]
+    pub unsafe extern "C" fn my_CL_PlayDemo_f() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            capture_video_per_demo::on_before_cl_playdemo_f(marker);
+            CL_PlayDemo_f.get(marker)();
+            capture_video_per_demo::on_after_cl_playdemo_f(marker);
         })
     }
 
