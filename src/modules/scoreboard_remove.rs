@@ -55,6 +55,7 @@ pub unsafe fn strip_showscores(marker: MainThreadMarker, text: *const i8) -> *co
 
     for bytes in b"+showscores" {
         if *text_mut != *bytes {
+            // Character doesn't match, return original text.
             return text;
         }
 
