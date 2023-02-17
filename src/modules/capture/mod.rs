@@ -477,6 +477,10 @@ pub unsafe fn on_host_filter_time(marker: MainThreadMarker) -> bool {
 }
 
 pub unsafe fn on_cl_disconnect(marker: MainThreadMarker) {
+    if !Capture.is_enabled(marker) {
+        return;
+    }
+
     {
         // Safety: no engine functions are called while the reference is active.
         let cls_demos = &*engine::cls_demos.get(marker);
