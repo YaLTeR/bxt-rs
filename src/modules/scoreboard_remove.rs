@@ -12,7 +12,7 @@ impl Module for ScoreboardRemove {
     }
 
     fn description(&self) -> &'static str {
-        "Erasing `+showscores` in demo message"
+        "Hiding the scoreboard."
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
@@ -30,7 +30,7 @@ impl Module for ScoreboardRemove {
 static BXT_SCOREBOARD_REMOVE: CVar = CVar::new(
     b"bxt_scoreboard_remove\0",
     b"0\0",
-    "Set to `1` to hide scoreboard in demo.",
+    "Set to `1` to hide the scoreboard.",
 );
 
 /// Returns `true` if scoreboard should currently be disabled.
@@ -42,7 +42,7 @@ pub fn is_active(marker: MainThreadMarker) -> bool {
     BXT_SCOREBOARD_REMOVE.as_bool(marker)
 }
 
-pub unsafe fn on_cbuf_stuffs(marker: MainThreadMarker, text: *const i8) -> *const i8 {
+pub unsafe fn strip_showscores(marker: MainThreadMarker, text: *const i8) -> *const i8 {
     if !is_active(marker) {
         return text;
     }
@@ -53,18 +53,12 @@ pub unsafe fn on_cbuf_stuffs(marker: MainThreadMarker, text: *const i8) -> *cons
 
     let mut text_mut: *const u8 = text.cast();
 
-    // Simple comparisons before committing
-    if *text_mut == b'+' && *(text_mut.offset(1)) == b's' && *(text_mut.offset(2)) == b'h' {
-        let a = "owscores";
-        text_mut = text_mut.offset(3);
-
-        for byte in a.bytes() {
-            if byte == *text_mut {
-                text_mut = text_mut.offset(1);
-            } else {
-                return text.cast();
-            }
+    for bytes in b"+showscores" {
+        if *text_mut != *bytes {
+            return text;
         }
+
+        text_mut = text_mut.add(1);
     }
 
     text_mut.cast()

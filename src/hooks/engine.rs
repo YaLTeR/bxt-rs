@@ -2073,7 +2073,7 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             let text = comment_overflow_fix::strip_prefix_comments(text);
-            let text = scoreboard_remove::on_cbuf_stuffs(marker, text);
+            let text = scoreboard_remove::strip_showscores(marker, text);
 
             tas_recording::on_cbuf_addtext(marker, text);
 
@@ -2087,7 +2087,7 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             let text = comment_overflow_fix::strip_prefix_comments(text);
-            let text = scoreboard_remove::on_cbuf_stuffs(marker, text);
+            let text = scoreboard_remove::strip_showscores(marker, text);
 
             Cbuf_AddFilteredText.get(marker)(text);
         })
@@ -2099,7 +2099,7 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             let text = comment_overflow_fix::strip_prefix_comments(text);
-            let text = scoreboard_remove::on_cbuf_stuffs(marker, text);
+            let text = scoreboard_remove::strip_showscores(marker, text);
 
             Cbuf_AddTextToBuffer.get(marker)(text, buffer);
         })
