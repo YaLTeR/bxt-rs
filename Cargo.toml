@@ -40,7 +40,7 @@ minhook-sys = "0.1.1"
 
 [target."cfg(windows)".dependencies.winapi]
 version = "0.3.9"
-features = ["libloaderapi", "psapi", "winuser", "synchapi", "handleapi", "processthreadsapi"]
+features = ["libloaderapi", "psapi", "winuser", "synchapi", "handleapi", "processthreadsapi", "winbase", "winerror"]
 
 [build-dependencies]
 gl_generator = "0.14.0"
