@@ -101,6 +101,10 @@ pub static CL_PlayDemo_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
     Patterns(&[
         // 8684
         pattern!(55 8B EC 81 EC 00 01 00 00 A1 ?? ?? ?? ?? 53),
+        // 4554
+        pattern!(A1 ?? ?? ?? ?? 81 EC 00 01 00 00 83 F8 01),
+        // CoF-5936
+        pattern!(55 8B EC 81 EC 00 01 00 00 56 57 83 3D ?? ?? ?? ?? 01),
     ]),
     my_CL_PlayDemo_f as _,
 );
