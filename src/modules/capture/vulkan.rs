@@ -944,7 +944,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids, is_sampling: bool) -> eyre::
     let image_acquired_memory = unsafe { device.allocate_memory(&create_info, None)? };
     unsafe { device.bind_image_memory(image_acquired, image_acquired_memory, 0)? };
 
-    // Sampler for the image for the sampling buffer.
+    // Sampler for the image for the acquired frame buffer.
     let create_info = vk::SamplerCreateInfo::builder()
         .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
         .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
@@ -952,7 +952,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids, is_sampling: bool) -> eyre::
         .unnormalized_coordinates(true);
     let sampler_acquired = unsafe { device.create_sampler(&create_info, None)? };
 
-    // Image view for the image for the sampling buffer.
+    // Image view for the image for the acquired frame buffer.
     let create_info = vk::ImageViewCreateInfo::builder()
         .image(image_acquired)
         .view_type(vk::ImageViewType::TYPE_2D)
