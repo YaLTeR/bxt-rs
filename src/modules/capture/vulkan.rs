@@ -19,7 +19,7 @@ pub struct Vulkan {
     queue_family_index: u32,
     device: ash::Device,
     command_pool: vk::CommandPool,
-    command_buffer_sampling: vk::CommandBuffer,
+    command_buffer_acquire: vk::CommandBuffer,
     command_buffer_color_conversion: vk::CommandBuffer,
     command_buffer_accumulate: vk::CommandBuffer,
     queue: vk::Queue,
@@ -117,7 +117,7 @@ impl Drop for Vulkan {
             self.device.free_command_buffers(
                 self.command_pool,
                 &[
-                    self.command_buffer_sampling,
+                    self.command_buffer_acquire,
                     self.command_buffer_color_conversion,
                     self.command_buffer_accumulate,
                 ],
@@ -192,7 +192,7 @@ impl Vulkan {
         let begin_info = vk::CommandBufferBeginInfo::builder()
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
         self.device
-            .begin_command_buffer(self.command_buffer_sampling, &begin_info)?;
+            .begin_command_buffer(self.command_buffer_acquire, &begin_info)?;
 
         // Acquire the image from OpenGL.
         let image_frame_memory_barrier = vk::ImageMemoryBarrier::builder()
@@ -212,7 +212,7 @@ impl Vulkan {
             });
 
         self.device.cmd_pipeline_barrier(
-            self.command_buffer_sampling,
+            self.command_buffer_acquire,
             vk::PipelineStageFlags::TOP_OF_PIPE,
             vk::PipelineStageFlags::TRANSFER,
             vk::DependencyFlags::empty(),
@@ -253,7 +253,7 @@ impl Vulkan {
             ]);
 
         self.device.cmd_blit_image(
-            self.command_buffer_sampling,
+            self.command_buffer_acquire,
             self.image_frame,
             vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
             self.image_acquired,
@@ -280,7 +280,7 @@ impl Vulkan {
             });
 
         self.device.cmd_pipeline_barrier(
-            self.command_buffer_sampling,
+            self.command_buffer_acquire,
             vk::PipelineStageFlags::TRANSFER,
             vk::PipelineStageFlags::BOTTOM_OF_PIPE,
             vk::DependencyFlags::empty(),
@@ -290,10 +290,10 @@ impl Vulkan {
         );
 
         self.device
-            .end_command_buffer(self.command_buffer_sampling)?;
+            .end_command_buffer(self.command_buffer_acquire)?;
 
         let semaphores = [self.semaphore];
-        let command_buffers = [self.command_buffer_sampling];
+        let command_buffers = [self.command_buffer_acquire];
         let submit_info = vk::SubmitInfo::builder()
             .wait_semaphores(&semaphores)
             .wait_dst_stage_mask(&[vk::PipelineStageFlags::ALL_COMMANDS])
@@ -840,7 +840,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids, is_sampling: bool) -> eyre::
         .level(vk::CommandBufferLevel::PRIMARY)
         .command_buffer_count(3);
     let command_buffers = unsafe { device.allocate_command_buffers(&create_info)? };
-    let command_buffer_sampling = command_buffers[0];
+    let command_buffer_acquire = command_buffers[0];
     let command_buffer_color_conversion = command_buffers[1];
     let command_buffer_accumulate = command_buffers[2];
 
@@ -1278,7 +1278,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids, is_sampling: bool) -> eyre::
     // Release image for the OpenGL frame and signal semaphore.
     let begin_info =
         vk::CommandBufferBeginInfo::builder().flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
-    unsafe { device.begin_command_buffer(command_buffer_sampling, &begin_info)? };
+    unsafe { device.begin_command_buffer(command_buffer_acquire, &begin_info)? };
 
     let image_frame_memory_barrier = vk::ImageMemoryBarrier::builder()
         .src_access_mask(vk::AccessFlags::empty())
@@ -1332,7 +1332,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids, is_sampling: bool) -> eyre::
 
     unsafe {
         device.cmd_pipeline_barrier(
-            command_buffer_sampling,
+            command_buffer_acquire,
             vk::PipelineStageFlags::TOP_OF_PIPE,
             vk::PipelineStageFlags::TRANSFER,
             vk::DependencyFlags::empty(),
@@ -1349,7 +1349,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids, is_sampling: bool) -> eyre::
     // Clear the sampling buffer image.
     unsafe {
         device.cmd_clear_color_image(
-            command_buffer_sampling,
+            command_buffer_acquire,
             image_sample,
             vk::ImageLayout::TRANSFER_DST_OPTIMAL,
             &vk::ClearColorValue::default(),
@@ -1382,7 +1382,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids, is_sampling: bool) -> eyre::
 
     unsafe {
         device.cmd_pipeline_barrier(
-            command_buffer_sampling,
+            command_buffer_acquire,
             vk::PipelineStageFlags::TRANSFER,
             vk::PipelineStageFlags::COMPUTE_SHADER,
             vk::DependencyFlags::empty(),
@@ -1392,12 +1392,12 @@ pub fn init(width: u32, height: u32, uuids: &Uuids, is_sampling: bool) -> eyre::
         )
     };
 
-    unsafe { device.end_command_buffer(command_buffer_sampling)? };
+    unsafe { device.end_command_buffer(command_buffer_acquire)? };
 
     let create_info = vk::FenceCreateInfo::default();
     let fence = unsafe { device.create_fence(&create_info, None)? };
 
-    let command_buffers = [command_buffer_sampling];
+    let command_buffers = [command_buffer_acquire];
     let semaphores = [semaphore];
     let submit_info = vk::SubmitInfo::builder()
         .command_buffers(&command_buffers)
@@ -1414,7 +1414,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids, is_sampling: bool) -> eyre::
         queue_family_index,
         device,
         command_pool,
-        command_buffer_sampling,
+        command_buffer_acquire,
         command_buffer_accumulate,
         command_buffer_color_conversion,
         queue,
