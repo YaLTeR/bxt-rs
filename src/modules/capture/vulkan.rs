@@ -221,7 +221,7 @@ impl Vulkan {
             &[*image_frame_memory_barrier],
         );
 
-        // Barrier for the sampling image must've been inserted by previous code.
+        // Barrier for the acquired buffer image must've been inserted by previous code.
 
         // Blit image_frame to image_acquired.
         let image_blit = vk::ImageBlit::builder()
