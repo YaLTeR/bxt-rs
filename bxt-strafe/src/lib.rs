@@ -432,6 +432,7 @@ mod tests {
     }
 
     prop_compose! {
+        #[allow(clippy::excessive_precision)]
         fn arbitrary_player()(
             pos in (-50000f32..50000., -50000f32..50000., 0f32..50000.).prop_map(|(x, y, z)| Vec3::new(x, y, z)),
             vel in (-50000f32..50000., -50000f32..50000., -50000f32..50000.).prop_map(|(x, y, z)| Vec3::new(x, y, z)),
