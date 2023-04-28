@@ -332,10 +332,18 @@ mod tests {
         let output = HLTAS::from_str(&(header.to_string() + output)).unwrap();
 
         let mut modified = input.clone();
-        op.apply(&mut modified);
+        assert_ne!(
+            op.apply(&mut modified),
+            Some(0),
+            "initial frame should never be invalidated"
+        );
         assert_eq!(modified, output, "apply produced wrong result");
 
-        op.undo(&mut modified);
+        assert_ne!(
+            op.undo(&mut modified),
+            Some(0),
+            "initial frame should never be invalidated"
+        );
         assert_eq!(modified, input, "undo produced wrong result");
     }
 
