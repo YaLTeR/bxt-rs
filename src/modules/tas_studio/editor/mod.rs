@@ -671,6 +671,9 @@ impl Editor {
                         }
                     }
                 }
+                Operation::Rewrite { .. } => {
+                    self.selected_bulk_idx = None;
+                }
                 _ => (),
             }
         }
@@ -997,6 +1000,36 @@ impl Editor {
             .expect("FrameBulk serialization should never produce invalid UTF-8");
 
         let op = Operation::Replace { line_idx, from, to };
+        self.apply_operation(op)
+    }
+
+    /// Rewrites the script with a completely new version.
+    pub fn rewrite(&mut self, new_script: HLTAS) -> eyre::Result<()> {
+        // Don't toggle during active adjustments for consistency with other operations.
+        if self.is_any_adjustment_active() {
+            return Ok(());
+        }
+
+        let script = self.script();
+        if new_script == *script {
+            return Ok(());
+        }
+
+        let mut buffer = Vec::new();
+        script
+            .to_writer(&mut buffer)
+            .expect("writing to an in-memory buffer should never fail");
+        let from = String::from_utf8(buffer)
+            .expect("HLTAS serialization should never produce invalid UTF-8");
+
+        let mut buffer = Vec::new();
+        new_script
+            .to_writer(&mut buffer)
+            .expect("writing to an in-memory buffer should never fail");
+        let to = String::from_utf8(buffer)
+            .expect("HLTAS serialization should never produce invalid UTF-8");
+
+        let op = Operation::Rewrite { from, to };
         self.apply_operation(op)
     }
 

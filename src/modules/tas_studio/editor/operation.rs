@@ -55,6 +55,10 @@ pub enum Operation {
         from: u32,
         to: u32,
     },
+    Rewrite {
+        from: String,
+        to: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -181,6 +185,11 @@ impl Operation {
                     return Some(first_frame_idx);
                 }
             }
+            Operation::Rewrite { ref to, .. } => {
+                let to = HLTAS::from_str(to).expect("script should be parse-able");
+                *hltas = to;
+                return Some(1);
+            }
         }
 
         None
@@ -294,6 +303,11 @@ impl Operation {
                     *count = NonZeroU32::new(from).expect("invalid original left-right count");
                     return Some(first_frame_idx);
                 }
+            }
+            Operation::Rewrite { ref from, .. } => {
+                let from = HLTAS::from_str(from).expect("script should be parse-able");
+                *hltas = from;
+                return Some(1);
             }
         }
 
@@ -470,5 +484,46 @@ mod tests {
         check_key("------|---1--", Key::Attack1);
         check_key("------|----2-", Key::Attack2);
         check_key("------|-----r", Key::Reload);
+    }
+
+    #[test]
+    fn op_rewrite() {
+        let input = "version 1
+frames
+
+// Hello
+s03lj-----|------|------|0.001|15|10|2
+        ";
+        let output = "version 1
+hlstrafe_version 4
+demo my_tas
+frames
+// World
+
+s00--d----|------|------|0.002|-|10|2
+s00--d----|------|------|0.002|-|-|5
+        ";
+        let op = Operation::Rewrite {
+            from: input.to_string(),
+            to: output.to_string(),
+        };
+
+        let input = HLTAS::from_str(input).unwrap();
+        let output = HLTAS::from_str(output).unwrap();
+
+        let mut modified = input.clone();
+        assert_ne!(
+            op.apply(&mut modified),
+            Some(0),
+            "initial frame should never be invalidated"
+        );
+        assert_eq!(modified, output, "apply produced wrong result");
+
+        assert_ne!(
+            op.undo(&mut modified),
+            Some(0),
+            "initial frame should never be invalidated"
+        );
+        assert_eq!(modified, input, "undo produced wrong result");
     }
 }

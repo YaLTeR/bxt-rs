@@ -92,6 +92,10 @@ use editor::Editor;
 mod remote;
 pub use remote::{maybe_start_client_connection_thread, update_client_connection_condition};
 
+mod hltas_bridge;
+mod watcher;
+use hltas_bridge::Bridge;
+
 static BXT_HUD_TAS_STUDIO: CVar = CVar::new(
     b"bxt_hud_tas_studio\0",
     b"1\0",
@@ -125,7 +129,8 @@ fn load(marker: MainThreadMarker, path: PathBuf) {
         }
     };
 
-    *STATE.borrow_mut(marker) = State::PreparingToPlayToEditor(editor);
+    let bridge = Bridge::with_project_path(&path, editor.script());
+    *STATE.borrow_mut(marker) = State::PreparingToPlayToEditor(editor, bridge);
 }
 
 static BXT_TAS_STUDIO_CONVERT_HLTAS: Command = Command::new(
@@ -154,7 +159,9 @@ fn convert(marker: MainThreadMarker, path: PathBuf) -> eyre::Result<()> {
     let project_path = path.with_extension("hltasproj");
     let editor =
         Editor::create(&project_path, &script).context("error creating the TAS project")?;
-    *STATE.borrow_mut(marker) = State::PreparingToPlayToEditor(editor);
+
+    let bridge = Bridge::with_project_path(&project_path, editor.script());
+    *STATE.borrow_mut(marker) = State::PreparingToPlayToEditor(editor, bridge);
     Ok(())
 }
 
@@ -171,9 +178,11 @@ Replays the currently loaded TAS up to the stop frame.",
 fn replay(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
     *state = match mem::take(&mut *state) {
-        State::Editing { mut editor, .. } => {
+        State::Editing {
+            mut editor, bridge, ..
+        } => {
             editor.cancel_ongoing_adjustments();
-            State::PreparingToPlayToEditor(editor)
+            State::PreparingToPlayToEditor(editor, bridge)
         }
         other => other,
     };
@@ -679,12 +688,13 @@ enum State {
         is_smoothed: bool,
         frames_played: usize,
     },
-    /// Playing to play a HLTAS, will open the editor afterwards.
-    PreparingToPlayToEditor(Editor),
+    /// Preparing to play a HLTAS, will open the editor afterwards.
+    PreparingToPlayToEditor(Editor, Bridge),
     /// Playing a HLTAS, will open the editor afterwards.
     PlayingToEditor {
         editor: Editor,
         frames_played: usize,
+        bridge: Bridge,
     },
     /// Editing a HLTAS.
     Editing {
@@ -692,6 +702,7 @@ enum State {
         last_generation: u16,
         last_branch_idx: usize,
         simulate_at: Option<Instant>,
+        bridge: Bridge,
     },
 }
 
@@ -715,7 +726,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
     // bxt_on_tas_playback_stopped, which also borrows STATE.
     let prev_state = mem::take(&mut *STATE.borrow_mut(marker));
     match prev_state {
-        State::PreparingToPlayToEditor(editor) => {
+        State::PreparingToPlayToEditor(editor, bridge) => {
             engine::prepend_command(marker, "sensitivity 0;bxt_tas_write_log 1\n");
 
             bxt::tas_load_script(
@@ -726,6 +737,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
             *STATE.borrow_mut(marker) = State::PlayingToEditor {
                 editor,
                 frames_played: 0,
+                bridge,
             };
 
             // TODO: stop server on close?
@@ -778,7 +790,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
                 }
             }
         }
-        State::PreparingToPlayToEditor(_) => unreachable!(),
+        State::PreparingToPlayToEditor(_, _) => unreachable!(),
     }
 }
 
@@ -874,6 +886,7 @@ pub unsafe fn on_tas_playback_frame(
         State::PlayingToEditor {
             editor,
             frames_played,
+            bridge,
         } if frames_played == editor.stop_frame() as usize + 1 => {
             stop = true;
 
@@ -890,6 +903,7 @@ pub unsafe fn on_tas_playback_frame(
                 last_generation: generation,
                 last_branch_idx: branch_idx,
                 simulate_at: None,
+                bridge,
             };
 
             sdl::set_relative_mouse_mode(marker, false);
@@ -924,7 +938,7 @@ pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
 
     *state = match mem::take(&mut *state) {
         State::Playing { .. } => State::Idle,
-        State::PlayingToEditor { editor, .. } => {
+        State::PlayingToEditor { editor, bridge, .. } => {
             let generation = editor.generation();
             let branch_idx = editor.branch_idx();
             let _ = remote::maybe_send_request_to_client(PlayRequest {
@@ -956,6 +970,7 @@ pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
                 last_generation: generation,
                 last_branch_idx: branch_idx,
                 simulate_at: None,
+                bridge,
             }
         }
         other => other,
@@ -965,7 +980,15 @@ pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
 #[instrument("tas_studio::draw", skip_all)]
 pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, last_generation, last_branch_idx, simulate_at } = &mut *state else { return };
+    let State::Editing { editor, last_generation, last_branch_idx, simulate_at, bridge } = &mut *state else { return };
+
+    if let Some(script) = bridge.new_script() {
+        if let Err(err) = editor.rewrite(script) {
+            con_print(marker, &format!("Error rewriting the script: {err}\n"));
+            *state = State::Idle;
+            return;
+        }
+    }
 
     editor.set_show_camera_angles(BXT_TAS_STUDIO_SHOW_CAMERA_ANGLES.as_bool(marker));
 
@@ -1002,6 +1025,8 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                 branch_idx: *last_branch_idx,
                 is_smoothed: false,
             });
+
+            bridge.update_on_disk(editor.script());
         }
     }
 
