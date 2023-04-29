@@ -1003,6 +1003,39 @@ impl Editor {
         self.apply_operation(op)
     }
 
+    fn replace_multiple(
+        &mut self,
+        first_line_idx: usize,
+        count: usize,
+        to: &[Line],
+    ) -> eyre::Result<()> {
+        // Don't toggle during active adjustments for consistency with other operations.
+        if self.is_any_adjustment_active() {
+            return Ok(());
+        }
+
+        let from_lines = &self.script().lines[first_line_idx..first_line_idx + count];
+
+        let mut buffer = Vec::new();
+        hltas::write::gen_lines(&mut buffer, from_lines)
+            .expect("writing to an in-memory buffer should never fail");
+        let from = String::from_utf8(buffer)
+            .expect("Line serialization should never produce invalid UTF-8");
+
+        let mut buffer = Vec::new();
+        hltas::write::gen_lines(&mut buffer, to)
+            .expect("writing to an in-memory buffer should never fail");
+        let to = String::from_utf8(buffer)
+            .expect("Line serialization should never produce invalid UTF-8");
+
+        let op = Operation::ReplaceMultiple {
+            first_line_idx,
+            from,
+            to,
+        };
+        self.apply_operation(op)
+    }
+
     /// Rewrites the script with a completely new version.
     pub fn rewrite(&mut self, new_script: HLTAS) -> eyre::Result<()> {
         // Don't toggle during active adjustments for consistency with other operations.
@@ -1013,6 +1046,11 @@ impl Editor {
         let script = self.script();
         if new_script == *script {
             return Ok(());
+        }
+
+        // Check if we can optimize a full rewrite into a lines replacement.
+        if let Some((first_line_idx, count, to)) = replace_multiple_params(script, &new_script) {
+            return self.replace_multiple(first_line_idx, count, to);
         }
 
         let mut buffer = Vec::new();
@@ -1675,10 +1713,52 @@ fn smoothed_yaws(
     rv
 }
 
+fn replace_multiple_params<'a>(
+    old_script: &HLTAS,
+    new_script: &'a HLTAS,
+) -> Option<(usize, usize, &'a [Line])> {
+    if new_script.properties != old_script.properties {
+        return None;
+    }
+
+    // Most manual edits will probably modify, add or delete a few lines close together, leaving
+    // everything before and after the same. We find this region by discarding all consecutive lines
+    // that remained the same at the beginning and at the end of the two scripts.
+
+    let new_len = new_script.lines.len();
+    let old_len = old_script.lines.len();
+
+    // Find the index of the first non-matching line. It is the same between the two scripts.
+    let matching_lines_from_start = zip(&new_script.lines, &old_script.lines)
+        .find_position(|(new, old)| new != old)
+        .map(|(idx, _)| idx)
+        // If we exhaust one of the iterators, return the current index, which is equal to the
+        // length of the shorter iterator.
+        .unwrap_or(min(new_len, old_len));
+    let first_line_idx = matching_lines_from_start;
+
+    // Find the index of the first non-matching line from the end. It is the same between the two
+    // scripts.
+    let matching_lines_from_end = zip(new_script.lines.iter().rev(), old_script.lines.iter().rev())
+        .find_position(|(new, old)| new != old)
+        .map(|(idx, _)| idx)
+        // If we exhaust one of the iterators, return the current index, which is equal to the
+        // length of the shorter iterator.
+        .unwrap_or(min(new_len, old_len));
+
+    let count = old_len - matching_lines_from_end - matching_lines_from_start;
+
+    let new_one_past_last_line_idx = new_len - matching_lines_from_end;
+    let to = &new_script.lines[first_line_idx..new_one_past_last_line_idx];
+
+    Some((first_line_idx, count, to))
+}
+
 #[cfg(test)]
 mod tests {
     use bxt_strafe::{Input, Parameters, State};
     use expect_test::{expect, Expect};
+    use proptest::prelude::*;
 
     use super::*;
 
@@ -1944,5 +2024,48 @@ mod tests {
                 ]
             "#]],
         );
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig {
+            cases: if std::env::var_os("RUN_SLOW_TESTS").is_none() {
+                eprintln!("ignoring slow test");
+                0
+            } else {
+                ProptestConfig::default().cases
+            },
+            ..ProptestConfig::default()
+        })]
+
+        #[test]
+        fn replace_multiple_optimization_is_correct(mut old_script: HLTAS, mut new_script: HLTAS) {
+            // Get rid of the non-interesting cases.
+            new_script.properties = old_script.properties.clone();
+            let (first_line_idx, count, to_lines) =
+                replace_multiple_params(&old_script, &new_script).unwrap();
+
+            let from_lines = &old_script.lines[first_line_idx..first_line_idx + count];
+
+            let mut buffer = Vec::new();
+            hltas::write::gen_lines(&mut buffer, from_lines)
+                .expect("writing to an in-memory buffer should never fail");
+            let from = String::from_utf8(buffer)
+                .expect("Line serialization should never produce invalid UTF-8");
+
+            let mut buffer = Vec::new();
+            hltas::write::gen_lines(&mut buffer, to_lines)
+                .expect("writing to an in-memory buffer should never fail");
+            let to = String::from_utf8(buffer)
+                .expect("Line serialization should never produce invalid UTF-8");
+
+            let op = Operation::ReplaceMultiple {
+                first_line_idx,
+                from,
+                to,
+            };
+
+            op.apply(&mut old_script);
+            prop_assert_eq!(old_script, new_script);
+        }
     }
 }

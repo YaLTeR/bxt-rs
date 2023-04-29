@@ -48,6 +48,8 @@ features = ["libloaderapi", "psapi", "winuser", "synchapi", "handleapi", "proces
 
 [dev-dependencies]
 expect-test = "1.4.0"
+hltas = { version = "0.7.0", git = "https://github.com/HLTAS/hltas.git", features = ["serde1", "proptest1"] }
+proptest = "1.0.0"
 
 [build-dependencies]
 gl_generator = "0.14.0"
