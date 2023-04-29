@@ -122,6 +122,26 @@ pub fn line_first_frame_idx(hltas: &HLTAS) -> impl Iterator<Item = usize> + '_ {
     })
 }
 
+/// Returns index of first frame affected by every line and the full frame count as the last item.
+///
+/// The index starts at `1` because the very first frame is always the initial frame, which is not
+/// affected by any line.
+///
+/// Use this function instead of [`line_first_frame_idx`] when you need a valid value for "one past
+/// last" line index.
+pub fn line_first_frame_idx_and_frame_count(hltas: &HLTAS) -> impl Iterator<Item = usize> + '_ {
+    let dummy = iter::once(&Line::SharedSeed(0));
+    hltas.lines.iter().chain(dummy).scan(1, |frame_idx, line| {
+        let first_frame_idx = *frame_idx;
+
+        if let Some(bulk) = line.frame_bulk() {
+            *frame_idx += bulk.frame_count.get() as usize;
+        }
+
+        Some(first_frame_idx)
+    })
+}
+
 pub fn line_idx_and_repeat_at_frame(lines: &[Line], frame_idx: usize) -> Option<(usize, u32)> {
     lines
         .iter()

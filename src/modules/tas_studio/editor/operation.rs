@@ -5,7 +5,7 @@ use hltas::types::{FrameBulk, Line};
 use hltas::HLTAS;
 use serde::{Deserialize, Serialize};
 
-use super::utils::line_first_frame_idx;
+use super::utils::{line_first_frame_idx, line_first_frame_idx_and_frame_count};
 use crate::modules::tas_studio::editor::utils::{
     bulk_and_first_frame_idx, line_idx_and_repeat_at_frame, FrameBulkExt,
 };
@@ -56,6 +56,11 @@ pub enum Operation {
         to: u32,
     },
     Rewrite {
+        from: String,
+        to: String,
+    },
+    ReplaceMultiple {
+        first_line_idx: usize,
         from: String,
         to: String,
     },
@@ -190,6 +195,27 @@ impl Operation {
                 *hltas = to;
                 return Some(1);
             }
+            Operation::ReplaceMultiple {
+                first_line_idx,
+                ref from,
+                ref to,
+            } => {
+                let from = hltas::read::all_consuming_lines(from)
+                    .expect("lines should be parse-able")
+                    .1;
+                let to = hltas::read::all_consuming_lines(to)
+                    .expect("lines should be parse-able")
+                    .1;
+
+                let first_frame_idx = line_first_frame_idx_and_frame_count(hltas)
+                    .nth(first_line_idx)
+                    .expect("invalid line index");
+
+                hltas
+                    .lines
+                    .splice(first_line_idx..first_line_idx + from.len(), to);
+                return Some(first_frame_idx);
+            }
         }
 
         None
@@ -308,6 +334,27 @@ impl Operation {
                 let from = HLTAS::from_str(from).expect("script should be parse-able");
                 *hltas = from;
                 return Some(1);
+            }
+            Operation::ReplaceMultiple {
+                first_line_idx,
+                ref from,
+                ref to,
+            } => {
+                let from = hltas::read::all_consuming_lines(from)
+                    .expect("lines should be parse-able")
+                    .1;
+                let to = hltas::read::all_consuming_lines(to)
+                    .expect("lines should be parse-able")
+                    .1;
+
+                let first_frame_idx = line_first_frame_idx_and_frame_count(hltas)
+                    .nth(first_line_idx)
+                    .expect("invalid line index");
+
+                hltas
+                    .lines
+                    .splice(first_line_idx..first_line_idx + to.len(), from);
+                return Some(first_frame_idx);
             }
         }
 
@@ -525,5 +572,115 @@ s00--d----|------|------|0.002|-|-|5
             "initial frame should never be invalidated"
         );
         assert_eq!(modified, input, "undo produced wrong result");
+    }
+
+    #[test]
+    fn op_replace_multiple() {
+        let input = "\
+----------|------|------|0.004|10|-|4
+----------|------|------|0.004|10|-|5
+----------|------|------|0.004|10|-|6
+----------|------|------|0.004|10|-|7";
+
+        check_op(
+            input,
+            Operation::ReplaceMultiple {
+                first_line_idx: 1,
+                from: "\
+----------|------|------|0.004|10|-|5
+----------|------|------|0.004|10|-|6"
+                    .to_string(),
+                to: "s03lj-----|------|------|0.001|15|10|2".to_string(),
+            },
+            "\
+----------|------|------|0.004|10|-|4
+s03lj-----|------|------|0.001|15|10|2
+----------|------|------|0.004|10|-|7",
+        );
+
+        check_op(
+            input,
+            Operation::ReplaceMultiple {
+                first_line_idx: 1,
+                from: "\
+----------|------|------|0.004|10|-|5
+----------|------|------|0.004|10|-|6"
+                    .to_string(),
+                to: "\
+s03lj-----|------|------|0.001|15|10|2
+s03lj-----|------|------|0.001|15|10|3"
+                    .to_string(),
+            },
+            "\
+----------|------|------|0.004|10|-|4
+s03lj-----|------|------|0.001|15|10|2
+s03lj-----|------|------|0.001|15|10|3
+----------|------|------|0.004|10|-|7",
+        );
+
+        check_op(
+            input,
+            Operation::ReplaceMultiple {
+                first_line_idx: 1,
+                from: "\
+----------|------|------|0.004|10|-|5
+----------|------|------|0.004|10|-|6"
+                    .to_string(),
+                to: "\
+s03lj-----|------|------|0.001|15|10|2
+s03lj-----|------|------|0.001|15|10|3
+s03lj-----|------|------|0.001|15|10|4"
+                    .to_string(),
+            },
+            "\
+----------|------|------|0.004|10|-|4
+s03lj-----|------|------|0.001|15|10|2
+s03lj-----|------|------|0.001|15|10|3
+s03lj-----|------|------|0.001|15|10|4
+----------|------|------|0.004|10|-|7",
+        );
+
+        check_op(
+            input,
+            Operation::ReplaceMultiple {
+                first_line_idx: 1,
+                from: "".to_string(),
+                to: "s03lj-----|------|------|0.001|15|10|2".to_string(),
+            },
+            "\
+----------|------|------|0.004|10|-|4
+s03lj-----|------|------|0.001|15|10|2
+----------|------|------|0.004|10|-|5
+----------|------|------|0.004|10|-|6
+----------|------|------|0.004|10|-|7",
+        );
+
+        check_op(
+            input,
+            Operation::ReplaceMultiple {
+                first_line_idx: 1,
+                from: "----------|------|------|0.004|10|-|5".to_string(),
+                to: "".to_string(),
+            },
+            "\
+----------|------|------|0.004|10|-|4
+----------|------|------|0.004|10|-|6
+----------|------|------|0.004|10|-|7",
+        );
+
+        check_op(
+            input,
+            Operation::ReplaceMultiple {
+                first_line_idx: 4,
+                from: "".to_string(),
+                to: "s03lj-----|------|------|0.001|15|10|2".to_string(),
+            },
+            "\
+----------|------|------|0.004|10|-|4
+----------|------|------|0.004|10|-|5
+----------|------|------|0.004|10|-|6
+----------|------|------|0.004|10|-|7
+s03lj-----|------|------|0.001|15|10|2",
+        );
     }
 }
