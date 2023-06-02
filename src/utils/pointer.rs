@@ -111,7 +111,7 @@ pub trait PointerTrait: Sync {
     /// Panics if the `Pointer` is empty.
     unsafe fn by_offset(&self, marker: MainThreadMarker, offset: isize) -> Option<NonNull<c_void>> {
         let ptr = self.get_raw(marker).as_ptr();
-        let ptr = *ptr.offset(offset).cast();
+        let ptr = std::ptr::read_unaligned(ptr.offset(offset).cast());
         NonNull::new(ptr)
     }
 
@@ -132,7 +132,8 @@ pub trait PointerTrait: Sync {
         offset: isize,
     ) -> Option<NonNull<c_void>> {
         let ptr = self.get_raw(marker).as_ptr();
-        let ptr = ptr.offset(*ptr.offset(offset).cast::<isize>() + offset + 4);
+        let ptr =
+            ptr.offset(std::ptr::read_unaligned(ptr.offset(offset).cast::<isize>()) + offset + 4);
         NonNull::new(ptr)
     }
 }
