@@ -475,6 +475,12 @@ pub unsafe fn on_host_filter_time(marker: MainThreadMarker) -> bool {
     }
 
     let time = recorder.time_for_current_frame();
+
+    if TIME.get(marker) < BXT_CAP_TIME_START.as_f32(marker) as f64 {
+        *engine::realtime.get(marker) += *engine::host_frametime.get(marker);
+        return true;
+    }
+
     *engine::host_frametime.get(marker) = time;
     *engine::realtime.get(marker) += time;
 
