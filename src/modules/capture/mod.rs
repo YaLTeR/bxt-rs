@@ -6,7 +6,7 @@ use color_eyre::eyre::Context;
 
 use super::cvars::CVar;
 use super::{capture_video_per_demo, Module};
-use crate::hooks::engine::{self, con_print};
+use crate::hooks::engine::{self, con_print, prepend_command};
 use crate::modules::commands::Command;
 use crate::utils::*;
 use crate::{gl, handler};
@@ -36,6 +36,8 @@ impl Module for Capture {
             &BXT_CAP_FORCE_FALLBACK,
             &BXT_CAP_OVERRIDE_FFMPEG_ARGS,
             &BXT_CAP_SAMPLING_MIN_FPS,
+            &BXT_CAP_TIME_START,
+            &BXT_CAP_TIME_END,
         ];
         CVARS
     }
@@ -281,6 +283,7 @@ pub fn cap_stop(marker: MainThreadMarker) {
     }
 
     capture_video_per_demo::stop(marker);
+    TIME.set(marker, 0.);
 }
 
 pub unsafe fn capture_frame(marker: MainThreadMarker) {
@@ -515,13 +518,37 @@ pub fn prevent_toggle_console(marker: MainThreadMarker) -> bool {
     INSIDE_KEY_EVENT.get(marker)
 }
 
+static BXT_CAP_TIME_START: CVar = CVar::new(
+    b"bxt_cap_time_start\0",
+    b"0\0",
+    "Skips some seconds into the demo to start capturing.",
+);
+
+static BXT_CAP_TIME_END: CVar = CVar::new(
+    b"bxt_cap_time_end\0",
+    b"0\0",
+    "Specifies how many seconds into the demo to stop capturing. `0` for full demo.",
+);
+
+static TIME: MainThreadCell<f64> = MainThreadCell::new(0.);
+
 pub unsafe fn time_passed(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
     let State::Recording(ref mut recorder) = *state else { return };
 
-    // Accumulate time for the last frame.
     let time = *engine::host_frametime.get(marker);
+
+    if TIME.get(marker) < BXT_CAP_TIME_START.as_f32(marker) as f64 {
+        TIME.set(marker, TIME.get(marker) + time);
+        prepend_command(marker, "r_norefresh 1\n");
+        return;
+    }
+
+    prepend_command(marker, "r_norefresh 0\n");
+
+    // Accumulate time for the last frame.
     recorder.time_passed(time);
+    TIME.set(marker, TIME.get(marker) + time);
 
     // Capture sound ASAP.
     //
@@ -531,4 +558,10 @@ pub unsafe fn time_passed(marker: MainThreadMarker) {
     // video.
     drop(state);
     capture_sound(marker, SoundCaptureMode::Normal);
+
+    if BXT_CAP_TIME_END.as_f32(marker) != 0.
+        && TIME.get(marker) >= BXT_CAP_TIME_END.as_f32(marker) as f64
+    {
+        cap_stop(marker);
+    }
 }
