@@ -263,8 +263,9 @@ static BXT_TAS_OPTIM_INIT: Command = Command::new(
 
 Initializes the optimization with the given script, starting from the given frame.
 
-You're not meant to use this command directly. Instead, use `bxt_tas_optim_init` (without \
-arguments) provided in Bunnymod XT, which sets the script name and frame number automatically.",
+You're not meant to use this command directly. Instead, use `bxt_tas_studio_optim_init` (without \
+arguments) if using TAS Studio, or `bxt_tas_optim_init` (without arguments) provided in \
+Bunnymod XT, which sets the script name and frame number automatically.",
         optim_init as fn(_, _, _)
     ),
 );

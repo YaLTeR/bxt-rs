@@ -80,7 +80,7 @@ pub struct Editor {
 }
 
 #[derive(Debug, Clone)]
-struct BranchData {
+pub struct BranchData {
     /// Edited branch.
     branch: Branch,
 
@@ -89,7 +89,7 @@ struct BranchData {
     /// Data in every frame is sampled right before the call to `HLStrafe::MainFunc`. So the very
     /// first frame contains data before any TAS input, the second frame contains data after one
     /// frame of TAS input, and so on.
-    frames: Vec<Frame>,
+    pub frames: Vec<Frame>,
     /// Index of the first frame in `frames` that is predicted (inaccurate) rather than played.
     first_predicted_frame: usize,
     /// Data for auto-smoothing if it is enabled.
@@ -220,7 +220,7 @@ impl Editor {
         Self::open_db(db)
     }
 
-    fn branch(&self) -> &BranchData {
+    pub fn branch(&self) -> &BranchData {
         &self.branches[self.branch_idx]
     }
 

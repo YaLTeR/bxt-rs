@@ -21,12 +21,12 @@ use hltas::HLTAS;
 
 use self::editor::operation::Key;
 use self::editor::toggle_auto_action::ToggleAutoActionTarget;
-use self::editor::utils::FrameBulkExt;
+use self::editor::utils::{bulk_and_first_frame_idx, FrameBulkExt};
 use self::remote::{AccurateFrame, PlayRequest};
 use super::commands::Command;
 use super::cvars::CVar;
 use super::player_movement_tracing::Tracer;
-use super::tas_optimizer::{parameters, player_data};
+use super::tas_optimizer::{optim_init_internal, parameters, player_data};
 use super::triangle_drawing::{TriangleApi, TriangleDrawing};
 use super::{hud, Module};
 use crate::handler;
@@ -71,6 +71,7 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_UNDO,
             &BXT_TAS_STUDIO_REDO,
             &BXT_TAS_STUDIO_CLOSE,
+            &BXT_TAS_STUDIO_OPTIM_INIT,
             &PLUS_BXT_TAS_STUDIO_LOOK_AROUND,
             &MINUS_BXT_TAS_STUDIO_LOOK_AROUND,
         ];
@@ -676,6 +677,32 @@ Closes the TAS studio.",
 
 fn close(marker: MainThreadMarker) {
     *STATE.borrow_mut(marker) = State::Idle;
+}
+
+static BXT_TAS_STUDIO_OPTIM_INIT: Command = Command::new(
+    b"bxt_tas_studio_optim_init\0",
+    handler!(
+        "bxt_tas_studio_optim_init
+
+Initializes the optimization starting from the selected frame bulk.",
+        optim_init as fn(_)
+    ),
+);
+
+fn optim_init(marker: MainThreadMarker) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else { return };
+
+    let mut hltas = editor.script().clone();
+    let Some(bulk_idx) = editor.selected_bulk_idx() else { return };
+    let first_frame = bulk_and_first_frame_idx(&mut hltas)
+        .nth(bulk_idx)
+        .unwrap()
+        .1
+        - 1;
+    let Some(initial_frame) = editor.branch().frames.get(first_frame).cloned() else { return };
+
+    optim_init_internal(marker, hltas, first_frame, initial_frame);
 }
 
 enum State {
