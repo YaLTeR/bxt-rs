@@ -77,6 +77,8 @@ pub struct Editor {
 
     /// Whether to show camera angles for every frame.
     show_camera_angles: bool,
+    /// Whether to enable automatic global smoothing.
+    auto_smoothing: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -92,8 +94,8 @@ pub struct BranchData {
     pub frames: Vec<Frame>,
     /// Index of the first frame in `frames` that is predicted (inaccurate) rather than played.
     first_predicted_frame: usize,
-    /// Data for auto-smoothing if it is enabled.
-    auto_smoothing: Option<AutoSmoothing>,
+    /// Data for auto-smoothing.
+    auto_smoothing: AutoSmoothing,
 }
 
 impl BranchData {
@@ -102,10 +104,10 @@ impl BranchData {
             branch,
             frames: vec![],
             first_predicted_frame: 0,
-            auto_smoothing: Some(AutoSmoothing {
+            auto_smoothing: AutoSmoothing {
                 script: None,
                 frames: vec![],
-            }),
+            },
         }
     }
 }
@@ -201,6 +203,7 @@ impl Editor {
             yaw_adjustment: None,
             left_right_count_adjustment: None,
             show_camera_angles: false,
+            auto_smoothing: false,
         })
     }
 
@@ -241,10 +244,7 @@ impl Editor {
     }
 
     pub fn smoothed_script(&self) -> Option<&HLTAS> {
-        self.branch()
-            .auto_smoothing
-            .as_ref()
-            .and_then(|x| x.script.as_ref())
+        self.branch().auto_smoothing.script.as_ref()
     }
 
     pub fn stop_frame(&self) -> u32 {
@@ -259,6 +259,10 @@ impl Editor {
         self.show_camera_angles = value;
     }
 
+    pub fn set_auto_smoothing(&mut self, value: bool) {
+        self.auto_smoothing = value;
+    }
+
     /// Invalidates frames starting from given.
     ///
     /// Erases cached frame data and adjusts the first predicted frame index if needed.
@@ -267,11 +271,9 @@ impl Editor {
         branch.frames.truncate(frame_idx);
         branch.first_predicted_frame = min(branch.first_predicted_frame, frame_idx);
 
-        if let Some(AutoSmoothing { script, frames }) = &mut branch.auto_smoothing {
-            // TODO: probably possible to do a finer-grained invalidation.
-            *script = None;
-            frames.clear();
-        }
+        // TODO: probably possible to do a finer-grained invalidation.
+        branch.auto_smoothing.script = None;
+        branch.auto_smoothing.frames.clear();
 
         self.generation = self.generation.wrapping_add(1);
     }
@@ -1117,10 +1119,8 @@ impl Editor {
                     branch.first_predicted_frame = 1;
                 }
 
-                if let Some(AutoSmoothing { frames, .. }) = &mut branch.auto_smoothing {
-                    if frames.is_empty() {
-                        frames.push(frame.frame.clone());
-                    }
+                if branch.auto_smoothing.frames.is_empty() {
+                    branch.auto_smoothing.frames.push(frame.frame.clone());
                 }
             }
 
@@ -1135,7 +1135,11 @@ impl Editor {
         }
 
         if frame.is_smoothed {
-            let Some(AutoSmoothing { frames, .. }) = &mut branch.auto_smoothing else { return None };
+            if !self.auto_smoothing {
+                return None;
+            }
+
+            let frames = &mut branch.auto_smoothing.frames;
 
             if frames.len() == frame.frame_idx {
                 frames.push(frame.frame);
@@ -1165,7 +1169,7 @@ impl Editor {
             }
         }
 
-        if let Some(AutoSmoothing { script, .. }) = &mut branch.auto_smoothing {
+        if self.auto_smoothing {
             let frame_count = branch
                 .branch
                 .script
@@ -1207,7 +1211,7 @@ impl Editor {
                     }
                 }
 
-                *script = Some(smoothed_script.clone());
+                branch.auto_smoothing.script = Some(smoothed_script.clone());
                 return Some(PlayRequest {
                     script: smoothed_script,
                     generation: self.generation,
@@ -1497,8 +1501,8 @@ impl Editor {
         }
 
         // Draw auto-smoothed frames, if any.
-        if let Some(AutoSmoothing { frames, .. }) = &branch.auto_smoothing {
-            for (prev, frame) in frames.iter().tuple_windows() {
+        if self.auto_smoothing {
+            for (prev, frame) in branch.auto_smoothing.frames.iter().tuple_windows() {
                 let prev_pos = prev.state.player.pos;
                 let pos = frame.state.player.pos;
 
