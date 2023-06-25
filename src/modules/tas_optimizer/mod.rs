@@ -401,6 +401,19 @@ fn optim_init(marker: MainThreadMarker, path: PathBuf, first_frame: usize) {
         parameters: params,
     };
 
+    optim_init_internal(marker, hltas, first_frame, initial_frame);
+}
+
+pub fn optim_init_internal(
+    marker: MainThreadMarker,
+    hltas: HLTAS,
+    first_frame: usize,
+    initial_frame: Frame,
+) {
+    if !TasOptimizer.is_enabled(marker) {
+        return;
+    }
+
     *OPTIMIZER.borrow_mut(marker) = Some(Optimizer::new(
         hltas,
         first_frame,
