@@ -656,10 +656,35 @@ impl Editor {
         if let Some(selected_line_idx) = selected_line_idx {
             match op {
                 Operation::Delete { line_idx, .. } => {
-                    if line_idx <= selected_line_idx {
-                        // TODO: if less and deleted bulk, move active bulk idx back
-                        self.selected_bulk_idx = None;
+                    // Selected bulk index isn't None because selected_line_idx is computed from it.
+                    let selected_bulk_idx = self.selected_bulk_idx.unwrap();
+
+                    #[allow(clippy::comparison_chain)]
+                    if line_idx == selected_line_idx {
+                        // The selected bulk was deleted. In this case, the selected bulk index
+                        // should remain unchanged (the bulk right after the deleted one should
+                        // be selected), or, if it was the last bulk, the previous one should
+                        // be selected.
+                        if script.frame_bulks().nth(selected_bulk_idx).is_none() {
+                            // This was the last bulk in the script.
+                            if selected_bulk_idx == 0 {
+                                // There are no bulks left.
+                                self.selected_bulk_idx = None;
+                            } else {
+                                // Select the previous bulk.
+                                self.selected_bulk_idx = Some(selected_bulk_idx - 1);
+                            }
+                        }
+                        // Otherwise, leave the index as is (selecting the next bulk).
+                    } else if line_idx < selected_line_idx {
+                        // Something before the selected bulk was deleted. If that was a frame bulk,
+                        // move the selected bulk index one back to preserve the selection.
+                        if script.lines[line_idx].frame_bulk().is_some() {
+                            self.selected_bulk_idx = Some(selected_bulk_idx - 1);
+                        }
                     }
+                    // Otherwise, something was deleted ahead of the selected frame bulk, and we
+                    // don't need to change anything.
                 }
                 Operation::Replace { line_idx, .. } => {
                     // TODO: handle this smarter
