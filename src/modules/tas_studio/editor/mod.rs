@@ -285,7 +285,6 @@ impl Editor {
     }
 
     /// Updates the editor state.
-    // #[instrument("Editor::tick", skip_all)]
     pub fn tick<T: Trace>(
         &mut self,
         tracer: &T,
@@ -293,6 +292,8 @@ impl Editor {
         mouse: MouseState,
         deadline: Instant,
     ) -> eyre::Result<()> {
+        let _span = info_span!("Editor::tick").entered();
+
         // Update ongoing adjustments.
         self.tick_frame_count_adjustment(mouse)?;
         self.tick_yaw_adjustment(mouse)?;

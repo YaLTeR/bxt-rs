@@ -1026,10 +1026,11 @@ pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
     };
 }
 
-#[instrument("tas_studio::draw", skip_all)]
 pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     let mut state = STATE.borrow_mut(marker);
     let State::Editing { editor, last_generation, last_branch_idx, simulate_at, bridge } = &mut *state else { return };
+
+    let _span = info_span!("tas_studio::draw").entered();
 
     if let Some(script) = bridge.new_script() {
         if let Err(err) = editor.rewrite(script) {
@@ -1199,7 +1200,6 @@ fn add_frame_bulk_hud_lines(text: &mut Vec<u8>, bulk: &FrameBulk) {
     }
 }
 
-#[instrument("tas_studio::draw_hud", skip_all)]
 pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
     if !BXT_HUD_TAS_STUDIO.as_bool(marker) {
         return;
@@ -1207,6 +1207,8 @@ pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
 
     let state = STATE.borrow(marker);
     let State::Editing { editor, .. } = &*state else { return };
+
+    let _span = info_span!("tas_studio::draw_hud").entered();
 
     let info = hud::screen_info(marker);
 
