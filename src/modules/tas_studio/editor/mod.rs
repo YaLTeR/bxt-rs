@@ -1570,7 +1570,7 @@ impl Editor {
                 draw(DrawLine {
                     start: prev_pos,
                     end: pos,
-                    color: Vec3::ONE * 0.25,
+                    color: Vec3::ONE * 0.5,
                 });
             }
         }
