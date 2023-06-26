@@ -652,6 +652,7 @@ impl Editor {
         }
 
         // Adjust the selection if needed.
+        let script = &self.branch().branch.script;
         if let Some(selected_line_idx) = selected_line_idx {
             match op {
                 Operation::Delete { line_idx, .. } => {
@@ -664,10 +665,7 @@ impl Editor {
                     // TODO: handle this smarter
                     if line_idx <= selected_line_idx {
                         // TODO: if less and deleted bulk, move active bulk idx back
-                        if self.branch().branch.script.lines[line_idx]
-                            .frame_bulk()
-                            .is_none()
-                        {
+                        if script.lines[line_idx].frame_bulk().is_none() {
                             // Frame bulk was replaced by non-frame-bulk.
                             self.selected_bulk_idx = None;
                         }
