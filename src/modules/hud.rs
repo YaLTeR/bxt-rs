@@ -19,10 +19,7 @@ impl Module for Hud {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        // TODO
         engine::hudGetScreenInfo.is_set(marker)
-            && engine::ClientDLL_HudVidInit.is_set(marker)
-            && engine::ClientDLL_UpdateClientData.is_set(marker)
             && engine::ClientDLL_HudRedraw.is_set(marker)
             && engine::Draw_FillRGBABlend.is_set(marker)
             && engine::Draw_String.is_set(marker)

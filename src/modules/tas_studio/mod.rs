@@ -23,9 +23,10 @@ use self::editor::operation::Key;
 use self::editor::toggle_auto_action::ToggleAutoActionTarget;
 use self::editor::utils::{bulk_and_first_frame_idx, FrameBulkExt};
 use self::remote::{AccurateFrame, PlayRequest};
-use super::commands::Command;
+use super::commands::{Command, Commands};
 use super::cvars::CVar;
-use super::player_movement_tracing::Tracer;
+use super::hud::Hud;
+use super::player_movement_tracing::{PlayerMovementTracing, Tracer};
 use super::tas_optimizer::{optim_init_internal, parameters, player_data};
 use super::triangle_drawing::{TriangleApi, TriangleDrawing};
 use super::{hud, Module};
@@ -83,11 +84,21 @@ impl Module for TasStudio {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        // TODO
         engine::Host_FilterTime.is_set(marker)
+            && engine::ClientDLL_ActivateMouse.is_set(marker)
+            && engine::ClientDLL_DeactivateMouse.is_set(marker)
+            && engine::Cbuf_InsertText.is_set(marker)
+            && engine::hudGetViewAngles.is_set(marker)
+            && engine::window_rect.is_set(marker)
+            && sdl::SDL_SetRelativeMouseMode.is_set(marker)
+            && sdl::SDL_GetMouseState.is_set(marker)
             && bxt::BXT_TAS_LOAD_SCRIPT_FROM_STRING.is_set(marker)
             && bxt::BXT_ON_TAS_PLAYBACK_FRAME.is_set(marker)
+            && bxt::BXT_ON_TAS_PLAYBACK_STOPPED.is_set(marker)
             && TriangleDrawing.is_enabled(marker)
+            && Commands.is_enabled(marker)
+            && PlayerMovementTracing.is_enabled(marker)
+            && Hud.is_enabled(marker)
     }
 }
 
