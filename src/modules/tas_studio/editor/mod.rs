@@ -8,7 +8,7 @@ use std::time::Instant;
 
 use bxt_ipc_types::Frame;
 use bxt_strafe::Trace;
-use color_eyre::eyre::{self, bail, ensure};
+use color_eyre::eyre::{self, ensure};
 use glam::{Vec2, Vec3};
 use hltas::types::{AutoMovement, Line, StrafeDir, StrafeSettings, VectorialStrafingConstraints};
 use hltas::HLTAS;
@@ -1304,45 +1304,46 @@ impl Editor {
     }
 
     pub fn branch_switch(&mut self, branch_idx: usize) -> eyre::Result<()> {
-        if self.branch_idx == branch_idx {
-            return Ok(());
-        }
-
         // Don't do this during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
             return Ok(());
         }
 
-        ensure!(branch_idx <= self.branches.len(), "branch does not exist");
+        if self.branch_idx == branch_idx {
+            return Ok(());
+        }
+
+        let Some(branch) = self.branches.get(branch_idx) else {
+            return Ok(());
+        };
 
         self.branch_idx = branch_idx;
         self.selected_bulk_idx = None;
         self.hovered_bulk_idx = None;
         self.hovered_frame_idx = None;
-        self.db
-            .switch_to_branch(&self.branches[branch_idx].branch)?;
+        self.db.switch_to_branch(&branch.branch)?;
 
         Ok(())
     }
 
     pub fn branch_hide(&mut self, branch_idx: usize) -> eyre::Result<()> {
+        // Don't do this during active adjustments for consistency with other operations.
+        if self.is_any_adjustment_active() {
+            return Ok(());
+        }
+
         let Some(branch) = self.branches.get_mut(branch_idx) else {
-            bail!("branch does not exist");
+            return Ok(());
         };
 
         if branch.branch.is_hidden {
             return Ok(());
         }
 
-        // Don't do this during active adjustments for consistency with other operations.
-        if self.is_any_adjustment_active() {
-            return Ok(());
-        }
-
-        self.branches[branch_idx].branch.is_hidden = true;
-        self.db.hide_branch(&self.branches[branch_idx].branch)?;
+        branch.branch.is_hidden = true;
+        self.db.hide_branch(&branch.branch)?;
         self.undo_log.push(Action {
-            branch_id: self.branches[branch_idx].branch.branch_id,
+            branch_id: branch.branch.branch_id,
             kind: ActionKind::Hide,
         });
         self.redo_log.clear();
@@ -1351,23 +1352,23 @@ impl Editor {
     }
 
     pub fn branch_show(&mut self, branch_idx: usize) -> eyre::Result<()> {
+        // Don't do this during active adjustments for consistency with other operations.
+        if self.is_any_adjustment_active() {
+            return Ok(());
+        }
+
         let Some(branch) = self.branches.get_mut(branch_idx) else {
-            bail!("branch does not exist");
+            return Ok(());
         };
 
         if !branch.branch.is_hidden {
             return Ok(());
         }
 
-        // Don't do this during active adjustments for consistency with other operations.
-        if self.is_any_adjustment_active() {
-            return Ok(());
-        }
-
-        self.branches[branch_idx].branch.is_hidden = false;
-        self.db.show_branch(&self.branches[branch_idx].branch)?;
+        branch.branch.is_hidden = false;
+        self.db.show_branch(&branch.branch)?;
         self.undo_log.push(Action {
-            branch_id: self.branches[branch_idx].branch.branch_id,
+            branch_id: branch.branch.branch_id,
             kind: ActionKind::Show,
         });
         self.redo_log.clear();
