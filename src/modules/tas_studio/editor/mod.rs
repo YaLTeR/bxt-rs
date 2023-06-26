@@ -1576,9 +1576,12 @@ impl Editor {
     }
 
     fn draw_inner(&self, mut draw: impl FnMut(DrawLine)) {
-        self.draw_current_branch(&mut draw);
-        self.draw_auto_smoothing(&mut draw);
+        // At least on my machine, things that are drawn later visually appear over things that are
+        // drawn earlier. Therefore, the drawing order should be from the least to the most
+        // important.
         self.draw_other_branches(&mut draw);
+        self.draw_auto_smoothing(&mut draw);
+        self.draw_current_branch(&mut draw);
     }
 
     /// Draws the editor UI.
