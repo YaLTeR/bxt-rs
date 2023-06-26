@@ -1,4 +1,4 @@
-//! HLTAS Studio integration.State::Editing()ip;
+//! Interactive editor for TASes.
 
 use std::ffi::CStr;
 use std::fs::read_to_string;
@@ -42,7 +42,7 @@ impl Module for TasStudio {
     }
 
     fn description(&self) -> &'static str {
-        "HLTAS Studio integration."
+        "Interactive editor for TASes."
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
