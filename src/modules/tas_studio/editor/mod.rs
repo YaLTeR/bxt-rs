@@ -1376,7 +1376,7 @@ impl Editor {
         Ok(())
     }
 
-    fn draw_inner(&self, mut draw: impl FnMut(DrawLine)) {
+    fn draw_current_branch(&self, mut draw: impl FnMut(DrawLine)) {
         let branch = self.branch();
 
         // Draw regular frames.
@@ -1523,23 +1523,27 @@ impl Editor {
                 collided_this_bulk = false;
             }
         }
+    }
 
-        // Draw auto-smoothed frames, if any.
-        if self.auto_smoothing {
-            for (prev, frame) in branch.auto_smoothing.frames.iter().tuple_windows() {
-                let prev_pos = prev.state.player.pos;
-                let pos = frame.state.player.pos;
-
-                // Line from previous to this frame position.
-                draw(DrawLine {
-                    start: prev_pos,
-                    end: pos,
-                    color: Vec3::new(1., 0.75, 0.5),
-                });
-            }
+    fn draw_auto_smoothing(&self, mut draw: impl FnMut(DrawLine)) {
+        if !self.auto_smoothing {
+            return;
         }
 
-        // Draw other branches.
+        for (prev, frame) in self.branch().auto_smoothing.frames.iter().tuple_windows() {
+            let prev_pos = prev.state.player.pos;
+            let pos = frame.state.player.pos;
+
+            // Line from previous to this frame position.
+            draw(DrawLine {
+                start: prev_pos,
+                end: pos,
+                color: Vec3::new(1., 0.75, 0.5),
+            });
+        }
+    }
+
+    fn draw_other_branches(&self, mut draw: impl FnMut(DrawLine)) {
         for (idx, branch) in self.branches.iter().enumerate() {
             if idx == self.branch_idx {
                 continue;
@@ -1569,6 +1573,12 @@ impl Editor {
                 });
             }
         }
+    }
+
+    fn draw_inner(&self, mut draw: impl FnMut(DrawLine)) {
+        self.draw_current_branch(&mut draw);
+        self.draw_auto_smoothing(&mut draw);
+        self.draw_other_branches(&mut draw);
     }
 
     /// Draws the editor UI.
