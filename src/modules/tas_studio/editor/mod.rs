@@ -731,6 +731,12 @@ impl Editor {
                         }
                     }
                 }
+                Operation::ReplaceMultiple { first_line_idx, .. } => {
+                    // TODO: handle this smarter
+                    if first_line_idx <= selected_line_idx {
+                        self.selected_bulk_idx = None;
+                    }
+                }
                 Operation::Rewrite { .. } => {
                     self.selected_bulk_idx = None;
                 }
@@ -1937,6 +1943,28 @@ mod tests {
 
         // Redo with no changes should do nothing.
         editor.redo().unwrap();
+    }
+
+    #[test]
+    fn selected_bulk_idx_is_not_invalid_after_rewrite() {
+        let script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|10|-|6\n\
+                ----------|------|------|0.004|20|-|6",
+        )
+        .unwrap();
+        let mut editor = Editor::create_in_memory(&script).unwrap();
+
+        editor.selected_bulk_idx = Some(1);
+
+        let new_script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|10|-|6",
+        )
+        .unwrap();
+        editor.rewrite(new_script).unwrap();
+
+        assert_eq!(editor.selected_bulk_idx, None);
     }
 
     fn check_unwrap_angles(input: impl IntoIterator<Item = f32>, expect: Expect) {
