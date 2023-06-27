@@ -1366,6 +1366,12 @@ impl Editor {
             return Ok(());
         }
 
+        // Don't try to hide the current branch on its own: this causes it to hide only when we
+        // switch from it subsequently, which is confusing.
+        if self.branch_idx == branch_idx {
+            return Ok(());
+        }
+
         let Some(branch) = self.branches.get_mut(branch_idx) else {
             return Ok(());
         };
