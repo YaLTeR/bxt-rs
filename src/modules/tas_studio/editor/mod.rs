@@ -1360,6 +1360,17 @@ impl Editor {
         Ok(())
     }
 
+    pub fn branch_focus_next(&mut self) -> eyre::Result<()> {
+        let Some(branch_idx) = (self.branch_idx + 1..self.branches.len())
+            .chain(0..self.branch_idx)
+            .find(|&idx| !self.branches[idx].branch.is_hidden)
+        else {
+            return Ok(());
+        };
+
+        self.branch_focus(branch_idx)
+    }
+
     pub fn branch_hide(&mut self, branch_idx: usize) -> eyre::Result<()> {
         // Don't do this during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
@@ -1389,6 +1400,19 @@ impl Editor {
         self.redo_log.clear();
 
         Ok(())
+    }
+
+    pub fn branch_hide_and_focus_next(&mut self) -> eyre::Result<()> {
+        let Some(next_branch_idx) = (self.branch_idx + 1..self.branches.len())
+            .chain(0..self.branch_idx)
+            .find(|&idx| !self.branches[idx].branch.is_hidden)
+        else {
+            return Ok(());
+        };
+
+        let curr_branch_idx = self.branch_idx;
+        self.branch_focus(next_branch_idx)?;
+        self.branch_hide(curr_branch_idx)
     }
 
     pub fn branch_show(&mut self, branch_idx: usize) -> eyre::Result<()> {

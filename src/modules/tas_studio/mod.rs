@@ -72,7 +72,9 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_SMOOTH,
             &BXT_TAS_STUDIO_BRANCH_CLONE,
             &BXT_TAS_STUDIO_BRANCH_FOCUS,
+            &BXT_TAS_STUDIO_BRANCH_FOCUS_NEXT,
             &BXT_TAS_STUDIO_BRANCH_HIDE,
+            &BXT_TAS_STUDIO_BRANCH_HIDE_AND_FOCUS_NEXT,
             &BXT_TAS_STUDIO_BRANCH_SHOW,
             &BXT_TAS_STUDIO_UNDO,
             &BXT_TAS_STUDIO_REDO,
@@ -460,6 +462,26 @@ fn branch_focus(marker: MainThreadMarker, branch_idx: usize) {
     }
 }
 
+static BXT_TAS_STUDIO_BRANCH_FOCUS_NEXT: Command = Command::new(
+    b"bxt_tas_studio_branch_focus_next\0",
+    handler!(
+        "bxt_tas_studio_branch_focus_next
+
+Focuses the next visible branch.",
+        branch_focus_next as fn(_)
+    ),
+);
+
+fn branch_focus_next(marker: MainThreadMarker) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else { return };
+
+    if let Err(err) = editor.branch_focus_next() {
+        con_print(marker, &format!("Error focusing branch: {err}\n"));
+        *state = State::Idle;
+    }
+}
+
 static BXT_TAS_STUDIO_BRANCH_HIDE: Command = Command::new(
     b"bxt_tas_studio_branch_hide\0",
     handler!(
@@ -476,6 +498,29 @@ fn branch_hide(marker: MainThreadMarker, branch_idx: usize) {
 
     if let Err(err) = editor.branch_hide(branch_idx) {
         con_print(marker, &format!("Error hiding branch: {err}\n"));
+        *state = State::Idle;
+    }
+}
+
+static BXT_TAS_STUDIO_BRANCH_HIDE_AND_FOCUS_NEXT: Command = Command::new(
+    b"bxt_tas_studio_branch_hide_and_focus_next\0",
+    handler!(
+        "bxt_tas_studio_branch_hide_and_focus_next <index>
+
+Hides the currently focused branch and focuses the next visible branch.",
+        branch_hide_and_focus_next as fn(_)
+    ),
+);
+
+fn branch_hide_and_focus_next(marker: MainThreadMarker) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else { return };
+
+    if let Err(err) = editor.branch_hide_and_focus_next() {
+        con_print(
+            marker,
+            &format!("Error hiding branch and focusing next: {err}\n"),
+        );
         *state = State::Idle;
     }
 }
