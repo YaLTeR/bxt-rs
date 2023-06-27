@@ -753,6 +753,16 @@ fn optim_simulation_done(_marker: MainThreadMarker) {
     remote::send_simulation_result_to_server();
 }
 
+pub unsafe fn current_best(marker: MainThreadMarker) -> Option<HLTAS> {
+    let Some(ref mut optimizer) = &mut *OPTIMIZER.borrow_mut(marker) else { return None };
+
+    // TODO: this is unsafe outside of gameplay.
+    let tracer = unsafe { Tracer::new(marker, false) }.unwrap();
+    optimizer.minimize(&tracer);
+
+    Some(optimizer.current_best())
+}
+
 pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker) {
     let Some(cls) = engine::cls.get_opt(marker) else { return };
 

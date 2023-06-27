@@ -132,6 +132,23 @@ impl Optimizer {
         Ok(rv?)
     }
 
+    pub fn current_best(&self) -> HLTAS {
+        let mut rv = self.prefix.clone();
+
+        let len = rv.lines.len();
+        rv.lines.extend(self.hltas.lines.iter().cloned());
+
+        if let Some(Line::FrameBulk(frame_bulk)) = rv.lines.get_mut(len) {
+            assert_eq!(
+                frame_bulk.console_command, None,
+                "the command was erased in Optimizer::new()"
+            );
+            frame_bulk.console_command = self.erased_console_command.clone();
+        }
+
+        rv
+    }
+
     pub fn simulate_all<T: Trace>(&mut self, tracer: &T) {
         let simulator = Simulator::new(tracer, &self.frames, &self.hltas.lines);
         self.frames.extend(simulator);

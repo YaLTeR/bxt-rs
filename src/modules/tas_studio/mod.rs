@@ -28,7 +28,7 @@ use super::commands::{Command, Commands};
 use super::cvars::CVar;
 use super::hud::Hud;
 use super::player_movement_tracing::{PlayerMovementTracing, Tracer};
-use super::tas_optimizer::{optim_init_internal, parameters, player_data};
+use super::tas_optimizer::{self, optim_init_internal, parameters, player_data};
 use super::triangle_drawing::{TriangleApi, TriangleDrawing};
 use super::{hud, Module};
 use crate::ffi::buttons::Buttons;
@@ -83,6 +83,7 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_REDO,
             &BXT_TAS_STUDIO_CLOSE,
             &BXT_TAS_STUDIO_OPTIM_INIT,
+            &BXT_TAS_STUDIO_OPTIM_APPLY,
             &PLUS_BXT_TAS_STUDIO_LOOK_AROUND,
             &MINUS_BXT_TAS_STUDIO_LOOK_AROUND,
         ];
@@ -800,6 +801,31 @@ fn optim_init(marker: MainThreadMarker) {
     let Some(initial_frame) = editor.branch().frames.get(first_frame).cloned() else { return };
 
     optim_init_internal(marker, hltas, first_frame, initial_frame);
+}
+
+static BXT_TAS_STUDIO_OPTIM_APPLY: Command = Command::new(
+    b"bxt_tas_studio_optim_apply\0",
+    handler!(
+        "bxt_tas_studio_optim_apply
+
+Applies the current best optimization result to the current branch.",
+        optim_apply as fn(_)
+    ),
+);
+
+fn optim_apply(marker: MainThreadMarker) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else { return };
+
+    let new_script = match unsafe { tas_optimizer::current_best(marker) } {
+        Some(x) => x,
+        None => return,
+    };
+
+    if let Err(err) = editor.rewrite(new_script) {
+        con_print(marker, &format!("Error rewriting the script: {err}\n"));
+        *state = State::Idle;
+    }
 }
 
 enum State {
