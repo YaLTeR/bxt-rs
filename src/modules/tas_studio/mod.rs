@@ -1014,7 +1014,11 @@ pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
 
     *state = match mem::take(&mut *state) {
-        State::Playing { .. } => State::Idle,
+        State::Playing { .. } => {
+            engine::prepend_command(marker, "setpause\n");
+
+            State::Idle
+        }
         State::PlayingToEditor { editor, bridge, .. } => {
             let generation = editor.generation();
             let branch_idx = editor.branch_idx();
