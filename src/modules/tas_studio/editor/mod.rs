@@ -799,7 +799,7 @@ impl Editor {
         Ok(())
     }
 
-    /// Deletes the selected line, if any.
+    /// Deletes the selected frame bulk, if any.
     pub fn delete_selected(&mut self) -> eyre::Result<()> {
         // Don't delete during active adjustments because they store the frame bulk index.
         if self.is_any_adjustment_active() {
@@ -818,6 +818,39 @@ impl Editor {
             .filter(|(_, line)| matches!(line, Line::FrameBulk(_)))
             .nth(bulk_idx)
             .unwrap();
+
+        let mut buffer = Vec::new();
+        hltas::write::gen_line(&mut buffer, line)
+            .expect("writing to an in-memory buffer should never fail");
+        let buffer = String::from_utf8(buffer)
+            .expect("Line serialization should never produce invalid UTF-8");
+
+        let op = Operation::Delete {
+            line_idx,
+            line: buffer,
+        };
+        self.apply_operation(op)
+    }
+
+    /// Deletes the last frame bulk, if any.
+    pub fn delete_last(&mut self) -> eyre::Result<()> {
+        // Don't delete during active adjustments because they store the frame bulk index.
+        if self.is_any_adjustment_active() {
+            return Ok(());
+        }
+
+        let Some((line_idx, line)) = self
+            .branch()
+            .branch
+            .script
+            .lines
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| matches!(line, Line::FrameBulk(_)))
+            .last()
+        else {
+            return Ok(());
+        };
 
         let mut buffer = Vec::new();
         hltas::write::gen_line(&mut buffer, line)

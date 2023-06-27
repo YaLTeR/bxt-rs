@@ -67,6 +67,7 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_UNSET_YAW,
             &BXT_TAS_STUDIO_SPLIT,
             &BXT_TAS_STUDIO_DELETE,
+            &BXT_TAS_STUDIO_DELETE_LAST,
             &BXT_TAS_STUDIO_TOGGLE,
             &BXT_TAS_STUDIO_SMOOTH,
             &BXT_TAS_STUDIO_BRANCH_CLONE,
@@ -671,6 +672,26 @@ fn delete(marker: MainThreadMarker) {
 
     if let Err(err) = editor.delete_selected() {
         con_print(marker, &format!("Error deleting selected: {err}\n"));
+        *state = State::Idle;
+    }
+}
+
+static BXT_TAS_STUDIO_DELETE_LAST: Command = Command::new(
+    b"bxt_tas_studio_delete_last\0",
+    handler!(
+        "bxt_tas_studio_delete_last
+
+Deletes the last frame bulk of the current branch.",
+        delete_last as fn(_)
+    ),
+);
+
+fn delete_last(marker: MainThreadMarker) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else { return };
+
+    if let Err(err) = editor.delete_last() {
+        con_print(marker, &format!("Error deleting last: {err}\n"));
         *state = State::Idle;
     }
 }
