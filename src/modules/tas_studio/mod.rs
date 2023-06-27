@@ -22,6 +22,7 @@ use hltas::HLTAS;
 use self::editor::operation::Key;
 use self::editor::toggle_auto_action::ToggleAutoActionTarget;
 use self::editor::utils::{bulk_and_first_frame_idx, FrameBulkExt};
+use self::editor::KeyboardState;
 use self::remote::{AccurateFrame, PlayRequest};
 use super::commands::{Command, Commands};
 use super::cvars::CVar;
@@ -30,6 +31,8 @@ use super::player_movement_tracing::{PlayerMovementTracing, Tracer};
 use super::tas_optimizer::{optim_init_internal, parameters, player_data};
 use super::triangle_drawing::{TriangleApi, TriangleDrawing};
 use super::{hud, Module};
+use crate::ffi::buttons::Buttons;
+use crate::ffi::usercmd::usercmd_s;
 use crate::handler;
 use crate::hooks::bxt::OnTasPlaybackFrameData;
 use crate::hooks::engine::con_print;
@@ -114,6 +117,8 @@ pub use remote::{maybe_start_client_connection_thread, update_client_connection_
 mod hltas_bridge;
 mod watcher;
 use hltas_bridge::Bridge;
+
+static LAST_BUTTONS: MainThreadCell<Buttons> = MainThreadCell::new(Buttons::empty());
 
 static BXT_HUD_TAS_STUDIO: CVar = CVar::new(
     b"bxt_hud_tas_studio\0",
@@ -1132,8 +1137,14 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     };
     let mouse = sdl::mouse_state(marker);
 
+    let last_buttons = LAST_BUTTONS.get(marker);
+    let keyboard = KeyboardState {
+        adjust_faster: last_buttons.contains(Buttons::IN_ALT1),
+        adjust_slower: last_buttons.contains(Buttons::IN_DUCK),
+    };
+
     let deadline = Instant::now() + Duration::from_millis(20);
-    if let Err(err) = editor.tick(&tracer, world_to_screen, mouse, deadline) {
+    if let Err(err) = editor.tick(&tracer, world_to_screen, mouse, keyboard, deadline) {
         con_print(marker, &format!("Error ticking the TAS editor: {err}\n"));
         *state = State::Idle;
         return;
@@ -1370,4 +1381,8 @@ pub unsafe fn should_skip_command(marker: MainThreadMarker, text: *const i8) -> 
 pub fn should_clear(marker: MainThreadMarker) -> bool {
     let state = STATE.borrow(marker);
     matches!(*state, State::Editing { .. })
+}
+
+pub unsafe fn on_post_run_cmd(marker: MainThreadMarker, cmd: *mut usercmd_s) {
+    LAST_BUTTONS.set(marker, Buttons::from_bits_truncate((*cmd).buttons));
 }

@@ -172,6 +172,16 @@ pub static ClientDLL_HudVidInit: Pointer<unsafe extern "C" fn()> = Pointer::empt
     ]),
     my_ClientDLL_HudVidInit as _,
 );
+pub static ClientDLL_PostRunCmd: Pointer<
+    unsafe extern "C" fn(
+        from: *mut c_void,
+        to: *mut c_void,
+        cmd: *mut usercmd_s,
+        runfuncs: c_int,
+        time: c_double,
+        random_seed: c_uint,
+    ),
+> = Pointer::empty(b"ClientDLL_PostRunCmd\0");
 pub static ClientDLL_UpdateClientData: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"ClientDLL_UpdateClientData\0",
     // To find, search for "HUD_UpdateClientData". This sets the HUD_UpdateClientData pointer in
@@ -857,6 +867,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &ClientDLL_DrawTransparentTriangles,
     &ClientDLL_HudRedraw,
     &ClientDLL_HudVidInit,
+    &ClientDLL_PostRunCmd,
     &ClientDLL_UpdateClientData,
     &cls,
     &cls_demos,
@@ -2093,6 +2104,24 @@ pub mod exported {
             hud_scale::with_scaled_screen_info(marker, move || {
                 ClientDLL_DemoUpdateClientData.get(marker)(cdat)
             });
+        })
+    }
+
+    #[export_name = "ClientDLL_PostRunCmd"]
+    pub unsafe extern "C" fn my_ClientDLL_PostRunCmd(
+        from: *mut c_void,
+        to: *mut c_void,
+        cmd: *mut usercmd_s,
+        runfuncs: c_int,
+        time: c_double,
+        random_seed: c_uint,
+    ) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            ClientDLL_PostRunCmd.get(marker)(from, to, cmd, runfuncs, time, random_seed);
+
+            tas_studio::on_post_run_cmd(marker, cmd);
         })
     }
 

@@ -154,6 +154,27 @@ impl<T> MouseAdjustment<T> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct KeyboardState {
+    /// Whether the "faster" key is pressed.
+    pub adjust_faster: bool,
+    /// Whether the "slower" key is pressed.
+    pub adjust_slower: bool,
+}
+
+impl KeyboardState {
+    fn adjustment_speed(self) -> f32 {
+        let mut speed = 1.;
+        if self.adjust_slower {
+            speed /= 20.;
+        }
+        if self.adjust_faster {
+            speed *= 20.;
+        }
+        speed
+    }
+}
+
 struct DrawLine {
     start: Vec3,
     end: Vec3,
@@ -290,14 +311,15 @@ impl Editor {
         tracer: &T,
         world_to_screen: impl Fn(Vec3) -> Option<Vec2>,
         mouse: MouseState,
+        keyboard: KeyboardState,
         deadline: Instant,
     ) -> eyre::Result<()> {
         let _span = info_span!("Editor::tick").entered();
 
         // Update ongoing adjustments.
-        self.tick_frame_count_adjustment(mouse)?;
-        self.tick_yaw_adjustment(mouse)?;
-        self.tick_left_right_count_adjustment(mouse)?;
+        self.tick_frame_count_adjustment(mouse, keyboard)?;
+        self.tick_yaw_adjustment(mouse, keyboard)?;
+        self.tick_left_right_count_adjustment(mouse, keyboard)?;
 
         // Predict any frames that need prediction.
         //
@@ -448,7 +470,11 @@ impl Editor {
         Ok(())
     }
 
-    fn tick_frame_count_adjustment(&mut self, mouse: MouseState) -> eyre::Result<()> {
+    fn tick_frame_count_adjustment(
+        &mut self,
+        mouse: MouseState,
+        keyboard: KeyboardState,
+    ) -> eyre::Result<()> {
         let Some(adjustment) = &mut self.frame_count_adjustment else { return Ok(()) };
 
         let bulk_idx = self.selected_bulk_idx.unwrap();
@@ -472,8 +498,8 @@ impl Editor {
             return self.store_operation(op);
         }
 
-        // TODO: adjustment speed
-        let delta = (adjustment.delta(mouse.pos.as_vec2()) * 0.1).round() as i32;
+        let speed = keyboard.adjustment_speed();
+        let delta = (adjustment.delta(mouse.pos.as_vec2()) * 0.1 * speed).round() as i32;
         let new_frame_count = adjustment
             .original_value
             .saturating_add_signed(delta)
@@ -489,7 +515,11 @@ impl Editor {
         Ok(())
     }
 
-    fn tick_yaw_adjustment(&mut self, mouse: MouseState) -> eyre::Result<()> {
+    fn tick_yaw_adjustment(
+        &mut self,
+        mouse: MouseState,
+        keyboard: KeyboardState,
+    ) -> eyre::Result<()> {
         let Some(adjustment) = &mut self.yaw_adjustment else { return Ok(()) };
 
         let bulk_idx = self.selected_bulk_idx.unwrap();
@@ -515,8 +545,8 @@ impl Editor {
             return self.store_operation(op);
         }
 
-        // TODO: adjustment speed
-        let delta = adjustment.delta(mouse.pos.as_vec2()) * 0.1;
+        let speed = keyboard.adjustment_speed();
+        let delta = adjustment.delta(mouse.pos.as_vec2()) * 0.1 * speed;
         let new_yaw = adjustment.original_value + delta;
 
         if *yaw != new_yaw {
@@ -528,7 +558,11 @@ impl Editor {
         Ok(())
     }
 
-    fn tick_left_right_count_adjustment(&mut self, mouse: MouseState) -> eyre::Result<()> {
+    fn tick_left_right_count_adjustment(
+        &mut self,
+        mouse: MouseState,
+        keyboard: KeyboardState,
+    ) -> eyre::Result<()> {
         let Some(adjustment) = &mut self.left_right_count_adjustment else { return Ok(()) };
 
         let bulk_idx = self.selected_bulk_idx.unwrap();
@@ -554,8 +588,8 @@ impl Editor {
             return self.store_operation(op);
         }
 
-        // TODO: adjustment speed
-        let delta = (adjustment.delta(mouse.pos.as_vec2()) * 0.1).round() as i32;
+        let speed = keyboard.adjustment_speed();
+        let delta = (adjustment.delta(mouse.pos.as_vec2()) * 0.1 * speed).round() as i32;
         let new_left_right_count = adjustment
             .original_value
             .saturating_add_signed(delta)
