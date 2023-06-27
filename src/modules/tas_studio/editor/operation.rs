@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use super::utils::{line_first_frame_idx, line_first_frame_idx_and_frame_count};
 use crate::modules::tas_studio::editor::utils::{
-    bulk_and_first_frame_idx, line_idx_and_repeat_at_frame, FrameBulkExt,
+    bulk_and_first_frame_idx_mut, line_idx_and_repeat_at_frame, FrameBulkExt,
 };
 
 // This enum is stored in a SQLite DB as bincode bytes. All changes MUST BE BACKWARDS COMPATIBLE to
@@ -92,7 +92,7 @@ impl Operation {
     pub fn apply(&self, hltas: &mut HLTAS) -> Option<usize> {
         match *self {
             Operation::SetFrameCount { bulk_idx, from, to } => {
-                let (bulk, first_frame_idx) = bulk_and_first_frame_idx(hltas)
+                let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
                     .nth(bulk_idx)
                     .expect("invalid bulk index");
 
@@ -104,7 +104,7 @@ impl Operation {
                 }
             }
             Operation::SetYaw { bulk_idx, from, to } => {
-                let (bulk, first_frame_idx) = bulk_and_first_frame_idx(hltas)
+                let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
                     .nth(bulk_idx)
                     .expect("invalid bulk index");
 
@@ -153,7 +153,7 @@ impl Operation {
                 return Some(first_frame_idx);
             }
             Operation::ToggleKey { bulk_idx, key, to } => {
-                let (bulk, first_frame_idx) = bulk_and_first_frame_idx(hltas)
+                let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
                     .nth(bulk_idx)
                     .expect("invalid bulk index");
 
@@ -176,7 +176,7 @@ impl Operation {
                 return Some(first_frame_idx);
             }
             Operation::SetLeftRightCount { bulk_idx, from, to } => {
-                let (bulk, first_frame_idx) = bulk_and_first_frame_idx(hltas)
+                let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
                     .nth(bulk_idx)
                     .expect("invalid bulk index");
 
@@ -227,7 +227,7 @@ impl Operation {
     pub fn undo(&self, hltas: &mut HLTAS) -> Option<usize> {
         match *self {
             Operation::SetFrameCount { bulk_idx, from, to } => {
-                let (bulk, first_frame_idx) = bulk_and_first_frame_idx(hltas)
+                let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
                     .nth(bulk_idx)
                     .expect("invalid bulk index");
 
@@ -239,7 +239,7 @@ impl Operation {
                 }
             }
             Operation::SetYaw { bulk_idx, from, to } => {
-                let (bulk, first_frame_idx) = bulk_and_first_frame_idx(hltas)
+                let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
                     .nth(bulk_idx)
                     .expect("invalid bulk index");
 
@@ -298,7 +298,7 @@ impl Operation {
                 return Some(first_frame_idx);
             }
             Operation::ToggleKey { bulk_idx, key, to } => {
-                let (bulk, first_frame_idx) = bulk_and_first_frame_idx(hltas)
+                let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
                     .nth(bulk_idx)
                     .expect("invalid bulk index");
 
@@ -316,7 +316,7 @@ impl Operation {
                 return Some(first_frame_idx);
             }
             Operation::SetLeftRightCount { bulk_idx, from, to } => {
-                let (bulk, first_frame_idx) = bulk_and_first_frame_idx(hltas)
+                let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
                     .nth(bulk_idx)
                     .expect("invalid bulk index");
 

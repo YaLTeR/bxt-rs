@@ -92,11 +92,23 @@ pub fn bulk_idx_and_is_last(
     })
 }
 
-/// Returns frame bulk and index of first frame simulated by it.
+/// Returns reference to frame bulk and index of first frame simulated by it.
 ///
 /// The index starts at `1` because the very first frame is always the initial frame, which is not
 /// simulated by any frame bulk.
-pub fn bulk_and_first_frame_idx(
+pub fn bulk_and_first_frame_idx(hltas: &HLTAS) -> impl Iterator<Item = (&FrameBulk, usize)> {
+    hltas.frame_bulks().scan(1, |frame_idx, bulk| {
+        let first_frame_idx = *frame_idx;
+        *frame_idx += bulk.frame_count.get() as usize;
+        Some((bulk, first_frame_idx))
+    })
+}
+
+/// Returns mutable reference to frame bulk and index of first frame simulated by it.
+///
+/// The index starts at `1` because the very first frame is always the initial frame, which is not
+/// simulated by any frame bulk.
+pub fn bulk_and_first_frame_idx_mut(
     hltas: &mut HLTAS,
 ) -> impl Iterator<Item = (&mut FrameBulk, usize)> {
     hltas.frame_bulks_mut().scan(1, |frame_idx, bulk| {

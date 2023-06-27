@@ -723,13 +723,9 @@ fn optim_init(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
     let State::Editing { editor, .. } = &mut *state else { return };
 
-    let mut hltas = editor.script().clone();
+    let hltas = editor.script().clone();
     let Some(bulk_idx) = editor.selected_bulk_idx() else { return };
-    let first_frame = bulk_and_first_frame_idx(&mut hltas)
-        .nth(bulk_idx)
-        .unwrap()
-        .1
-        - 1;
+    let first_frame = bulk_and_first_frame_idx(&hltas).nth(bulk_idx).unwrap().1 - 1;
     let Some(initial_frame) = editor.branch().frames.get(first_frame).cloned() else { return };
 
     optim_init_internal(marker, hltas, first_frame, initial_frame);

@@ -18,7 +18,7 @@ use self::db::{Action, ActionKind, Branch, Db};
 use self::operation::{Key, Operation};
 use self::toggle_auto_action::ToggleAutoActionTarget;
 use self::utils::{
-    bulk_and_first_frame_idx, bulk_idx_and_is_last, line_idx_and_repeat_at_frame, FrameBulkExt,
+    bulk_and_first_frame_idx_mut, bulk_idx_and_is_last, line_idx_and_repeat_at_frame, FrameBulkExt,
 };
 use super::remote::{AccurateFrame, PlayRequest};
 use crate::hooks::sdl::MouseState;
@@ -453,7 +453,7 @@ impl Editor {
 
         let bulk_idx = self.selected_bulk_idx.unwrap();
         let (bulk, first_frame_idx) =
-            bulk_and_first_frame_idx(&mut self.branches[self.branch_idx].branch.script)
+            bulk_and_first_frame_idx_mut(&mut self.branches[self.branch_idx].branch.script)
                 .nth(bulk_idx)
                 .unwrap();
 
@@ -494,7 +494,7 @@ impl Editor {
 
         let bulk_idx = self.selected_bulk_idx.unwrap();
         let (bulk, first_frame_idx) =
-            bulk_and_first_frame_idx(&mut self.branches[self.branch_idx].branch.script)
+            bulk_and_first_frame_idx_mut(&mut self.branches[self.branch_idx].branch.script)
                 .nth(bulk_idx)
                 .unwrap();
 
@@ -533,7 +533,7 @@ impl Editor {
 
         let bulk_idx = self.selected_bulk_idx.unwrap();
         let (bulk, first_frame_idx) =
-            bulk_and_first_frame_idx(&mut self.branches[self.branch_idx].branch.script)
+            bulk_and_first_frame_idx_mut(&mut self.branches[self.branch_idx].branch.script)
                 .nth(bulk_idx)
                 .unwrap();
 
@@ -576,7 +576,7 @@ impl Editor {
 
             let bulk_idx = self.selected_bulk_idx.unwrap();
             let (bulk, first_frame_idx) =
-                bulk_and_first_frame_idx(&mut self.branch_mut().branch.script)
+                bulk_and_first_frame_idx_mut(&mut self.branch_mut().branch.script)
                     .nth(bulk_idx)
                     .unwrap();
 
@@ -592,7 +592,7 @@ impl Editor {
 
             let bulk_idx = self.selected_bulk_idx.unwrap();
             let (bulk, first_frame_idx) =
-                bulk_and_first_frame_idx(&mut self.branch_mut().branch.script)
+                bulk_and_first_frame_idx_mut(&mut self.branch_mut().branch.script)
                     .nth(bulk_idx)
                     .unwrap();
 
@@ -608,7 +608,7 @@ impl Editor {
 
             let bulk_idx = self.selected_bulk_idx.unwrap();
             let (bulk, first_frame_idx) =
-                bulk_and_first_frame_idx(&mut self.branch_mut().branch.script)
+                bulk_and_first_frame_idx_mut(&mut self.branch_mut().branch.script)
                     .nth(bulk_idx)
                     .unwrap();
 
