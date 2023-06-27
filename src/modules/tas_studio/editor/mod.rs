@@ -728,7 +728,7 @@ impl Editor {
         match &action.kind {
             ActionKind::ApplyOperation(op) => {
                 if action.branch_id != self.branch().branch.branch_id {
-                    self.branch_switch(branch_idx)?;
+                    self.branch_focus(branch_idx)?;
                 }
 
                 // TODO: smarter handling
@@ -774,7 +774,7 @@ impl Editor {
         match &action.kind {
             ActionKind::ApplyOperation(op) => {
                 if action.branch_id != self.branch().branch.branch_id {
-                    self.branch_switch(branch_idx)?;
+                    self.branch_focus(branch_idx)?;
                 }
 
                 // TODO: smarter handling
@@ -1332,12 +1332,12 @@ impl Editor {
         self.branches.push(new_branch);
 
         // Switch to the cloned branch.
-        self.branch_switch(self.branches.len() - 1)?;
+        self.branch_focus(self.branches.len() - 1)?;
 
         Ok(())
     }
 
-    pub fn branch_switch(&mut self, branch_idx: usize) -> eyre::Result<()> {
+    pub fn branch_focus(&mut self, branch_idx: usize) -> eyre::Result<()> {
         // Don't do this during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
             return Ok(());

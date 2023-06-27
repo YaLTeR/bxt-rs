@@ -71,7 +71,7 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_TOGGLE,
             &BXT_TAS_STUDIO_SMOOTH,
             &BXT_TAS_STUDIO_BRANCH_CLONE,
-            &BXT_TAS_STUDIO_BRANCH_SWITCH,
+            &BXT_TAS_STUDIO_BRANCH_FOCUS,
             &BXT_TAS_STUDIO_BRANCH_HIDE,
             &BXT_TAS_STUDIO_BRANCH_SHOW,
             &BXT_TAS_STUDIO_UNDO,
@@ -440,22 +440,22 @@ fn branch_clone(marker: MainThreadMarker) {
     }
 }
 
-static BXT_TAS_STUDIO_BRANCH_SWITCH: Command = Command::new(
-    b"bxt_tas_studio_branch_switch\0",
+static BXT_TAS_STUDIO_BRANCH_FOCUS: Command = Command::new(
+    b"bxt_tas_studio_branch_focus\0",
     handler!(
-        "bxt_tas_studio_branch_switch <index>
+        "bxt_tas_studio_branch_focus <index>
 
-Switches the current branch to the branch with the given index.",
-        branch_switch as fn(_, _)
+Focuses branch with the given index.",
+        branch_focus as fn(_, _)
     ),
 );
 
-fn branch_switch(marker: MainThreadMarker, branch_idx: usize) {
+fn branch_focus(marker: MainThreadMarker, branch_idx: usize) {
     let mut state = STATE.borrow_mut(marker);
     let State::Editing { editor, .. } = &mut *state else { return };
 
-    if let Err(err) = editor.branch_switch(branch_idx) {
-        con_print(marker, &format!("Error switching branch: {err}\n"));
+    if let Err(err) = editor.branch_focus(branch_idx) {
+        con_print(marker, &format!("Error focusing branch: {err}\n"));
         *state = State::Idle;
     }
 }
