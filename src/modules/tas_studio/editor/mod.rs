@@ -1882,14 +1882,43 @@ fn replace_multiple_params<'a>(
         .unwrap_or(min(new_len, old_len));
     let first_line_idx = matching_lines_from_start;
 
+    // Operate on the non-matching part to avoid the next search from stepping on the same lines.
+    //
+    // For example, consider a test case like this:
+    //
+    // ```
+    // version 1
+    // frames
+    // ----------|------|------|0.001|-|-|1
+    // ----------|------|------|0.001|-|-|1
+    // ```
+    //
+    // ```
+    // version 1
+    // frames
+    // ----------|------|------|0.001|-|-|1
+    // ```
+    //
+    // When doing the reverse search below using the original (non-sliced) arrays, it will count the
+    // single matching line from both the start and the end, causing an overlap and a logic error.
+    // By slicing here we're enforcing that all lines that were counted during the forward search
+    // are not counted during the reverse search.
+    let new_script_non_matching = &new_script.lines[first_line_idx..];
+    let old_script_non_matching = &old_script.lines[first_line_idx..];
+    let new_len_non_matching = new_len - matching_lines_from_start;
+    let old_len_non_matching = old_len - matching_lines_from_start;
+
     // Find the index of the first non-matching line from the end. It is the same between the two
     // scripts.
-    let matching_lines_from_end = zip(new_script.lines.iter().rev(), old_script.lines.iter().rev())
-        .find_position(|(new, old)| new != old)
-        .map(|(idx, _)| idx)
-        // If we exhaust one of the iterators, return the current index, which is equal to the
-        // length of the shorter iterator.
-        .unwrap_or(min(new_len, old_len));
+    let matching_lines_from_end = zip(
+        new_script_non_matching.iter().rev(),
+        old_script_non_matching.iter().rev(),
+    )
+    .find_position(|(new, old)| new != old)
+    .map(|(idx, _)| idx)
+    // If we exhaust one of the iterators, return the current index, which is equal to the
+    // length of the shorter iterator.
+    .unwrap_or(min(new_len_non_matching, old_len_non_matching));
 
     let count = old_len - matching_lines_from_end - matching_lines_from_start;
 
@@ -1943,6 +1972,38 @@ mod tests {
 
         // Redo with no changes should do nothing.
         editor.redo().unwrap();
+    }
+
+    #[test]
+    fn replace_multiple_optimization_bug_1() {
+        let script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|10|-|6\n\
+                ----------|------|------|0.004|10|-|6",
+        )
+        .unwrap();
+
+        let new_script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|10|-|6",
+        )
+        .unwrap();
+
+        let (first_line_idx, count, to) = replace_multiple_params(&script, &new_script).unwrap();
+        assert_eq!(first_line_idx, 1);
+        assert_eq!(count, 1);
+        assert_eq!(to, []);
+    }
+
+    #[test]
+    fn replace_multiple_optimization_bug_2() {
+        let script = HLTAS::from_str("version 1\nframes\nstrafing vectorial").unwrap();
+        let new_script = HLTAS::from_str("version 1\nframes\nstrafing vectorial").unwrap();
+
+        let (first_line_idx, count, to) = replace_multiple_params(&script, &new_script).unwrap();
+        assert_eq!(first_line_idx, 1);
+        assert_eq!(count, 0);
+        assert_eq!(to, []);
     }
 
     #[test]
