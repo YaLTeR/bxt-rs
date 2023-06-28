@@ -774,7 +774,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
     if let Some(hltas) = remote::receive_new_hltas_to_simulate() {
         engine::prepend_command(
             marker,
-            "sensitivity 0;volume 0;MP3Volume 0;bxt_tas_write_log 0;bxt_tas_norefresh_until_last_frames 1\n",
+            "volume 0;MP3Volume 0;bxt_tas_write_log 0;bxt_tas_norefresh_until_last_frames 1\n",
         );
 
         bxt::tas_load_script(marker, &hltas);

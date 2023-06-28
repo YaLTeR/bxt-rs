@@ -877,7 +877,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
     let prev_state = mem::take(&mut *STATE.borrow_mut(marker));
     match prev_state {
         State::PreparingToPlayToEditor(editor, bridge) => {
-            engine::prepend_command(marker, "sensitivity 0;bxt_tas_write_log 1\n");
+            engine::prepend_command(marker, "bxt_tas_write_log 1\n");
 
             let script = if BXT_TAS_STUDIO_AUTO_SMOOTHING.as_bool(marker) {
                 editor.smoothed_script()
@@ -920,7 +920,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
             {
                 engine::prepend_command(
                     marker,
-                    "sensitivity 0;volume 0;MP3Volume 0;\
+                    "volume 0;MP3Volume 0;\
                      bxt_tas_write_log 0;bxt_tas_norefresh_until_last_frames 1;_bxt_norefresh 1\n",
                 );
 
@@ -1061,15 +1061,13 @@ pub unsafe fn on_tas_playback_frame(
 
             sdl::set_relative_mouse_mode(marker, false);
             engine::activate_mouse(marker, false);
-            // TODO: restore sensitivity.
-            //
             // TODO: figure out how to make freecam less weird.
             //
             // When we show_ui we stop, and when we stop we don't insert any commands, so we can
             // use wait.
             engine::prepend_command(
                 marker,
-                "sensitivity 1;bxt_freecam 1;wait;bxt_freecam 0;wait;bxt_freecam 1\n",
+                "bxt_freecam 1;wait;bxt_freecam 0;wait;bxt_freecam 1\n",
             );
         }
         other => *state = other,
@@ -1107,15 +1105,13 @@ pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
 
             sdl::set_relative_mouse_mode(marker, false);
             engine::activate_mouse(marker, false);
-            // TODO: restore sensitivity.
-            //
             // TODO: figure out how to make freecam less weird.
             //
             // When we show_ui we stop, and when we stop we don't insert any commands, so we can
             // use wait.
             engine::prepend_command(
                 marker,
-                "sensitivity 1;bxt_freecam 1;wait;bxt_freecam 0;wait;bxt_freecam 1\n",
+                "bxt_freecam 1;wait;bxt_freecam 0;wait;bxt_freecam 1\n",
             );
             engine::prepend_command(
                 marker,
