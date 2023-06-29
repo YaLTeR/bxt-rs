@@ -1323,6 +1323,10 @@ fn add_frame_bulk_hud_lines(text: &mut Vec<u8>, bulk: &FrameBulk, last_frame: Op
 }
 
 pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
+    if !TasStudio.is_enabled(marker) {
+        return;
+    }
+
     if !BXT_HUD_TAS_STUDIO.as_bool(marker) {
         return;
     }
