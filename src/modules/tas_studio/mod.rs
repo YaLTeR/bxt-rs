@@ -1361,7 +1361,7 @@ pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
 
     const PADDING: i32 = 8;
     let width = draw.string(
-        IVec2::new(0, -info.iCharHeight),
+        IVec2::new(0, -info.iCharHeight * 2),
         b"Left-Right Frame Count: 888\0",
     );
     draw.fill(
