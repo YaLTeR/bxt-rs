@@ -77,6 +77,7 @@ pub static CL_Disconnect: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
     ]),
     my_CL_Disconnect as _,
 );
+pub static cl_funcs: Pointer<*mut ClientDllFunctions> = Pointer::empty(b"cl_funcs\0");
 pub static CL_GameDir_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"CL_GameDir_f\0",
     // To find, search for "gamedir is ".
@@ -109,6 +110,15 @@ pub static CL_PlayDemo_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
         pattern!(55 8B EC 81 EC 00 01 00 00 56 57 83 3D ?? ?? ?? ?? 01),
     ]),
     my_CL_PlayDemo_f as _,
+);
+pub static ClientDLL_Init: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"ClientDLL_Init\0",
+    // To find, search for "cl_dlls\\client.dll" (with a backslash).
+    Patterns(&[
+        // 6153
+        pattern!(55 8B EC 81 EC 00 02 00 00 68),
+    ]),
+    my_ClientDLL_Init as _,
 );
 pub static ClientDLL_ActivateMouse: Pointer<unsafe extern "C" fn()> =
     Pointer::empty(b"ClientDLL_ActivateMouse\0");
@@ -858,9 +868,11 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Cbuf_AddTextToBuffer,
     &Cbuf_InsertText,
     &CL_Disconnect,
+    &cl_funcs,
     &CL_GameDir_f,
     &CL_Move,
     &CL_PlayDemo_f,
+    &ClientDLL_Init,
     &ClientDLL_ActivateMouse,
     &ClientDLL_DeactivateMouse,
     &ClientDLL_DemoUpdateClientData,
@@ -949,6 +961,12 @@ pub struct DllFunctions {
     pub pm_move: Option<unsafe extern "C" fn(*mut playermove_s, c_int)>,
     _padding_2: [u8; 32],
     pub cmd_start: Option<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)>,
+}
+
+#[repr(C)]
+pub struct ClientDllFunctions {
+    _padding_1: [u8; 104],
+    pub shutdown: Option<unsafe extern "C" fn()>,
 }
 
 #[cfg(unix)]
@@ -1262,6 +1280,13 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(0) => com_gamedir.set(marker, ptr.by_offset(marker, 11)),
         // CoF-5936
         Some(1) => com_gamedir.set(marker, ptr.by_offset(marker, 14)),
+        _ => (),
+    }
+
+    let ptr = &ClientDLL_Init;
+    match ptr.pattern_index(marker) {
+        // 6153
+        Some(0) => cl_funcs.set(marker, ptr.by_offset(marker, 187)),
         _ => (),
     }
 
@@ -1690,6 +1715,7 @@ pub mod exported {
 
     use super::*;
     use crate::gl;
+    use crate::hooks::client;
 
     #[export_name = "Memory_Init"]
     pub unsafe extern "C" fn my_Memory_Init(buf: *mut c_void, size: c_int) -> c_int {
@@ -2084,6 +2110,17 @@ pub mod exported {
             hud::update_screen_info(marker, *info);
 
             rv
+        })
+    }
+
+    #[export_name = "ClientDLL_Init"]
+    pub unsafe extern "C" fn my_ClientDLL_Init() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            ClientDLL_Init.get(marker)();
+
+            client::hook_client_interface(marker);
         })
     }
 

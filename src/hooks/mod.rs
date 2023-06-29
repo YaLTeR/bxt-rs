@@ -1,6 +1,7 @@
 //! Hooked functions.
 
 pub mod bxt;
+pub mod client;
 pub mod engine;
 pub mod sdl;
 pub mod server;
