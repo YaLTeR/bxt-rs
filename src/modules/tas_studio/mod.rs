@@ -36,7 +36,7 @@ use crate::ffi::usercmd::usercmd_s;
 use crate::handler;
 use crate::hooks::bxt::OnTasPlaybackFrameData;
 use crate::hooks::engine::con_print;
-use crate::hooks::{bxt, engine, sdl};
+use crate::hooks::{bxt, client, engine, sdl};
 use crate::utils::*;
 
 pub struct TasStudio;
@@ -92,8 +92,6 @@ impl Module for TasStudio {
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         engine::Host_FilterTime.is_set(marker)
-            && engine::ClientDLL_ActivateMouse.is_set(marker)
-            && engine::ClientDLL_DeactivateMouse.is_set(marker)
             && engine::Cbuf_InsertText.is_set(marker)
             && engine::hudGetViewAngles.is_set(marker)
             && engine::window_rect.is_set(marker)
@@ -357,7 +355,7 @@ fn plus_look_around(marker: MainThreadMarker) {
     }
 
     sdl::set_relative_mouse_mode(marker, true);
-    engine::activate_mouse(marker, true);
+    client::activate_mouse(marker, true);
 }
 
 fn plus_look_around_key(marker: MainThreadMarker, _key: i32) {
@@ -381,7 +379,7 @@ fn minus_look_around(marker: MainThreadMarker) {
     }
 
     sdl::set_relative_mouse_mode(marker, false);
-    engine::activate_mouse(marker, false);
+    client::activate_mouse(marker, false);
 }
 
 fn minus_look_around_key(marker: MainThreadMarker, _key: i32) {
@@ -1060,7 +1058,7 @@ pub unsafe fn on_tas_playback_frame(
             };
 
             sdl::set_relative_mouse_mode(marker, false);
-            engine::activate_mouse(marker, false);
+            client::activate_mouse(marker, false);
             // TODO: figure out how to make freecam less weird.
             //
             // When we show_ui we stop, and when we stop we don't insert any commands, so we can
@@ -1104,7 +1102,7 @@ pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
             });
 
             sdl::set_relative_mouse_mode(marker, false);
-            engine::activate_mouse(marker, false);
+            client::activate_mouse(marker, false);
             // TODO: figure out how to make freecam less weird.
             //
             // When we show_ui we stop, and when we stop we don't insert any commands, so we can

@@ -24,9 +24,10 @@ impl Module for HudScale {
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         gl::GL.borrow(marker).is_some()
             && engine::hudGetScreenInfo.is_set(marker)
-            && engine::ClientDLL_HudVidInit.is_set(marker)
-            && engine::ClientDLL_UpdateClientData.is_set(marker)
-            && engine::ClientDLL_HudRedraw.is_set(marker)
+            // TODO: Add back when delayed dependencies are implemented.
+            // && client::HudVidInitFunc.is_set(marker)
+            // && client::HudUpdateClientDataFunc.is_set(marker)
+            // && client::HudRedrawFunc.is_set(marker)
             && engine::window_rect.is_set(marker)
             && cvars::CVars.is_enabled(marker)
     }

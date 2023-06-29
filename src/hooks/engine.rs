@@ -120,27 +120,6 @@ pub static ClientDLL_Init: Pointer<unsafe extern "C" fn()> = Pointer::empty_patt
     ]),
     my_ClientDLL_Init as _,
 );
-pub static ClientDLL_ActivateMouse: Pointer<unsafe extern "C" fn()> =
-    Pointer::empty(b"ClientDLL_ActivateMouse\0");
-pub static ClientDLL_DeactivateMouse: Pointer<unsafe extern "C" fn()> =
-    Pointer::empty(b"ClientDLL_DeactivateMouse\0");
-pub static ClientDLL_DemoUpdateClientData: Pointer<unsafe extern "C" fn(*mut c_void)> =
-    Pointer::empty_patterns(
-        b"ClientDLL_DemoUpdateClientData\0",
-        // To find, search for "HUD_UpdateClientData". This sets the HUD_UpdateClientData pointer in
-        // cl_funcs; the smaller function calling the pointer is ClientDLL_DemoUpdateClientData().
-        Patterns(&[
-            // 6153
-            pattern!(55 8B EC 51 A1 ?? ?? ?? ?? 56 85 C0 74 ?? DD 05),
-            // 4554
-            pattern!(51 A1 ?? ?? ?? ?? 56 85 C0 74 4B),
-            // 1600
-            pattern!(51 DD 05 ?? ?? ?? ?? 56),
-            // CoF-5936
-            pattern!(55 8B EC 51 83 3D ?? ?? ?? ?? 00 74 ?? DD 05),
-        ]),
-        my_ClientDLL_DemoUpdateClientData as _,
-    );
 pub static ClientDLL_DrawTransparentTriangles: Pointer<unsafe extern "C" fn()> =
     Pointer::empty_patterns(
         b"ClientDLL_DrawTransparentTriangles\0",
@@ -152,60 +131,8 @@ pub static ClientDLL_DrawTransparentTriangles: Pointer<unsafe extern "C" fn()> =
             // CoF-5936
             pattern!(55 8B EC 83 3D ?? ?? ?? ?? 00 74 ?? FF 15 ?? ?? ?? ?? 6A 00 FF 15 ?? ?? ?? ?? 83 C4 04 5D C3 55 8B EC 83 3D ?? ?? ?? ?? 00 74 06 FF 15 ?? ?? ?? ?? 5D),
         ]),
-        my_ClientDLL_DrawTransparentTriangles as _,
+        null_mut(),
     );
-pub static ClientDLL_HudRedraw: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
-    b"ClientDLL_HudRedraw\0",
-    // To find, search for "HUD_Redraw". This sets the HUD_Redraw pointer in cl_funcs; the function
-    // calling the pointer is ClientDLL_HudRedraw().
-    Patterns(&[
-        // 6153
-        pattern!(55 8B EC E8 ?? ?? ?? ?? 85 C0 75 ?? A1),
-        // 4554
-        pattern!(E8 ?? ?? ?? ?? 85 C0 75 ?? A1 ?? ?? ?? ?? 85 C0 74 ?? DD 05 ?? ?? ?? ?? 8B 4C),
-        // 1600
-        pattern!(DD 05 ?? ?? ?? ?? 8B 44 24 ?? D9 5C 24),
-        // CoF-5936
-        pattern!(55 8B EC 51 E8 ?? ?? ?? ?? 85 C0 74 ?? EB),
-    ]),
-    my_ClientDLL_HudRedraw as _,
-);
-pub static ClientDLL_HudVidInit: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
-    b"ClientDLL_HudVidInit\0",
-    // To find, search for "HUD_VidInit". This sets the HUD_VidInit pointer in cl_funcs; the
-    // function calling the pointer is ClientDLL_HudVidInit().
-    Patterns(&[
-        // 6153
-        pattern!(A1 ?? ?? ?? ?? 85 C0 75 ?? 68 ?? ?? ?? ?? 68 ?? ?? ?? ?? E8 ?? ?? ?? ?? 83 C4 08 E8),
-        // CoF-5936
-        pattern!(55 8B EC 83 3D ?? ?? ?? ?? 00 75 ?? 68 ?? ?? ?? ?? 68 ?? ?? ?? ?? E8 ?? ?? ?? ?? 83 C4 08 E8),
-    ]),
-    my_ClientDLL_HudVidInit as _,
-);
-pub static ClientDLL_PostRunCmd: Pointer<
-    unsafe extern "C" fn(
-        from: *mut c_void,
-        to: *mut c_void,
-        cmd: *mut usercmd_s,
-        runfuncs: c_int,
-        time: c_double,
-        random_seed: c_uint,
-    ),
-> = Pointer::empty(b"ClientDLL_PostRunCmd\0");
-pub static ClientDLL_UpdateClientData: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
-    b"ClientDLL_UpdateClientData\0",
-    // To find, search for "HUD_UpdateClientData". This sets the HUD_UpdateClientData pointer in
-    // cl_funcs; the larger function calling the pointer is ClientDLL_UpdateClientData().
-    Patterns(&[
-        // 6153
-        pattern!(55 8B EC 83 EC 44 83 3D ?? ?? ?? ?? 05),
-        // 4554
-        pattern!(A1 ?? ?? ?? ?? 83 EC 44 83 F8 05),
-        // CoF-5936
-        pattern!(55 8B EC 83 EC 44 56 57 83 3D ?? ?? ?? ?? 05),
-    ]),
-    my_ClientDLL_UpdateClientData as _,
-);
 pub static cls: Pointer<*mut client_static_s> = Pointer::empty(b"cls\0");
 pub static cls_demos: Pointer<*mut client_static_s_demos> = Pointer::empty(
     // Not a real symbol name.
@@ -873,14 +800,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &CL_Move,
     &CL_PlayDemo_f,
     &ClientDLL_Init,
-    &ClientDLL_ActivateMouse,
-    &ClientDLL_DeactivateMouse,
-    &ClientDLL_DemoUpdateClientData,
     &ClientDLL_DrawTransparentTriangles,
-    &ClientDLL_HudRedraw,
-    &ClientDLL_HudVidInit,
-    &ClientDLL_PostRunCmd,
-    &ClientDLL_UpdateClientData,
     &cls,
     &cls_demos,
     &Cmd_AddMallocCommand,
@@ -965,8 +885,58 @@ pub struct DllFunctions {
 
 #[repr(C)]
 pub struct ClientDllFunctions {
-    _padding_1: [u8; 104],
-    pub shutdown: Option<unsafe extern "C" fn()>,
+    pub InitFunc: Option<NonNull<c_void>>,
+    pub HudInitFunc: Option<NonNull<c_void>>,
+    pub HudVidInitFunc: Option<unsafe extern "C" fn()>,
+    pub HudRedrawFunc: Option<unsafe extern "C" fn(c_float, c_int)>,
+    pub HudUpdateClientDataFunc: Option<unsafe extern "C" fn(*mut c_void, c_float) -> c_int>,
+    pub HudResetFunc: Option<NonNull<c_void>>,
+    pub ClientMove: Option<NonNull<c_void>>,
+    pub ClientMoveInit: Option<NonNull<c_void>>,
+    pub ClientTextureType: Option<NonNull<c_void>>,
+    pub IN_ActivateMouse: Option<unsafe extern "C" fn()>,
+    pub IN_DeactivateMouse: Option<unsafe extern "C" fn()>,
+    pub IN_MouseEvent: Option<NonNull<c_void>>,
+    pub IN_ClearStates: Option<NonNull<c_void>>,
+    pub IN_Accumulate: Option<NonNull<c_void>>,
+    pub CL_CreateMove: Option<NonNull<c_void>>,
+    pub CL_IsThirdPerson: Option<NonNull<c_void>>,
+    pub CL_GetCameraOffsets: Option<NonNull<c_void>>,
+    pub FindKey: Option<NonNull<c_void>>,
+    pub CamThink: Option<NonNull<c_void>>,
+    pub CalcRefdef: Option<NonNull<c_void>>,
+    pub AddEntity: Option<NonNull<c_void>>,
+    pub CreateEntities: Option<NonNull<c_void>>,
+    pub DrawNormalTriangles: Option<NonNull<c_void>>,
+    pub DrawTransparentTriangles: Option<unsafe extern "C" fn()>,
+    pub StudioEvent: Option<NonNull<c_void>>,
+    pub PostRunCmd: Option<
+        unsafe extern "C" fn(
+            from: *mut c_void,
+            to: *mut c_void,
+            cmd: *mut usercmd_s,
+            runfuncs: c_int,
+            time: c_double,
+            random_seed: c_uint,
+        ),
+    >,
+    pub Shutdown: Option<unsafe extern "C" fn()>,
+    pub TxferLocalOverrides: Option<NonNull<c_void>>,
+    pub ProcessPlayerState: Option<NonNull<c_void>>,
+    pub TxferPredictionData: Option<NonNull<c_void>>,
+    pub ReadDemoBuffer: Option<NonNull<c_void>>,
+    pub ConnectionlessPacket: Option<NonNull<c_void>>,
+    pub GetHullBounds: Option<NonNull<c_void>>,
+    pub HudFrame: Option<NonNull<c_void>>,
+    pub KeyEvent: Option<NonNull<c_void>>,
+    pub TempEntUpdate: Option<NonNull<c_void>>,
+    pub GetUserEntity: Option<NonNull<c_void>>,
+    pub VoiceStatus: Option<NonNull<c_void>>,
+    pub DirectorMessage: Option<NonNull<c_void>>,
+    pub StudioInterface: Option<NonNull<c_void>>,
+    pub ChatInputPosition: Option<NonNull<c_void>>,
+    pub GetPlayerTeam: Option<NonNull<c_void>>,
+    pub ClientFactory: Option<NonNull<c_void>>,
 }
 
 #[cfg(unix)]
@@ -1190,16 +1160,6 @@ pub unsafe fn player_edict(marker: MainThreadMarker) -> Option<NonNull<edict_s>>
         None
     } else {
         NonNull::new(*svs_.clients.add(offset).cast())
-    }
-}
-
-pub fn activate_mouse(marker: MainThreadMarker, activate: bool) {
-    // SAFETY: the engine checks a zero-initialized global variable and whether the function pointer
-    // is present before dispatching to it.
-    if activate {
-        unsafe { ClientDLL_ActivateMouse.get(marker)() };
-    } else {
-        unsafe { ClientDLL_DeactivateMouse.get(marker)() };
     }
 }
 
@@ -2124,68 +2084,6 @@ pub mod exported {
         })
     }
 
-    #[export_name = "ClientDLL_HudVidInit"]
-    pub unsafe extern "C" fn my_ClientDLL_HudVidInit() {
-        abort_on_panic(move || {
-            let marker = MainThreadMarker::new();
-
-            hud_scale::with_scaled_screen_info(marker, move || ClientDLL_HudVidInit.get(marker)());
-        })
-    }
-
-    #[export_name = "ClientDLL_DemoUpdateClientData"]
-    pub unsafe extern "C" fn my_ClientDLL_DemoUpdateClientData(cdat: *mut c_void) {
-        abort_on_panic(move || {
-            let marker = MainThreadMarker::new();
-
-            hud_scale::with_scaled_screen_info(marker, move || {
-                ClientDLL_DemoUpdateClientData.get(marker)(cdat)
-            });
-        })
-    }
-
-    #[export_name = "ClientDLL_PostRunCmd"]
-    pub unsafe extern "C" fn my_ClientDLL_PostRunCmd(
-        from: *mut c_void,
-        to: *mut c_void,
-        cmd: *mut usercmd_s,
-        runfuncs: c_int,
-        time: c_double,
-        random_seed: c_uint,
-    ) {
-        abort_on_panic(move || {
-            let marker = MainThreadMarker::new();
-
-            ClientDLL_PostRunCmd.get(marker)(from, to, cmd, runfuncs, time, random_seed);
-
-            tas_studio::on_post_run_cmd(marker, cmd);
-        })
-    }
-
-    #[export_name = "ClientDLL_UpdateClientData"]
-    pub unsafe extern "C" fn my_ClientDLL_UpdateClientData() {
-        abort_on_panic(move || {
-            let marker = MainThreadMarker::new();
-
-            hud_scale::with_scaled_screen_info(marker, move || {
-                ClientDLL_UpdateClientData.get(marker)()
-            });
-        })
-    }
-
-    #[export_name = "ClientDLL_HudRedraw"]
-    pub unsafe extern "C" fn my_ClientDLL_HudRedraw(intermission: c_int) {
-        abort_on_panic(move || {
-            let marker = MainThreadMarker::new();
-
-            hud_scale::with_scaled_projection_matrix(marker, move || {
-                ClientDLL_HudRedraw.get(marker)(intermission);
-
-                hud::draw_hud(marker);
-            });
-        })
-    }
-
     #[export_name = "DrawCrosshair"]
     pub unsafe extern "C" fn my_DrawCrosshair(x: c_int, y: c_int) {
         abort_on_panic(move || {
@@ -2260,17 +2158,6 @@ pub mod exported {
             let text = scoreboard_remove::strip_showscores(marker, text);
 
             Cbuf_AddTextToBuffer.get(marker)(text, buffer);
-        })
-    }
-
-    #[export_name = "ClientDLL_DrawTransparentTriangles"]
-    pub unsafe extern "C" fn my_ClientDLL_DrawTransparentTriangles() {
-        abort_on_panic(move || {
-            let marker = MainThreadMarker::new();
-
-            ClientDLL_DrawTransparentTriangles.get(marker)();
-
-            triangle_drawing::on_draw_transparent_triangles(marker);
         })
     }
 

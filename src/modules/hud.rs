@@ -20,7 +20,8 @@ impl Module for Hud {
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         engine::hudGetScreenInfo.is_set(marker)
-            && engine::ClientDLL_HudRedraw.is_set(marker)
+            // TODO: Add back when delayed dependencies are implemented.
+            // && client::HudRedrawFunc.is_set(marker)
             && engine::Draw_FillRGBABlend.is_set(marker)
             && engine::Draw_String.is_set(marker)
     }
