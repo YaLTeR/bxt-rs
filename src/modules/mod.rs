@@ -33,6 +33,7 @@ pub mod hud;
 pub mod hud_scale;
 pub mod novis;
 pub mod player_movement_tracing;
+pub mod remote_forbid;
 pub mod rng_set;
 pub mod scoreboard_remove;
 pub mod shake_remove;
@@ -93,6 +94,7 @@ pub static MODULES: &[&dyn Module] = &[
     &hud_scale::HudScale,
     &novis::NoVis,
     &player_movement_tracing::PlayerMovementTracing,
+    &remote_forbid::RemoteForbid,
     &rng_set::RngSet,
     &scoreboard_remove::ScoreboardRemove,
     &shake_remove::ShakeRemove,
