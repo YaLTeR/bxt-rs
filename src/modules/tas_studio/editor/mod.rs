@@ -1660,7 +1660,7 @@ impl Editor {
 
             for (prev_idx, (prev, frame)) in branch.frames.iter().tuple_windows().enumerate() {
                 let idx = prev_idx + 1;
-                if idx > self.branch().frames.len() {
+                if idx >= self.branch().frames.len() {
                     // Draw other branches up to the length of the current branch.
                     // TODO: this should use time, not frame number.
                     break;
