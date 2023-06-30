@@ -43,7 +43,14 @@ pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::emp
     null_mut(),
 );
 pub static CBaseUI__HideGameUI: Pointer<unsafe extern "fastcall" fn(*mut c_void)> =
-    Pointer::empty(b"_ZN7CBaseUI10HideGameUIEv\0");
+    Pointer::empty_patterns(
+        b"_ZN7CBaseUI10HideGameUIEv\0",
+        Patterns(&[
+            // 8684
+            pattern!(56 8B F1 8B 0D ?? ?? ?? ?? 8B 01 FF 50 ?? 8B 0D ?? ?? ?? ?? 8B 11 FF 52 ?? FF 15),
+        ]),
+        null_mut(),
+    );
 pub static Cbuf_AddFilteredText: Pointer<unsafe extern "C" fn(*const c_char)> =
     Pointer::empty_patterns(
         b"Cbuf_AddFilteredText\0",
@@ -206,9 +213,27 @@ pub static Cvar_RegisterVariable: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
 pub static cvar_vars: Pointer<*mut *mut cvar_s> = Pointer::empty(b"cvar_vars\0");
 pub static Draw_FillRGBABlend: Pointer<
     unsafe extern "C" fn(c_int, c_int, c_int, c_int, c_int, c_int, c_int, c_int),
-> = Pointer::empty(b"Draw_FillRGBABlend\0");
+> = Pointer::empty_patterns(
+    b"Draw_FillRGBABlend\0",
+    // 12th pointer in cl_enginefuncs.
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 83 EC 08 8D 45 ?? 8D 4D ?? 50 8D 55 ?? 51 8D 45 ?? 52 8D 4D ?? 50 8D 55 ?? 51 8D 45 ?? 52 8D 4D ?? 50 51 FF 15 ?? ?? ?? ?? 83 C4 20 68 E1 0D 00 00 FF 15 ?? ?? ?? ?? 68 E2 0B 00 00 FF 15 ?? ?? ?? ?? 68 00 00 04 46 68 00 22 00 00 68 00 23 00 00 FF 15 ?? ?? ?? ?? 6A 01),
+    ]),
+    null_mut(),
+);
 pub static Draw_String: Pointer<unsafe extern "C" fn(c_int, c_int, *const c_char) -> c_int> =
-    Pointer::empty(b"Draw_String\0");
+    Pointer::empty_patterns(
+        b"Draw_String\0",
+        // To find, search for "Downloading %s". You are in SCR_DrawDownloadText().
+        // Draw_String() will be the last call in the conditional block, below two other calls
+        // including Draw_SetTextColor() taking in three identical float arguments.
+        Patterns(&[
+            // 8684
+            pattern!(55 8B EC 56 57 E8 ?? ?? ?? ?? 8B 4D),
+        ]),
+        null_mut(),
+    );
 pub static DrawCrosshair: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer::empty_patterns(
     b"DrawCrosshair\0",
     // To find, search for "Client.dll SPR_DrawHoles error:  invalid frame". This is
@@ -387,7 +412,7 @@ pub static Host_ValidSave: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::e
 pub static hudGetScreenInfo: Pointer<unsafe extern "C" fn(*mut SCREENINFO) -> c_int> =
     Pointer::empty_patterns(
         b"hudGetScreenInfo\0",
-        // 12th pointer in cl_enginefuncs.
+        // 13th pointer in cl_enginefuncs.
         Patterns(&[
             // 6153
             pattern!(55 8B EC 8D 45 ?? 50 FF 15 ?? ?? ?? ?? 8B 45 ?? 83 C4 04 85 C0 75 ?? 5D C3 81 38 14 02 00 00),
@@ -401,7 +426,15 @@ pub static hudGetScreenInfo: Pointer<unsafe extern "C" fn(*mut SCREENINFO) -> c_
         my_hudGetScreenInfo as _,
     );
 pub static hudGetViewAngles: Pointer<unsafe extern "C" fn(*mut [c_float; 3])> =
-    Pointer::empty(b"hudGetViewAngles\0");
+    Pointer::empty_patterns(
+        b"hudGetViewAngles\0",
+        // 35th pointer in cl_enginefuncs.
+        Patterns(&[
+            // 8684
+            pattern!(55 8B EC 8D 45 ?? 50 FF 15 ?? ?? ?? ?? 8B 45 ?? 83 C4 04 8B 08),
+        ]),
+        null_mut(),
+    );
 pub static idum: Pointer<*mut c_int> = Pointer::empty(
     // Not a real symbol name.
     b"idum\0",
