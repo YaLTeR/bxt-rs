@@ -43,6 +43,9 @@ pub static build_number: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::emp
     null_mut(),
 );
 pub static CBaseUI__HideGameUI: Pointer<unsafe extern "fastcall" fn(*mut c_void)> =
+    // 8th pointer in CBaseUI vtable.
+    // To find, search for "chromehtml.dll". You are in CBaseUI::Initialize and that will be
+    // the second pointer of CBaseUI vtable.
     Pointer::empty_patterns(
         b"_ZN7CBaseUI10HideGameUIEv\0",
         Patterns(&[
