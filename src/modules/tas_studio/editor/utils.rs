@@ -164,3 +164,13 @@ pub fn line_idx_and_repeat_at_frame(lines: &[Line], frame_idx: usize) -> Option<
         })
         .nth(frame_idx)
 }
+
+pub fn bulk_idx_and_repeat_at_frame(hltas: &HLTAS, frame_idx: usize) -> Option<(usize, u32)> {
+    hltas
+        .frame_bulks()
+        .enumerate()
+        .flat_map(|(bulk_idx, bulk)| {
+            (0..bulk.frame_count.get()).map(move |repeat| (bulk_idx, repeat))
+        })
+        .nth(frame_idx)
+}
