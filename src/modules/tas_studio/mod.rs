@@ -72,6 +72,7 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_DELETE,
             &BXT_TAS_STUDIO_DELETE_LAST,
             &BXT_TAS_STUDIO_TOGGLE,
+            &BXT_TAS_STUDIO_HIDE,
             &BXT_TAS_STUDIO_SMOOTH,
             &BXT_TAS_STUDIO_BRANCH_CLONE,
             &BXT_TAS_STUDIO_BRANCH_FOCUS,
@@ -681,6 +682,27 @@ fn toggle(marker: MainThreadMarker, what: String) {
 
     if let Err(err) = editor.toggle_auto_action(target) {
         con_print(marker, &format!("Error toggling value: {err}\n"));
+        *state = State::Idle;
+    }
+}
+
+static BXT_TAS_STUDIO_HIDE: Command = Command::new(
+    b"bxt_tas_studio_hide\0",
+    handler!(
+        "bxt_tas_studio_hide
+
+Hides the frames before the one under cursor to avoid clutter. If there's no visible frame under \
+the cursor, makes all frames visible.",
+        hide as fn(_)
+    ),
+);
+
+fn hide(marker: MainThreadMarker) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else { return };
+
+    if let Err(err) = editor.hide_frames_up_to_hovered() {
+        con_print(marker, &format!("Error hiding: {err}\n"));
         *state = State::Idle;
     }
 }

@@ -18,7 +18,8 @@ use self::db::{Action, ActionKind, Branch, Db};
 use self::operation::{Key, Operation};
 use self::toggle_auto_action::ToggleAutoActionTarget;
 use self::utils::{
-    bulk_and_first_frame_idx_mut, bulk_idx_and_is_last, line_idx_and_repeat_at_frame, FrameBulkExt,
+    bulk_and_first_frame_idx, bulk_and_first_frame_idx_mut, bulk_idx_and_is_last,
+    bulk_idx_and_repeat_at_frame, line_idx_and_repeat_at_frame, FrameBulkExt,
 };
 use super::remote::{AccurateFrame, PlayRequest};
 use crate::hooks::sdl::MouseState;
@@ -79,6 +80,10 @@ pub struct Editor {
     show_camera_angles: bool,
     /// Whether to enable automatic global smoothing.
     auto_smoothing: bool,
+    /// Index of the first frame that should be fully shown and able to be interacted with.
+    ///
+    /// Frames before this cannot be interacted with and can be hidden from display.
+    first_shown_frame_idx: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -225,6 +230,7 @@ impl Editor {
             left_right_count_adjustment: None,
             show_camera_angles: false,
             auto_smoothing: false,
+            first_shown_frame_idx: 0,
         })
     }
 
@@ -348,6 +354,16 @@ impl Editor {
                 self.branches[self.branch_idx].frames.iter().skip(1),
                 bulk_idx_and_is_last(&self.branches[self.branch_idx].branch.script.lines),
             )
+            // Add frame indices.
+            .enumerate()
+            // Skip past hidden frames.
+            .filter_map(|(frame_idx, rest)| {
+                if frame_idx < self.first_shown_frame_idx {
+                    None
+                } else {
+                    Some(rest)
+                }
+            })
             // Take only last frame in each bulk.
             .filter_map(|(frame, (bulk_idx, _, is_last_in_bulk))| {
                 is_last_in_bulk.then_some((frame, bulk_idx))
@@ -454,6 +470,8 @@ impl Editor {
             .frames
             .iter()
             .enumerate()
+            // Skip past hidden frames.
+            .filter(|(frame_idx, _)| *frame_idx >= self.first_shown_frame_idx)
             // Convert to screen and take only successfully converted coordinates.
             .filter_map(|(frame_idx, frame)| {
                 world_to_screen(frame.state.player.pos).map(|screen| (frame_idx, screen))
@@ -1202,6 +1220,49 @@ impl Editor {
         self.apply_operation(op)
     }
 
+    /// Hides frames before the hovered frame, or shows all frames if there's no hovered frame.
+    pub fn hide_frames_up_to_hovered(&mut self) -> eyre::Result<()> {
+        // Don't apply during active adjustments for consistency with other operations.
+        if self.is_any_adjustment_active() {
+            return Ok(());
+        }
+
+        if let Some(frame_idx) = self.hovered_frame_idx {
+            let frame_count = self
+                .branch()
+                .branch
+                .script
+                .frame_bulks()
+                .map(|bulk| bulk.frame_count.get() as usize)
+                .sum::<usize>();
+
+            self.first_shown_frame_idx = min(frame_idx, frame_count.saturating_sub(1));
+
+            let hovered_frame_bulk_idx =
+                bulk_idx_and_repeat_at_frame(self.script(), self.first_shown_frame_idx)
+                    .unwrap()
+                    .0;
+
+            if let Some(selected_bulk_idx) = self.selected_bulk_idx {
+                if selected_bulk_idx < hovered_frame_bulk_idx {
+                    // All frames of the selected bulk got hidden, so unselect it.
+                    self.selected_bulk_idx = None;
+                }
+            }
+
+            if let Some(hovered_bulk_idx) = self.hovered_bulk_idx {
+                if hovered_bulk_idx < hovered_frame_bulk_idx {
+                    // All frames of the hovered bulk got hidden, so unhover it.
+                    self.hovered_bulk_idx = None;
+                }
+            }
+        } else {
+            self.first_shown_frame_idx = 0;
+        }
+
+        Ok(())
+    }
+
     pub fn apply_accurate_frame(&mut self, frame: AccurateFrame) -> Option<PlayRequest> {
         if frame.generation != self.generation {
             return None;
@@ -1397,6 +1458,14 @@ impl Editor {
         self.hovered_frame_idx = None;
         self.db.switch_to_branch(&branch.branch)?;
 
+        if let Some((last_bulk, frame_idx)) = bulk_and_first_frame_idx(self.script()).last() {
+            let last_frame_idx = frame_idx + last_bulk.frame_count.get() as usize;
+            if self.first_shown_frame_idx + 1 >= last_frame_idx {
+                // The whole branch would be hidden, so show all frames instead.
+                self.first_shown_frame_idx = 0
+            }
+        }
+
         Ok(())
     }
 
@@ -1529,13 +1598,22 @@ impl Editor {
             // If frame is the stop frame.
             let is_stop_frame = branch.branch.stop_frame as usize == idx;
 
+            // How many frames until the visible part, clamped in a way to allow for smooth dimming.
+            let frames_until_hidden = self.first_shown_frame_idx.saturating_sub(idx - 1).min(20);
+
             let dim = {
                 // Inaccurate frames get dimmed.
                 let dim_inaccurate = if is_predicted { 0.6 } else { 1. };
                 // Unhovered bulks get dimmed.
                 let dim_unhovered = if is_hovered_bulk { 1. } else { 0.7 };
+                // Hidden frames become invisible, smoothly transition into visible.
+                let dim_hidden = if frames_until_hidden == 0 {
+                    1.
+                } else {
+                    (20 - frames_until_hidden) as f32 / 40.
+                };
 
-                dim_inaccurate * dim_unhovered
+                dim_inaccurate * dim_unhovered * dim_hidden
             };
             // Deselected bulks get desaturated.
             let saturation = if is_selected_bulk { 1. } else { 0.3 };
@@ -1634,7 +1712,25 @@ impl Editor {
             return;
         }
 
-        for (prev, frame) in self.branch().auto_smoothing.frames.iter().tuple_windows() {
+        for (prev_idx, (prev, frame)) in self
+            .branch()
+            .auto_smoothing
+            .frames
+            .iter()
+            .tuple_windows()
+            .enumerate()
+        {
+            let idx = prev_idx + 1;
+
+            // How many frames until the visible part, clamped in a way to allow for smooth dimming.
+            let frames_until_hidden = self.first_shown_frame_idx.saturating_sub(idx - 1).min(20);
+            // Hidden frames become invisible, smoothly transition into visible.
+            let dim = if frames_until_hidden == 0 {
+                1.
+            } else {
+                (20 - frames_until_hidden) as f32 / 40.
+            };
+
             let prev_pos = prev.state.player.pos;
             let pos = frame.state.player.pos;
 
@@ -1642,7 +1738,7 @@ impl Editor {
             draw(DrawLine {
                 start: prev_pos,
                 end: pos,
-                color: Vec3::new(1., 0.75, 0.5),
+                color: Vec3::new(1., 0.75, 0.5) * dim,
             });
         }
     }
@@ -1666,6 +1762,17 @@ impl Editor {
                     break;
                 }
 
+                // How many frames until the visible part, clamped in a way to allow for smooth
+                // dimming.
+                let frames_until_hidden =
+                    self.first_shown_frame_idx.saturating_sub(idx - 1).min(20);
+                // Hidden frames become invisible, smoothly transition into visible.
+                let dim = if frames_until_hidden == 0 {
+                    1.
+                } else {
+                    (20 - frames_until_hidden) as f32 / 40.
+                };
+
                 let prev_pos = prev.state.player.pos;
                 let pos = frame.state.player.pos;
 
@@ -1673,7 +1780,7 @@ impl Editor {
                 draw(DrawLine {
                     start: prev_pos,
                     end: pos,
-                    color: Vec3::ONE * 0.5,
+                    color: Vec3::ONE * 0.5 * dim,
                 });
             }
         }
