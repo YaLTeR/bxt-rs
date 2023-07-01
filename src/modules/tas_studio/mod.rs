@@ -799,6 +799,9 @@ Closes the TAS studio.",
 
 fn close(marker: MainThreadMarker) {
     *STATE.borrow_mut(marker) = State::Idle;
+
+    sdl::set_relative_mouse_mode(marker, true);
+    client::activate_mouse(marker, true);
 }
 
 static BXT_TAS_STUDIO_OPTIM_INIT: Command = Command::new(
