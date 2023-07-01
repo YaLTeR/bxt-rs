@@ -47,13 +47,13 @@ pub static CBaseUI__HideGameUI: Pointer<unsafe extern "fastcall" fn(*mut c_void)
     // To find, search for "chromehtml.dll". You are in CBaseUI::Initialize and that will be
     // the second pointer of CBaseUI vtable.
     Pointer::empty_patterns(
-        b"_ZN7CBaseUI10HideGameUIEv\0",
-        Patterns(&[
-            // 8684
-            pattern!(56 8B F1 8B 0D ?? ?? ?? ?? 8B 01 FF 50 ?? 8B 0D ?? ?? ?? ?? 8B 11 FF 52 ?? FF 15),
-        ]),
-        null_mut(),
-    );
+            b"_ZN7CBaseUI10HideGameUIEv\0",
+            Patterns(&[
+                // 8684
+                pattern!(56 8B F1 8B 0D ?? ?? ?? ?? 8B 01 FF 50 ?? 8B 0D ?? ?? ?? ?? 8B 11 FF 52 ?? FF 15),
+            ]),
+            null_mut(),
+        );
 pub static Cbuf_AddFilteredText: Pointer<unsafe extern "C" fn(*const c_char)> =
     Pointer::empty_patterns(
         b"Cbuf_AddFilteredText\0",
