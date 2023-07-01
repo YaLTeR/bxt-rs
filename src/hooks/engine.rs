@@ -52,7 +52,7 @@ pub static CBaseUI__HideGameUI: Pointer<unsafe extern "fastcall" fn(*mut c_void)
                 // 8684
                 pattern!(56 8B F1 8B 0D ?? ?? ?? ?? 8B 01 FF 50 ?? 8B 0D ?? ?? ?? ?? 8B 11 FF 52 ?? FF 15),
             ]),
-            null_mut(),
+            my_CBaseUI__HideGameUI as _,
         );
 pub static Cbuf_AddFilteredText: Pointer<unsafe extern "C" fn(*const c_char)> =
     Pointer::empty_patterns(
