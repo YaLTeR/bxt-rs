@@ -14,7 +14,7 @@ use ipc_channel::ipc::{IpcOneShotServer, IpcReceiver, IpcSender};
 use once_cell::sync::Lazy;
 
 use crate::hooks::{bxt, engine};
-use crate::modules::remote_forbid;
+use crate::modules::{remote_forbid, tas_studio};
 use crate::utils::{MainThreadCell, MainThreadMarker, PointerTrait};
 
 #[derive(Debug, Clone)]
@@ -382,7 +382,11 @@ fn connect_to_server(mut stream: TcpStream) -> eyre::Result<RemoteServer> {
 }
 
 pub fn update_client_connection_condition(marker: MainThreadMarker) {
-    if remote_forbid::should_forbid(marker) || bxt::is_simulation_ipc_client(marker) {
+    if remote_forbid::should_forbid(marker)
+        || tas_studio::is_main_instance(marker)
+        || tas_studio::is_connected_to_server()
+        || bxt::is_simulation_ipc_client(marker)
+    {
         SHOULD_CONNECT_TO_SERVER.store(false, std::sync::atomic::Ordering::SeqCst);
 
         // Disconnect if we were connected.

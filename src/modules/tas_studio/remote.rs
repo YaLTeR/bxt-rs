@@ -62,6 +62,16 @@ enum State {
     },
 }
 
+impl State {
+    /// Returns `true` if the state is [`Client`].
+    ///
+    /// [`Client`]: State::Client
+    #[must_use]
+    fn is_client(&self) -> bool {
+        matches!(self, Self::Client { .. })
+    }
+}
+
 struct RemoteClient {
     sender: IpcSender<PlayRequest>,
     receiver: IpcReceiver<AccurateFrame>,
@@ -308,6 +318,12 @@ pub fn update_client_connection_condition(marker: MainThreadMarker) {
 
     // Otherwise, try to connect again.
     SHOULD_CONNECT_TO_SERVER.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub fn is_connected_to_server() -> bool {
+    STATE.try_lock().map_or(false, |state| {
+        state.as_ref().map_or(false, |state| state.is_client())
+    })
 }
 
 pub fn receive_request_from_server() -> Result<Option<PlayRequest>, ()> {

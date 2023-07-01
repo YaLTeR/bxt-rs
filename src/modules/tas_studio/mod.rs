@@ -112,7 +112,10 @@ mod editor;
 use editor::Editor;
 
 mod remote;
-pub use remote::{maybe_start_client_connection_thread, update_client_connection_condition};
+pub use remote::{
+    is_connected_to_server, maybe_start_client_connection_thread,
+    update_client_connection_condition,
+};
 
 mod hltas_bridge;
 mod watcher;
@@ -1434,4 +1437,9 @@ pub fn should_clear(marker: MainThreadMarker) -> bool {
 
 pub unsafe fn on_post_run_cmd(marker: MainThreadMarker, cmd: *mut usercmd_s) {
     LAST_BUTTONS.set(marker, Buttons::from_bits_truncate((*cmd).buttons));
+}
+
+pub fn is_main_instance(marker: MainThreadMarker) -> bool {
+    let state = STATE.borrow(marker);
+    !matches!(*state, State::Idle | State::Playing { .. })
 }
