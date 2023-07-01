@@ -1227,37 +1227,44 @@ impl Editor {
             return Ok(());
         }
 
-        if let Some(frame_idx) = self.hovered_frame_idx {
-            let frame_count = self
-                .branch()
-                .branch
-                .script
-                .frame_bulks()
-                .map(|bulk| bulk.frame_count.get() as usize)
-                .sum::<usize>();
+        match self.hovered_frame_idx {
+            None => self.first_shown_frame_idx = 0,
+            // If we're pressing hide again on the first visible frame, unhide instead. This is
+            // nicer than struggling to look away to unhide.
+            Some(frame_idx) if frame_idx == self.first_shown_frame_idx => {
+                self.first_shown_frame_idx = 0;
+            }
+            Some(frame_idx) => {
+                let frame_count = self
+                    .branch()
+                    .branch
+                    .script
+                    .frame_bulks()
+                    .map(|bulk| bulk.frame_count.get() as usize)
+                    .sum::<usize>();
 
-            self.first_shown_frame_idx = min(frame_idx, frame_count.saturating_sub(1));
+                self.first_shown_frame_idx = min(frame_idx, frame_count.saturating_sub(1));
 
-            let hovered_frame_bulk_idx =
-                bulk_idx_and_repeat_at_frame(self.script(), self.first_shown_frame_idx)
-                    .unwrap()
-                    .0;
+                // Check if we need to unselect or unhover anything now hidden.
+                let hovered_frame_bulk_idx =
+                    bulk_idx_and_repeat_at_frame(self.script(), self.first_shown_frame_idx)
+                        .unwrap()
+                        .0;
 
-            if let Some(selected_bulk_idx) = self.selected_bulk_idx {
-                if selected_bulk_idx < hovered_frame_bulk_idx {
-                    // All frames of the selected bulk got hidden, so unselect it.
-                    self.selected_bulk_idx = None;
+                if let Some(selected_bulk_idx) = self.selected_bulk_idx {
+                    if selected_bulk_idx < hovered_frame_bulk_idx {
+                        // All frames of the selected bulk got hidden, so unselect it.
+                        self.selected_bulk_idx = None;
+                    }
+                }
+
+                if let Some(hovered_bulk_idx) = self.hovered_bulk_idx {
+                    if hovered_bulk_idx < hovered_frame_bulk_idx {
+                        // All frames of the hovered bulk got hidden, so unhover it.
+                        self.hovered_bulk_idx = None;
+                    }
                 }
             }
-
-            if let Some(hovered_bulk_idx) = self.hovered_bulk_idx {
-                if hovered_bulk_idx < hovered_frame_bulk_idx {
-                    // All frames of the hovered bulk got hidden, so unhover it.
-                    self.hovered_bulk_idx = None;
-                }
-            }
-        } else {
-            self.first_shown_frame_idx = 0;
         }
 
         Ok(())
