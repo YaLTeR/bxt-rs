@@ -432,9 +432,12 @@ pub static hudGetViewAngles: Pointer<unsafe extern "C" fn(*mut [c_float; 3])> =
     Pointer::empty_patterns(
         b"hudGetViewAngles\0",
         // 35th pointer in cl_enginefuncs.
+        //
+        // Be careful! The very next function is hudSetViewAngles() which looks VERY similar, yet
+        // does the exact opposite thing!
         Patterns(&[
             // 8684
-            pattern!(55 8B EC 8D 45 ?? 50 FF 15 ?? ?? ?? ?? 8B 45 ?? 83 C4 04 8B 08),
+            pattern!(55 8B EC 8D 45 ?? 50 FF 15 ?? ?? ?? ?? 8B 55),
         ]),
         null_mut(),
     );
