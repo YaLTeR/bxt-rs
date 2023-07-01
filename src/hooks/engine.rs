@@ -2213,7 +2213,7 @@ pub mod exported {
     }
 
     #[export_name = "_ZN7CBaseUI10HideGameUIEv"]
-    pub unsafe extern "C" fn my_CBaseUI__HideGameUI(this: *mut c_void) {
+    pub unsafe extern "fastcall" fn my_CBaseUI__HideGameUI(this: *mut c_void) {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
