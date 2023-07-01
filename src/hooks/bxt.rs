@@ -17,12 +17,15 @@ pub static BXT_SIMULATION_IPC_IS_CLIENT_INITIALIZED: Pointer<unsafe extern "C" f
     Pointer::empty(b"bxt_simulation_ipc_is_client_initialized\0");
 pub static BXT_TAS_LOAD_SCRIPT_FROM_STRING: Pointer<unsafe extern "C" fn(*const c_char)> =
     Pointer::empty(b"bxt_tas_load_script_from_string\0");
+pub static BXT_IS_TAS_EDITOR_ACTIVE: Pointer<unsafe extern "C" fn() -> c_int> =
+    Pointer::empty(b"bxt_is_tas_editor_active\0");
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &BXT_ON_TAS_PLAYBACK_FRAME,
     &BXT_ON_TAS_PLAYBACK_STOPPED,
     &BXT_SIMULATION_IPC_IS_CLIENT_INITIALIZED,
     &BXT_TAS_LOAD_SCRIPT_FROM_STRING,
+    &BXT_IS_TAS_EDITOR_ACTIVE,
 ];
 
 #[cfg(unix)]

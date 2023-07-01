@@ -34,7 +34,7 @@ use super::{hud, Module};
 use crate::ffi::buttons::Buttons;
 use crate::ffi::usercmd::usercmd_s;
 use crate::handler;
-use crate::hooks::bxt::OnTasPlaybackFrameData;
+use crate::hooks::bxt::{OnTasPlaybackFrameData, BXT_IS_TAS_EDITOR_ACTIVE};
 use crate::hooks::engine::con_print;
 use crate::hooks::{bxt, client, engine, sdl};
 use crate::utils::*;
@@ -99,6 +99,7 @@ impl Module for TasStudio {
             && sdl::SDL_SetRelativeMouseMode.is_set(marker)
             && sdl::SDL_GetMouseState.is_set(marker)
             && bxt::BXT_TAS_LOAD_SCRIPT_FROM_STRING.is_set(marker)
+            && bxt::BXT_IS_TAS_EDITOR_ACTIVE.is_set(marker)
             && bxt::BXT_ON_TAS_PLAYBACK_FRAME.is_set(marker)
             && bxt::BXT_ON_TAS_PLAYBACK_STOPPED.is_set(marker)
             && TriangleDrawing.is_enabled(marker)
@@ -1143,6 +1144,21 @@ pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
                 marker,
                 "host_framerate 0;_bxt_norefresh 0;_bxt_min_frametime 0;bxt_taslog 0;pause\n",
             );
+
+            if BXT_IS_TAS_EDITOR_ACTIVE.get(marker)() != 0 {
+                // If the TAS editor got enabled, print a warning message and disable it, but keep
+                // the TAS studio running. This is because otherwise there's no easy way for the
+                // user to actually remove the bxt_tas_editor 1 command (since the script is in the
+                // .hltasproj).
+                con_print(
+                    marker,
+                    "The Bunnymod XT TAS editor was enabled while playing back the script in the \
+                     bxt-rs TAS studio! This is not supported. Please remove any bxt_tas_editor 1 \
+                     commands from the script!\n",
+                );
+
+                engine::prepend_command(marker, "bxt_tas_editor 0\n");
+            }
 
             State::Editing {
                 editor,
