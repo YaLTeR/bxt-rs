@@ -1388,16 +1388,7 @@ impl Editor {
             return Ok(());
         }
 
-        let frame_count = self
-            .branch()
-            .branch
-            .script
-            .frame_bulks()
-            .map(|bulk| bulk.frame_count.get())
-            .sum::<u32>();
-
-        // TODO: catch last frame of TAS and get rid of this -1.
-        self.branch_mut().branch.stop_frame = min(stop_frame, frame_count.saturating_sub(1));
+        self.branch_mut().branch.stop_frame = stop_frame;
         self.db.update_branch(&self.branch().branch)?;
 
         Ok(())
