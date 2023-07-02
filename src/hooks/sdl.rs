@@ -9,7 +9,7 @@ use bxt_patterns::Patterns;
 use glam::IVec2;
 
 use crate::gl;
-use crate::modules::tas_optimizer;
+use crate::modules::{tas_optimizer, tas_studio};
 use crate::utils::*;
 
 pub static SDL_GetMouseState: Pointer<unsafe extern "C" fn(*mut c_int, *mut c_int) -> c_uint> =
@@ -246,7 +246,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if tas_optimizer::is_connected_to_server() {
+            if tas_optimizer::is_connected_to_server() || tas_studio::is_connected_to_server() {
                 // Don't warp the mouse from simulator clients.
                 return;
             }
