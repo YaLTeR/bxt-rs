@@ -75,14 +75,24 @@ pub struct Editor {
     yaw_adjustment: Option<MouseAdjustment<f32>>,
     /// Frame bulk left-right strafing frame count adjustment.
     left_right_count_adjustment: Option<MouseAdjustment<u32>>,
-    /// Adjacent frame bulk frame count adjustment: preserves the total frame count of the two
-    /// adjacent frame bulks.
+    /// Adjacent frame bulk frame count adjustment.
+    ///
+    /// Preserves the total frame count of the two adjacent frame bulks.
     ///
     /// This adjustment requires a following frame bulk to exist (since it keeps the total frame
     /// count the same). However, even if the following frame bulk does not exist, this adjustment
     /// will still activate but do nothing. This is done to make the mouse grabbing behavior more
     /// obvious.
     adjacent_frame_count_adjustment: Option<MouseAdjustment<u32>>,
+    /// Adjacent frame bulk yaw adjustment.
+    ///
+    /// Adjusts the yaw in the same way for all adjacent frame bulks with equal yaw.
+    adjacent_yaw_adjustment: Option<AdjacentYawAdjustment>,
+    /// Adjacent frame bulk left-right strafing frame count adjustment.
+    ///
+    /// Adjusts the left-right count in the same way for all adjacent frame bulks with equal
+    /// left-right count.
+    adjacent_left_right_count_adjustment: Option<AdjacentLeftRightCountAdjustment>,
 
     /// Whether to show camera angles for every frame.
     show_camera_angles: bool,
@@ -167,6 +177,34 @@ impl<T> MouseAdjustment<T> {
     }
 }
 
+/// Data for handling the adjacent yaw adjustment.
+///
+/// We need to store which frame bulks are affected so that as we drag the mouse we don't "pick up"
+/// any extra frame bulks when the yaw suddenly starts to match them.
+#[derive(Debug, Clone, Copy)]
+struct AdjacentYawAdjustment {
+    /// The mouse adjustment itself.
+    mouse_adjustment: MouseAdjustment<f32>,
+    /// Index of the first of the affected frame bulks.
+    first_bulk_idx: usize,
+    /// Number of the affected frame bulks.
+    bulk_count: usize,
+}
+
+/// Data for handling the adjacent left-right count adjustment.
+///
+/// We need to store which frame bulks are affected so that as we drag the mouse we don't "pick up"
+/// any extra frame bulks when the left-right count suddenly starts to match them.
+#[derive(Debug, Clone, Copy)]
+struct AdjacentLeftRightCountAdjustment {
+    /// The mouse adjustment itself.
+    mouse_adjustment: MouseAdjustment<u32>,
+    /// Index of the first of the affected frame bulks.
+    first_bulk_idx: usize,
+    /// Number of the affected frame bulks.
+    bulk_count: usize,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct KeyboardState {
     /// Whether the "faster" key is pressed.
@@ -237,6 +275,8 @@ impl Editor {
             yaw_adjustment: None,
             left_right_count_adjustment: None,
             adjacent_frame_count_adjustment: None,
+            adjacent_yaw_adjustment: None,
+            adjacent_left_right_count_adjustment: None,
             show_camera_angles: false,
             auto_smoothing: false,
             first_shown_frame_idx: 0,
@@ -319,6 +359,8 @@ impl Editor {
             || self.yaw_adjustment.is_some()
             || self.left_right_count_adjustment.is_some()
             || self.adjacent_frame_count_adjustment.is_some()
+            || self.adjacent_yaw_adjustment.is_some()
+            || self.adjacent_left_right_count_adjustment.is_some()
     }
 
     /// Updates the editor state.
@@ -337,6 +379,8 @@ impl Editor {
         self.tick_yaw_adjustment(mouse, keyboard)?;
         self.tick_left_right_count_adjustment(mouse, keyboard)?;
         self.tick_adjacent_frame_count_adjustment(mouse, keyboard)?;
+        self.tick_adjacent_yaw_adjustment(mouse, keyboard)?;
+        self.tick_adjacent_left_right_count_adjustment(mouse, keyboard)?;
 
         // Predict any frames that need prediction.
         //
@@ -397,6 +441,7 @@ impl Editor {
             if mouse.buttons.is_left_down()
                 || mouse.buttons.is_right_down()
                 || mouse.buttons.is_middle_down()
+                || mouse.buttons.is_mouse4_down()
             {
                 self.selected_bulk_idx = self.hovered_bulk_idx;
             }
@@ -491,6 +536,97 @@ impl Editor {
 
                     self.adjacent_frame_count_adjustment =
                         Some(MouseAdjustment::new(bulk.frame_count.get(), mouse_pos, dir));
+                } else if mouse.buttons.is_mouse4_down() {
+                    let (bulk, last_frame_idx) = bulk_and_last_frame_idx.next().unwrap();
+
+                    let frame = &branch.frames[last_frame_idx];
+                    let prev = &branch.frames[last_frame_idx - 1];
+
+                    let pos = frame.state.player.pos;
+                    let prev_pos = prev.state.player.pos;
+                    let perp = perpendicular(prev_pos, pos) * 5.;
+
+                    let a_screen = world_to_screen(pos + perp);
+                    let b_screen = world_to_screen(pos - perp);
+
+                    let dir = match (a_screen, b_screen) {
+                        (Some(a), Some(b)) => a - b,
+                        // Presumably, one of the points is invisible, so just fall back.
+                        _ => Vec2::X,
+                    };
+
+                    let active_line_idx = branch
+                        .branch
+                        .script
+                        .lines
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, line)| matches!(line, Line::FrameBulk(_)))
+                        .nth(active_bulk_idx)
+                        .unwrap()
+                        .0;
+
+                    let bulks = branch
+                        .branch
+                        .script
+                        .lines
+                        .iter()
+                        .take(active_line_idx + 1)
+                        .rev()
+                        .filter_map(|prev_line| prev_line.frame_bulk())
+                        .enumerate();
+
+                    if let Some(yaw) = bulk.yaw() {
+                        let affected_bulk_count_back = bulks
+                            .take_while(|(_, prev_bulk)| prev_bulk.yaw() == Some(yaw))
+                            .last()
+                            .unwrap()
+                            .0;
+                        let first_bulk_idx = active_bulk_idx - affected_bulk_count_back;
+
+                        let bulk_count = bulk_and_last_frame_idx
+                            .take_while(|(next_bulk, _)| next_bulk.yaw() == Some(yaw))
+                            .count()
+                            + (active_bulk_idx - first_bulk_idx + 1);
+
+                        self.adjacent_yaw_adjustment = Some(AdjacentYawAdjustment {
+                            mouse_adjustment: MouseAdjustment::new(*yaw, mouse_pos, dir),
+                            first_bulk_idx,
+                            bulk_count,
+                        });
+                    } else if let Some(count) = bulk.left_right_count() {
+                        let affected_bulk_count_back = bulks
+                            .take_while(|(_, prev_bulk)| {
+                                prev_bulk.left_right_count() == Some(count)
+                            })
+                            .last()
+                            .unwrap()
+                            .0;
+                        let first_bulk_idx = active_bulk_idx - affected_bulk_count_back;
+
+                        let bulk_count = bulk_and_last_frame_idx
+                            .take_while(|(next_bulk, _)| {
+                                next_bulk.left_right_count() == Some(count)
+                            })
+                            .count()
+                            + (active_bulk_idx - first_bulk_idx + 1);
+
+                        // Make the adjustment face the expected way.
+                        let dir = match bulk.auto_actions.movement {
+                            Some(AutoMovement::Strafe(StrafeSettings {
+                                dir: StrafeDir::RightLeft(_),
+                                ..
+                            })) => -dir,
+                            _ => dir,
+                        };
+
+                        self.adjacent_left_right_count_adjustment =
+                            Some(AdjacentLeftRightCountAdjustment {
+                                mouse_adjustment: MouseAdjustment::new(count.get(), mouse_pos, dir),
+                                first_bulk_idx,
+                                bulk_count,
+                            });
+                    }
                 }
             }
         }
@@ -724,6 +860,131 @@ impl Editor {
         Ok(())
     }
 
+    fn tick_adjacent_yaw_adjustment(
+        &mut self,
+        mouse: MouseState,
+        keyboard: KeyboardState,
+    ) -> eyre::Result<()> {
+        let Some(AdjacentYawAdjustment {
+            mouse_adjustment,
+            first_bulk_idx,
+            bulk_count,
+        }) = &mut self.adjacent_yaw_adjustment
+        else {
+            return Ok(());
+        };
+
+        let mut bulks =
+            bulk_and_first_frame_idx_mut(&mut self.branches[self.branch_idx].branch.script)
+                .skip(*first_bulk_idx);
+        let (bulk, first_frame_idx) = bulks.next().unwrap();
+
+        let yaw = bulk.yaw_mut().unwrap();
+
+        if !mouse.buttons.is_mouse4_down() {
+            drop(bulks);
+
+            if !mouse_adjustment.changed_once {
+                self.adjacent_yaw_adjustment = None;
+                return Ok(());
+            }
+
+            let op = Operation::SetAdjacentYaw {
+                first_bulk_idx: *first_bulk_idx,
+                bulk_count: *bulk_count,
+                from: mouse_adjustment.original_value,
+                to: *yaw,
+            };
+            self.adjacent_yaw_adjustment = None;
+            return self.store_operation(op);
+        }
+
+        let speed = keyboard.adjustment_speed();
+        let delta = mouse_adjustment.delta(mouse.pos.as_vec2()) * 0.1 * speed;
+        let new_yaw = mouse_adjustment.original_value + delta;
+
+        if *yaw != new_yaw {
+            mouse_adjustment.changed_once = true;
+
+            for _ in 1..*bulk_count {
+                let bulk = bulks.next().unwrap().0;
+                let next_yaw = bulk.yaw_mut().unwrap();
+                *next_yaw = new_yaw;
+            }
+            drop(bulks);
+
+            *yaw = new_yaw;
+            self.invalidate(first_frame_idx);
+        }
+
+        Ok(())
+    }
+
+    fn tick_adjacent_left_right_count_adjustment(
+        &mut self,
+        mouse: MouseState,
+        keyboard: KeyboardState,
+    ) -> eyre::Result<()> {
+        let Some(AdjacentLeftRightCountAdjustment {
+            mouse_adjustment,
+            first_bulk_idx,
+            bulk_count,
+        }) = &mut self.adjacent_left_right_count_adjustment
+        else {
+            return Ok(());
+        };
+
+        let mut bulks =
+            bulk_and_first_frame_idx_mut(&mut self.branches[self.branch_idx].branch.script)
+                .skip(*first_bulk_idx);
+        let (bulk, first_frame_idx) = bulks.next().unwrap();
+
+        let left_right_count = bulk.left_right_count_mut().unwrap();
+
+        if !mouse.buttons.is_mouse4_down() {
+            drop(bulks);
+
+            if !mouse_adjustment.changed_once {
+                self.adjacent_left_right_count_adjustment = None;
+                return Ok(());
+            }
+
+            let op = Operation::SetAdjacentLeftRightCount {
+                first_bulk_idx: *first_bulk_idx,
+                bulk_count: *bulk_count,
+                from: mouse_adjustment.original_value,
+                to: left_right_count.get(),
+            };
+            self.adjacent_left_right_count_adjustment = None;
+            return self.store_operation(op);
+        }
+
+        let speed = keyboard.adjustment_speed();
+        let delta = (mouse_adjustment.delta(mouse.pos.as_vec2()) * 0.1 * speed).round() as i32;
+        let new_left_right_count = mouse_adjustment
+            .original_value
+            .saturating_add_signed(delta)
+            .max(1);
+
+        if left_right_count.get() != new_left_right_count {
+            mouse_adjustment.changed_once = true;
+
+            let new_left_right_count = NonZeroU32::new(new_left_right_count).unwrap();
+
+            for _ in 1..*bulk_count {
+                let bulk = bulks.next().unwrap().0;
+                let next_left_right_count = bulk.left_right_count_mut().unwrap();
+                *next_left_right_count = new_left_right_count;
+            }
+            drop(bulks);
+
+            *left_right_count = new_left_right_count;
+            self.invalidate(first_frame_idx);
+        }
+
+        Ok(())
+    }
+
     pub fn cancel_ongoing_adjustments(&mut self) {
         if let Some(adjustment) = self.frame_count_adjustment.take() {
             let original_value = adjustment.original_value;
@@ -795,6 +1056,62 @@ impl Editor {
 
                     self.invalidate(first_frame_idx + min(frame_count, original_value) as usize);
                 }
+            }
+        }
+
+        if let Some(AdjacentYawAdjustment {
+            mouse_adjustment,
+            first_bulk_idx,
+            bulk_count,
+        }) = self.adjacent_yaw_adjustment.take()
+        {
+            let original_value = mouse_adjustment.original_value;
+
+            let mut bulks = bulk_and_first_frame_idx_mut(&mut self.branch_mut().branch.script)
+                .skip(first_bulk_idx);
+            let (bulk, first_frame_idx) = bulks.next().unwrap();
+
+            let yaw = bulk.yaw_mut().unwrap();
+            if *yaw != original_value {
+                for _ in 1..bulk_count {
+                    let bulk = bulks.next().unwrap().0;
+                    let next_yaw = bulk.yaw_mut().unwrap();
+                    *next_yaw = original_value;
+                }
+
+                *yaw = original_value;
+
+                drop(bulks);
+                self.invalidate(first_frame_idx);
+            }
+        }
+
+        if let Some(AdjacentLeftRightCountAdjustment {
+            mouse_adjustment,
+            first_bulk_idx,
+            bulk_count,
+        }) = self.adjacent_left_right_count_adjustment.take()
+        {
+            let original_value = mouse_adjustment.original_value;
+
+            let mut bulks = bulk_and_first_frame_idx_mut(&mut self.branch_mut().branch.script)
+                .skip(first_bulk_idx);
+            let (bulk, first_frame_idx) = bulks.next().unwrap();
+
+            let left_right_count = bulk.left_right_count_mut().unwrap();
+            if left_right_count.get() != original_value {
+                let original_value = NonZeroU32::new(original_value).unwrap();
+
+                for _ in 1..bulk_count {
+                    let bulk = bulks.next().unwrap().0;
+                    let next_left_right_count = bulk.left_right_count_mut().unwrap();
+                    *next_left_right_count = original_value;
+                }
+
+                *left_right_count = original_value;
+
+                drop(bulks);
+                self.invalidate(first_frame_idx);
             }
         }
     }

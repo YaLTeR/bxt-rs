@@ -69,6 +69,18 @@ pub enum Operation {
         from: u32,
         to: u32,
     },
+    SetAdjacentYaw {
+        first_bulk_idx: usize,
+        bulk_count: usize,
+        from: f32,
+        to: f32,
+    },
+    SetAdjacentLeftRightCount {
+        first_bulk_idx: usize,
+        bulk_count: usize,
+        from: u32,
+        to: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -240,6 +252,60 @@ impl Operation {
                     return Some(first_frame_idx + min(from, to) as usize);
                 }
             }
+            Operation::SetAdjacentYaw {
+                first_bulk_idx,
+                bulk_count,
+                from,
+                to,
+            } => {
+                let mut bulks = bulk_and_first_frame_idx_mut(hltas).skip(first_bulk_idx);
+                let (bulk, first_frame_idx) = bulks.next().expect("invalid bulk index");
+
+                let yaw = bulk.yaw_mut().expect("frame bulk should have yaw");
+                assert_eq!(*yaw, from, "wrong current yaw");
+
+                if *yaw != to {
+                    for _ in 1..bulk_count {
+                        let bulk = bulks.next().expect("invalid bulk index").0;
+                        let next_yaw = bulk.yaw_mut().expect("frame bulk should have yaw");
+                        assert_eq!(*next_yaw, from, "wrong current yaw");
+                        *next_yaw = to;
+                    }
+
+                    *yaw = to;
+                    return Some(first_frame_idx);
+                }
+            }
+            Operation::SetAdjacentLeftRightCount {
+                first_bulk_idx,
+                bulk_count,
+                from,
+                to,
+            } => {
+                let mut bulks = bulk_and_first_frame_idx_mut(hltas).skip(first_bulk_idx);
+                let (bulk, first_frame_idx) = bulks.next().expect("invalid bulk index");
+
+                let count = bulk
+                    .left_right_count_mut()
+                    .expect("frame bulk should have left-right count");
+                assert_eq!(count.get(), from, "wrong current left-right count");
+
+                if from != to {
+                    let to = NonZeroU32::new(to).expect("invalid new left-right count");
+
+                    for _ in 1..bulk_count {
+                        let bulk = bulks.next().expect("invalid bulk index").0;
+                        let next_count = bulk
+                            .left_right_count_mut()
+                            .expect("frame bulk should have left-right count");
+                        assert_eq!(next_count.get(), from, "wrong current left-right count");
+                        *next_count = to;
+                    }
+
+                    *count = to;
+                    return Some(first_frame_idx);
+                }
+            }
         }
 
         None
@@ -397,6 +463,60 @@ impl Operation {
                             .expect("invalid new frame count");
 
                     return Some(first_frame_idx + min(from, to) as usize);
+                }
+            }
+            Operation::SetAdjacentYaw {
+                first_bulk_idx,
+                bulk_count,
+                from,
+                to,
+            } => {
+                let mut bulks = bulk_and_first_frame_idx_mut(hltas).skip(first_bulk_idx);
+                let (bulk, first_frame_idx) = bulks.next().expect("invalid bulk index");
+
+                let yaw = bulk.yaw_mut().expect("frame bulk should have yaw");
+                assert_eq!(*yaw, to, "wrong current yaw");
+
+                if *yaw != from {
+                    for _ in 1..bulk_count {
+                        let bulk = bulks.next().expect("invalid bulk index").0;
+                        let next_yaw = bulk.yaw_mut().expect("frame bulk should have yaw");
+                        assert_eq!(*next_yaw, to, "wrong current yaw");
+                        *next_yaw = from;
+                    }
+
+                    *yaw = from;
+                    return Some(first_frame_idx);
+                }
+            }
+            Operation::SetAdjacentLeftRightCount {
+                first_bulk_idx,
+                bulk_count,
+                from,
+                to,
+            } => {
+                let mut bulks = bulk_and_first_frame_idx_mut(hltas).skip(first_bulk_idx);
+                let (bulk, first_frame_idx) = bulks.next().expect("invalid bulk index");
+
+                let count = bulk
+                    .left_right_count_mut()
+                    .expect("frame bulk should have left-right count");
+                assert_eq!(count.get(), to, "wrong current left-right count");
+
+                if from != to {
+                    let from = NonZeroU32::new(from).expect("invalid original left-right count");
+
+                    for _ in 1..bulk_count {
+                        let bulk = bulks.next().expect("invalid bulk index").0;
+                        let next_count = bulk
+                            .left_right_count_mut()
+                            .expect("frame bulk should have left-right count");
+                        assert_eq!(next_count.get(), to, "wrong current left-right count");
+                        *next_count = from;
+                    }
+
+                    *count = from;
+                    return Some(first_frame_idx);
                 }
             }
         }
@@ -741,6 +861,54 @@ s03lj-----|------|------|0.001|15|10|2",
             "\
 ----------|------|------|0.004|10|-|11
 ----------|------|------|0.004|20|-|5",
+        );
+    }
+
+    #[test]
+    fn op_set_adjacent_yaw() {
+        check_op(
+            "\
+----------|------|------|0.004|10|-|6
+----------|------|------|0.004|20|-|10
+----------|------|------|0.004|20|-|12
+----------|------|------|0.004|20|-|5
+----------|------|------|0.004|15|-|6",
+            Operation::SetAdjacentYaw {
+                first_bulk_idx: 1,
+                bulk_count: 3,
+                from: 20.,
+                to: 15.,
+            },
+            "\
+----------|------|------|0.004|10|-|6
+----------|------|------|0.004|15|-|10
+----------|------|------|0.004|15|-|12
+----------|------|------|0.004|15|-|5
+----------|------|------|0.004|15|-|6",
+        );
+    }
+
+    #[test]
+    fn op_set_adjacent_left_right_count() {
+        check_op(
+            "\
+----------|------|------|0.004|10|-|6
+s06-------|------|------|0.004|20|-|10
+s06-------|------|------|0.004|20|-|12
+s06-------|------|------|0.004|20|-|5
+----------|------|------|0.004|15|-|6",
+            Operation::SetAdjacentLeftRightCount {
+                first_bulk_idx: 1,
+                bulk_count: 3,
+                from: 20,
+                to: 15,
+            },
+            "\
+----------|------|------|0.004|10|-|6
+s06-------|------|------|0.004|15|-|10
+s06-------|------|------|0.004|15|-|12
+s06-------|------|------|0.004|15|-|5
+----------|------|------|0.004|15|-|6",
         );
     }
 }
