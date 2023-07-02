@@ -64,6 +64,11 @@ pub enum Operation {
         from: String,
         to: String,
     },
+    SetAdjacentFrameCount {
+        bulk_idx: usize,
+        from: u32,
+        to: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -216,6 +221,25 @@ impl Operation {
                     .splice(first_line_idx..first_line_idx + from.len(), to);
                 return Some(first_frame_idx);
             }
+            Operation::SetAdjacentFrameCount { bulk_idx, from, to } => {
+                let mut bulks = bulk_and_first_frame_idx_mut(hltas).skip(bulk_idx);
+                let (bulk, first_frame_idx) = bulks.next().expect("invalid bulk index");
+                let (next_bulk, _) = bulks.next().expect("invalid bulk index");
+                drop(bulks);
+
+                assert_eq!(bulk.frame_count.get(), from, "wrong current frame count");
+
+                if from != to {
+                    bulk.frame_count = NonZeroU32::new(to).expect("invalid new frame count");
+
+                    let delta = from as i64 - to as i64;
+                    next_bulk.frame_count =
+                        NonZeroU32::new((next_bulk.frame_count.get() as i64 + delta) as u32)
+                            .expect("invalid new frame count");
+
+                    return Some(first_frame_idx + min(from, to) as usize);
+                }
+            }
         }
 
         None
@@ -355,6 +379,25 @@ impl Operation {
                     .lines
                     .splice(first_line_idx..first_line_idx + to.len(), from);
                 return Some(first_frame_idx);
+            }
+            Operation::SetAdjacentFrameCount { bulk_idx, from, to } => {
+                let mut bulks = bulk_and_first_frame_idx_mut(hltas).skip(bulk_idx);
+                let (bulk, first_frame_idx) = bulks.next().expect("invalid bulk index");
+                let (next_bulk, _) = bulks.next().expect("invalid bulk index");
+                drop(bulks);
+
+                assert_eq!(bulk.frame_count.get(), to, "wrong current frame count");
+
+                if from != to {
+                    bulk.frame_count = NonZeroU32::new(from).expect("invalid original frame count");
+
+                    let delta = from as i64 - to as i64;
+                    next_bulk.frame_count =
+                        NonZeroU32::new((next_bulk.frame_count.get() as i64 - delta) as u32)
+                            .expect("invalid new frame count");
+
+                    return Some(first_frame_idx + min(from, to) as usize);
+                }
             }
         }
 
@@ -681,6 +724,23 @@ s03lj-----|------|------|0.001|15|10|2
 ----------|------|------|0.004|10|-|6
 ----------|------|------|0.004|10|-|7
 s03lj-----|------|------|0.001|15|10|2",
+        );
+    }
+
+    #[test]
+    fn op_set_adjacent_frame_count() {
+        check_op(
+            "\
+----------|------|------|0.004|10|-|6
+----------|------|------|0.004|20|-|10",
+            Operation::SetAdjacentFrameCount {
+                bulk_idx: 0,
+                from: 6,
+                to: 11,
+            },
+            "\
+----------|------|------|0.004|10|-|11
+----------|------|------|0.004|20|-|5",
         );
     }
 }

@@ -75,6 +75,14 @@ pub struct Editor {
     yaw_adjustment: Option<MouseAdjustment<f32>>,
     /// Frame bulk left-right strafing frame count adjustment.
     left_right_count_adjustment: Option<MouseAdjustment<u32>>,
+    /// Adjacent frame bulk frame count adjustment: preserves the total frame count of the two
+    /// adjacent frame bulks.
+    ///
+    /// This adjustment requires a following frame bulk to exist (since it keeps the total frame
+    /// count the same). However, even if the following frame bulk does not exist, this adjustment
+    /// will still activate but do nothing. This is done to make the mouse grabbing behavior more
+    /// obvious.
+    adjacent_frame_count_adjustment: Option<MouseAdjustment<u32>>,
 
     /// Whether to show camera angles for every frame.
     show_camera_angles: bool,
@@ -228,6 +236,7 @@ impl Editor {
             frame_count_adjustment: None,
             yaw_adjustment: None,
             left_right_count_adjustment: None,
+            adjacent_frame_count_adjustment: None,
             show_camera_angles: false,
             auto_smoothing: false,
             first_shown_frame_idx: 0,
@@ -309,6 +318,7 @@ impl Editor {
         self.frame_count_adjustment.is_some()
             || self.yaw_adjustment.is_some()
             || self.left_right_count_adjustment.is_some()
+            || self.adjacent_frame_count_adjustment.is_some()
     }
 
     /// Updates the editor state.
@@ -326,6 +336,7 @@ impl Editor {
         self.tick_frame_count_adjustment(mouse, keyboard)?;
         self.tick_yaw_adjustment(mouse, keyboard)?;
         self.tick_left_right_count_adjustment(mouse, keyboard)?;
+        self.tick_adjacent_frame_count_adjustment(mouse, keyboard)?;
 
         // Predict any frames that need prediction.
         //
@@ -383,7 +394,10 @@ impl Editor {
 
             // If any button is down, make the hovered bulk the selected bulk (or clear the selected
             // bulk if not hovering anything).
-            if mouse.buttons.is_left_down() || mouse.buttons.is_right_down() {
+            if mouse.buttons.is_left_down()
+                || mouse.buttons.is_right_down()
+                || mouse.buttons.is_middle_down()
+            {
                 self.selected_bulk_idx = self.hovered_bulk_idx;
             }
 
@@ -460,6 +474,23 @@ impl Editor {
                         self.left_right_count_adjustment =
                             Some(MouseAdjustment::new(count.get(), mouse_pos, dir));
                     }
+                } else if mouse.buttons.is_middle_down() {
+                    let (bulk, last_frame_idx) = bulk_and_last_frame_idx.next().unwrap();
+
+                    let frame = &branch.frames[last_frame_idx];
+                    let prev = &branch.frames[last_frame_idx - 1];
+
+                    let frame_screen = world_to_screen(frame.state.player.pos);
+                    let prev_screen = world_to_screen(prev.state.player.pos);
+
+                    let dir = match (frame_screen, prev_screen) {
+                        (Some(frame), Some(prev)) => frame - prev,
+                        // Presumably, previous frame is invisible, so just fall back.
+                        _ => Vec2::X,
+                    };
+
+                    self.adjacent_frame_count_adjustment =
+                        Some(MouseAdjustment::new(bulk.frame_count.get(), mouse_pos, dir));
                 }
             }
         }
@@ -628,6 +659,71 @@ impl Editor {
         Ok(())
     }
 
+    fn tick_adjacent_frame_count_adjustment(
+        &mut self,
+        mouse: MouseState,
+        keyboard: KeyboardState,
+    ) -> eyre::Result<()> {
+        let Some(adjustment) = &mut self.adjacent_frame_count_adjustment else {
+            return Ok(());
+        };
+
+        let bulk_idx = self.selected_bulk_idx.unwrap();
+        let mut bulks =
+            bulk_and_first_frame_idx_mut(&mut self.branches[self.branch_idx].branch.script)
+                .skip(bulk_idx);
+        let (bulk, first_frame_idx) = bulks.next().unwrap();
+
+        if !mouse.buttons.is_middle_down() {
+            drop(bulks);
+
+            if !adjustment.changed_once {
+                self.adjacent_frame_count_adjustment = None;
+                return Ok(());
+            }
+
+            let op = Operation::SetAdjacentFrameCount {
+                bulk_idx,
+                from: adjustment.original_value,
+                to: bulk.frame_count.get(),
+            };
+            self.adjacent_frame_count_adjustment = None;
+            return self.store_operation(op);
+        }
+
+        let Some((next_bulk, _)) = bulks.next() else {
+            return Ok(());
+        };
+        drop(bulks);
+
+        let speed = keyboard.adjustment_speed();
+        let delta = (adjustment.delta(mouse.pos.as_vec2()) * 0.1 * speed).round() as i32;
+        let new_frame_count = adjustment
+            .original_value
+            .saturating_add_signed(delta)
+            .max(1);
+
+        let frame_count = bulk.frame_count.get();
+
+        let max_delta_from_current = next_bulk.frame_count.get() - 1;
+        let delta_from_current =
+            (new_frame_count as i64 - frame_count as i64).min(max_delta_from_current as i64);
+        let new_frame_count = u32::try_from(frame_count as i64 + delta_from_current).unwrap();
+
+        if frame_count != new_frame_count {
+            adjustment.changed_once = true;
+            bulk.frame_count = NonZeroU32::new(new_frame_count).unwrap();
+
+            let new_next_frame_count = next_bulk.frame_count.get() as i64 - delta_from_current;
+            next_bulk.frame_count =
+                NonZeroU32::new(u32::try_from(new_next_frame_count).unwrap()).unwrap();
+
+            self.invalidate(first_frame_idx + min(frame_count, new_frame_count) as usize);
+        }
+
+        Ok(())
+    }
+
     pub fn cancel_ongoing_adjustments(&mut self) {
         if let Some(adjustment) = self.frame_count_adjustment.take() {
             let original_value = adjustment.original_value;
@@ -674,6 +770,31 @@ impl Editor {
             if left_right_count.get() != original_value {
                 *left_right_count = NonZeroU32::new(original_value).unwrap();
                 self.invalidate(first_frame_idx);
+            }
+        }
+
+        if let Some(adjustment) = self.adjacent_frame_count_adjustment.take() {
+            let original_value = adjustment.original_value;
+
+            let bulk_idx = self.selected_bulk_idx.unwrap();
+            let mut bulks =
+                bulk_and_first_frame_idx_mut(&mut self.branch_mut().branch.script).skip(bulk_idx);
+            let (bulk, first_frame_idx) = bulks.next().unwrap();
+
+            if let Some((next_bulk, _)) = bulks.next() {
+                drop(bulks);
+
+                let frame_count = bulk.frame_count.get();
+                if frame_count != original_value {
+                    bulk.frame_count = NonZeroU32::new(original_value).unwrap();
+
+                    let delta = original_value as i64 - frame_count as i64;
+                    next_bulk.frame_count =
+                        NonZeroU32::new((next_bulk.frame_count.get() as i64 - delta) as u32)
+                            .unwrap();
+
+                    self.invalidate(first_frame_idx + min(frame_count, original_value) as usize);
+                }
             }
         }
     }
