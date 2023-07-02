@@ -245,7 +245,9 @@ stop frame is a frame where the TAS playback stops and shows the TAS editor UI."
 
 fn set_stop_frame_to_hovered(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.set_stop_frame_to_hovered() {
         con_print(marker, &format!("Error setting stop frame: {err}\n"));
@@ -255,7 +257,9 @@ fn set_stop_frame_to_hovered(marker: MainThreadMarker) {
 
 fn set_stop_frame(marker: MainThreadMarker, stop_frame: u32) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.set_stop_frame(stop_frame) {
         con_print(marker, &format!("Error setting stop frame: {err}\n"));
@@ -275,7 +279,9 @@ Sets the pitch of the selected frame bulk.",
 
 fn set_pitch(marker: MainThreadMarker, pitch: f32) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.set_pitch(Some(pitch)) {
         con_print(marker, &format!("Error setting pitch: {err}\n"));
@@ -295,7 +301,9 @@ Unsets the pitch of the selected frame bulk.",
 
 fn unset_pitch(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.set_pitch(None) {
         con_print(marker, &format!("Error unsetting pitch: {err}\n"));
@@ -315,7 +323,9 @@ Sets the yaw of the selected frame bulk.",
 
 fn set_yaw(marker: MainThreadMarker, yaw: f32) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.set_yaw(Some(yaw)) {
         con_print(marker, &format!("Error setting yaw: {err}\n"));
@@ -335,7 +345,9 @@ Unsets the yaw of the selected frame bulk.",
 
 fn unset_yaw(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.set_yaw(None) {
         con_print(marker, &format!("Error unsetting yaw: {err}\n"));
@@ -403,7 +415,9 @@ Undoes the last change to the script.",
 
 fn undo(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.undo() {
         con_print(marker, &format!("Error undoing: {err}\n"));
@@ -423,7 +437,9 @@ Redoes the last change to the script.",
 
 fn redo(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.redo() {
         con_print(marker, &format!("Error redoing: {err}\n"));
@@ -443,7 +459,9 @@ Clones the current branch.",
 
 fn branch_clone(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.branch_clone() {
         con_print(marker, &format!("Error cloning branch: {err}\n"));
@@ -463,7 +481,9 @@ Focuses branch with the given index.",
 
 fn branch_focus(marker: MainThreadMarker, branch_idx: usize) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.branch_focus(branch_idx) {
         con_print(marker, &format!("Error focusing branch: {err}\n"));
@@ -483,7 +503,9 @@ Focuses the next visible branch.",
 
 fn branch_focus_next(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.branch_focus_next() {
         con_print(marker, &format!("Error focusing branch: {err}\n"));
@@ -503,7 +525,9 @@ Hides the branch with the given index.",
 
 fn branch_hide(marker: MainThreadMarker, branch_idx: usize) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.branch_hide(branch_idx) {
         con_print(marker, &format!("Error hiding branch: {err}\n"));
@@ -523,7 +547,9 @@ Hides the currently focused branch and focuses the next visible branch.",
 
 fn branch_hide_and_focus_next(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.branch_hide_and_focus_next() {
         con_print(
@@ -546,7 +572,9 @@ Shows the branch with the given index.",
 
 fn branch_show(marker: MainThreadMarker, branch_idx: usize) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.branch_show(branch_idx) {
         con_print(marker, &format!("Error showing branch: {err}\n"));
@@ -598,7 +626,9 @@ Values that you can toggle:
 
 fn toggle(marker: MainThreadMarker, what: String) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     let what = what.trim().to_ascii_lowercase();
 
@@ -703,7 +733,9 @@ the cursor, makes all frames visible.",
 
 fn hide(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.hide_frames_up_to_hovered() {
         con_print(marker, &format!("Error hiding: {err}\n"));
@@ -723,7 +755,9 @@ Applies global smoothing to the entire script.",
 
 fn smooth(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.apply_global_smoothing() {
         con_print(marker, &format!("Error applying global smoothing: {err}\n"));
@@ -743,7 +777,9 @@ Deletes the frame bulk under cursor.",
 
 fn delete(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.delete_selected() {
         con_print(marker, &format!("Error deleting selected: {err}\n"));
@@ -763,7 +799,9 @@ Deletes the last frame bulk of the current branch.",
 
 fn delete_last(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.delete_last() {
         con_print(marker, &format!("Error deleting last: {err}\n"));
@@ -783,7 +821,9 @@ Splits the frame bulk at frame under cursor.",
 
 fn split(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     if let Err(err) = editor.split() {
         con_print(marker, &format!("Error splitting: {err}\n"));
@@ -820,12 +860,18 @@ Initializes the optimization starting from the selected frame bulk.",
 
 fn optim_init(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     let hltas = editor.script().clone();
-    let Some(bulk_idx) = editor.selected_bulk_idx() else { return };
+    let Some(bulk_idx) = editor.selected_bulk_idx() else {
+        return;
+    };
     let first_frame = bulk_and_first_frame_idx(&hltas).nth(bulk_idx).unwrap().1 - 1;
-    let Some(initial_frame) = editor.branch().frames.get(first_frame).cloned() else { return };
+    let Some(initial_frame) = editor.branch().frames.get(first_frame).cloned() else {
+        return;
+    };
 
     optim_init_internal(marker, hltas, first_frame, initial_frame);
 }
@@ -842,7 +888,9 @@ Applies the current best optimization result to the current branch.",
 
 fn optim_apply(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else { return };
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
 
     let new_script = match unsafe { tas_optimizer::current_best(marker) } {
         Some(x) => x,
@@ -892,7 +940,9 @@ impl Default for State {
 static STATE: MainThreadRefCell<State> = MainThreadRefCell::new(State::Idle);
 
 pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker) {
-    let Some(cls) = engine::cls.get_opt(marker) else { return };
+    let Some(cls) = engine::cls.get_opt(marker) else {
+        return;
+    };
 
     let client_state = (*cls).state;
     if client_state != 1 && client_state != 5 {
@@ -1174,7 +1224,16 @@ pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
 
 pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, last_generation, last_branch_idx, simulate_at, bridge } = &mut *state else { return };
+    let State::Editing {
+        editor,
+        last_generation,
+        last_branch_idx,
+        simulate_at,
+        bridge,
+    } = &mut *state
+    else {
+        return;
+    };
 
     let _span = info_span!("tas_studio::draw").entered();
 
@@ -1374,7 +1433,9 @@ pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
     }
 
     let state = STATE.borrow(marker);
-    let State::Editing { editor, .. } = &*state else { return };
+    let State::Editing { editor, .. } = &*state else {
+        return;
+    };
 
     let _span = info_span!("tas_studio::draw_hud").entered();
 

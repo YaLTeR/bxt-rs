@@ -531,9 +531,13 @@ pub fn receive_new_hltas_to_simulate() -> Option<HLTAS> {
 
 pub fn on_frame_simulated(get_frame_data: impl FnOnce() -> Frame) {
     let mut state = STATE.lock().unwrap();
-    let Some(server) = state.remote_server() else { return };
+    let Some(server) = state.remote_server() else {
+        return;
+    };
 
-    let SimulationState::Recording(pending_frames) = &mut server.simulation_state else { return };
+    let SimulationState::Recording(pending_frames) = &mut server.simulation_state else {
+        return;
+    };
 
     let frame = get_frame_data();
 
@@ -542,7 +546,9 @@ pub fn on_frame_simulated(get_frame_data: impl FnOnce() -> Frame) {
 
 pub fn send_simulation_result_to_server() {
     let mut state = STATE.lock().unwrap();
-    let Some(server) = state.remote_server() else { return };
+    let Some(server) = state.remote_server() else {
+        return;
+    };
 
     // Send empty frames if needed to avoid softlocks in unforeseen situations.
     let pending_frames = server.simulation_state.take_frames().unwrap_or_default();
@@ -555,7 +561,9 @@ pub fn send_simulation_result_to_server() {
 
 pub fn start_recording_frames() {
     let mut state = STATE.lock().unwrap();
-    let Some(server) = state.remote_server() else { return };
+    let Some(server) = state.remote_server() else {
+        return;
+    };
 
     if server.simulation_state.is_waiting_to_start() {
         server.simulation_state = SimulationState::Recording(Vec::new());

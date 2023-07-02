@@ -109,7 +109,9 @@ fn cap_separate_start_with_dir(marker: MainThreadMarker, target_dir: PathBuf) {
 }
 
 fn maybe_start_capture(marker: MainThreadMarker) {
-    let Some(current_demo) = &*CURRENT_DEMO.borrow(marker) else { return };
+    let Some(current_demo) = &*CURRENT_DEMO.borrow(marker) else {
+        return;
+    };
     let current_demo = c_str_to_os_string(current_demo);
     let current_demo = PathBuf::from(current_demo);
 
@@ -143,7 +145,9 @@ pub unsafe fn on_before_cl_playdemo_f(marker: MainThreadMarker) {
         return;
     }
 
-    let Some(demo_name) = commands::Args::new(marker).nth(1) else { return };
+    let Some(demo_name) = commands::Args::new(marker).nth(1) else {
+        return;
+    };
     *CURRENT_DEMO_PENDING.borrow_mut(marker) = Some(demo_name.to_owned());
 }
 

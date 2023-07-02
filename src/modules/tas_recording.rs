@@ -207,7 +207,9 @@ pub unsafe fn on_cl_move(marker: MainThreadMarker) {
     }
 
     let mut state = STATE.borrow_mut(marker);
-    let State::Recording(recorder) = &mut *state else { return };
+    let State::Recording(recorder) = &mut *state else {
+        return;
+    };
 
     let client_state = (*engine::cls.get(marker)).state;
     if client_state != 4 && client_state != 5 {
@@ -225,7 +227,9 @@ pub unsafe fn on_sv_frame_start(marker: MainThreadMarker) {
     }
 
     let mut state = STATE.borrow_mut(marker);
-    let State::Recording(recorder) = &mut *state else { return };
+    let State::Recording(recorder) = &mut *state else {
+        return;
+    };
 
     let client_state = (*engine::cls.get(marker)).state;
     if client_state != 4 && client_state != 5 {
@@ -244,7 +248,9 @@ pub unsafe fn on_sv_frame_start(marker: MainThreadMarker) {
 
 pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s, random_seed: u32) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Recording(recorder) = &mut *state else { return };
+    let State::Recording(recorder) = &mut *state else {
+        return;
+    };
 
     if recorder.hltas.properties.seeds.is_none() {
         recorder.hltas.properties.seeds = Some(hltas::types::Seeds {
@@ -430,7 +436,9 @@ pub unsafe fn on_cmd_start(marker: MainThreadMarker, cmd: usercmd_s, random_seed
 
 pub unsafe fn on_sv_frame_end(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Recording(recorder) = &mut *state else { return };
+    let State::Recording(recorder) = &mut *state else {
+        return;
+    };
 
     // With 0 ms frames, we might have built up a few "unused" frame times and a few frame bulks
     // with empty frame times to fill. Fill the frame times starting from the end and discard the
@@ -497,9 +505,13 @@ pub unsafe fn on_cbuf_addtext(marker: MainThreadMarker, text: *const c_char) {
     }
 
     let mut state = STATE.borrow_mut(marker);
-    let State::Recording(recorder) = &mut *state else { return };
+    let State::Recording(recorder) = &mut *state else {
+        return;
+    };
 
-    let Ok(text) = CStr::from_ptr(text).to_str() else { return };
+    let Ok(text) = CStr::from_ptr(text).to_str() else {
+        return;
+    };
 
     let text = text.trim_end_matches(&['\n', ';'][..]);
     if text.is_empty() {

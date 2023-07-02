@@ -332,7 +332,9 @@ pub fn receive_request_from_server() -> Result<Option<PlayRequest>, ()> {
         Err(TryLockError::WouldBlock) => return Ok(None),
         Ok(state) => state,
     };
-    let Some(State::Client { receiver, .. }) = state.as_mut() else { return Ok(None) };
+    let Some(State::Client { receiver, .. }) = state.as_mut() else {
+        return Ok(None);
+    };
 
     match receiver.try_recv() {
         Ok(request) => Ok(Some(request)),
@@ -349,7 +351,9 @@ pub fn receive_request_from_server() -> Result<Option<PlayRequest>, ()> {
 #[instrument(skip_all)]
 pub fn send_frame_to_server(frame: AccurateFrame) -> Result<(), ()> {
     let mut state = STATE.lock().unwrap();
-    let Some(State::Client { sender, .. }) = state.as_mut() else { return Ok(()) };
+    let Some(State::Client { sender, .. }) = state.as_mut() else {
+        return Ok(());
+    };
 
     match sender.send(frame) {
         Ok(()) => Ok(()),
@@ -368,7 +372,9 @@ pub fn receive_frame_from_client() -> Result<Option<AccurateFrame>, ()> {
         Err(TryLockError::WouldBlock) => return Ok(None),
         Ok(state) => state,
     };
-    let Some(State::Server(Some(RemoteClient { receiver, .. }))) = state.as_mut() else { return Ok(None) };
+    let Some(State::Server(Some(RemoteClient { receiver, .. }))) = state.as_mut() else {
+        return Ok(None);
+    };
 
     match receiver.try_recv() {
         Ok(frame) => Ok(Some(frame)),
@@ -385,7 +391,9 @@ pub fn receive_frame_from_client() -> Result<Option<AccurateFrame>, ()> {
 #[instrument(skip_all)]
 pub fn maybe_send_request_to_client(request: PlayRequest) -> Result<(), ()> {
     let mut state = STATE.lock().unwrap();
-    let Some(State::Server(Some(RemoteClient { sender, .. }))) = state.as_mut() else { return Ok(()) };
+    let Some(State::Server(Some(RemoteClient { sender, .. }))) = state.as_mut() else {
+        return Ok(());
+    };
 
     match sender.send(request) {
         Ok(()) => Ok(()),

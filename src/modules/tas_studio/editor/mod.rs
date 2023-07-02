@@ -493,7 +493,9 @@ impl Editor {
         mouse: MouseState,
         keyboard: KeyboardState,
     ) -> eyre::Result<()> {
-        let Some(adjustment) = &mut self.frame_count_adjustment else { return Ok(()) };
+        let Some(adjustment) = &mut self.frame_count_adjustment else {
+            return Ok(());
+        };
 
         let bulk_idx = self.selected_bulk_idx.unwrap();
         let (bulk, first_frame_idx) =
@@ -538,7 +540,9 @@ impl Editor {
         mouse: MouseState,
         keyboard: KeyboardState,
     ) -> eyre::Result<()> {
-        let Some(adjustment) = &mut self.yaw_adjustment else { return Ok(()) };
+        let Some(adjustment) = &mut self.yaw_adjustment else {
+            return Ok(());
+        };
 
         let bulk_idx = self.selected_bulk_idx.unwrap();
         let (bulk, first_frame_idx) =
@@ -581,7 +585,9 @@ impl Editor {
         mouse: MouseState,
         keyboard: KeyboardState,
     ) -> eyre::Result<()> {
-        let Some(adjustment) = &mut self.left_right_count_adjustment else { return Ok(()) };
+        let Some(adjustment) = &mut self.left_right_count_adjustment else {
+            return Ok(());
+        };
 
         let bulk_idx = self.selected_bulk_idx.unwrap();
         let (bulk, first_frame_idx) =
@@ -774,7 +780,9 @@ impl Editor {
             return Ok(());
         }
 
-        let Some(action) = self.undo_log.pop() else { return Ok(()) };
+        let Some(action) = self.undo_log.pop() else {
+            return Ok(());
+        };
         let branch_idx = self
             .branches
             .iter()
@@ -820,7 +828,9 @@ impl Editor {
             return Ok(());
         }
 
-        let Some(action) = self.redo_log.pop() else { return Ok(()) };
+        let Some(action) = self.redo_log.pop() else {
+            return Ok(());
+        };
         let branch_idx = self
             .branches
             .iter()
@@ -864,7 +874,9 @@ impl Editor {
             return Ok(());
         }
 
-        let Some(bulk_idx) = self.selected_bulk_idx else { return Ok(()) };
+        let Some(bulk_idx) = self.selected_bulk_idx else {
+            return Ok(());
+        };
 
         let (line_idx, line) = self
             .branch()
@@ -930,7 +942,9 @@ impl Editor {
             return Ok(());
         }
 
-        let Some(frame_idx) = self.hovered_frame_idx else { return Ok(()) };
+        let Some(frame_idx) = self.hovered_frame_idx else {
+            return Ok(());
+        };
 
         let total_frames = self
             .branch()
@@ -965,7 +979,9 @@ impl Editor {
             return Ok(());
         }
 
-        let Some(bulk_idx) = self.selected_bulk_idx else { return Ok(()) };
+        let Some(bulk_idx) = self.selected_bulk_idx else {
+            return Ok(());
+        };
         let bulk = self
             .branch_mut()
             .branch
@@ -989,7 +1005,9 @@ impl Editor {
             return Ok(());
         }
 
-        let Some(bulk_idx) = self.selected_bulk_idx else { return Ok(()) };
+        let Some(bulk_idx) = self.selected_bulk_idx else {
+            return Ok(());
+        };
         let (line_idx, bulk) = self
             .branch()
             .branch
@@ -1029,7 +1047,9 @@ impl Editor {
             return Ok(());
         }
 
-        let Some(bulk_idx) = self.selected_bulk_idx else { return Ok(()) };
+        let Some(bulk_idx) = self.selected_bulk_idx else {
+            return Ok(());
+        };
         let (line_idx, bulk) = self
             .branch()
             .branch
@@ -1071,7 +1091,9 @@ impl Editor {
             return Ok(());
         }
 
-        let Some(bulk_idx) = self.selected_bulk_idx else { return Ok(()) };
+        let Some(bulk_idx) = self.selected_bulk_idx else {
+            return Ok(());
+        };
         let (line_idx, bulk) = self
             .branch()
             .branch
@@ -1407,7 +1429,9 @@ impl Editor {
             return Ok(());
         }
 
-        let Some(frame_idx) = self.hovered_frame_idx else { return Ok(()) };
+        let Some(frame_idx) = self.hovered_frame_idx else {
+            return Ok(());
+        };
         self.set_stop_frame(frame_idx.try_into().unwrap())
     }
 
