@@ -227,6 +227,9 @@ fn replay(marker: MainThreadMarker) {
             editor.cancel_ongoing_adjustments();
             State::PreparingToPlayToEditor(editor, bridge)
         }
+        State::PlayingToEditor { editor, bridge, .. } => {
+            State::PreparingToPlayToEditor(editor, bridge)
+        }
         other => other,
     };
 }
