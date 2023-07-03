@@ -1684,13 +1684,16 @@ impl Editor {
             .sum::<usize>();
 
         // Only smooth when we have all accurate frames.
-        if self.branch().first_predicted_frame != frame_count + 1 {
+        if self.branch().first_predicted_frame != frame_count {
             return Ok(());
         }
 
-        let smoothed = smoothed_yaws(0.15, 0.03, 3., &self.branch().frames);
+        // TODO: Skip the very last frame because we never have accurate info for it at the moment.
+        let frames = &self.branch().frames;
+        let smoothed = smoothed_yaws(0.15, 0.03, 3., &frames[..frames.len() - 1]);
 
         let mut line = "target_yaw_override".to_string();
+        // Skip the first frame because it is the initial frame before the start of the TAS.
         for yaw in &smoothed[1..] {
             let yaw = yaw.to_degrees();
             write!(&mut line, " {yaw}").unwrap();
