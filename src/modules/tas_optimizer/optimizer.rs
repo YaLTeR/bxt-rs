@@ -426,6 +426,7 @@ impl Optimizer {
                 Line::VectorialStrafingConstraints(_) => (),
                 Line::Change(_) => (),
                 Line::TargetYawOverride(_) => (),
+                Line::RenderYawOverride(_) => (),
             }
         }
 
