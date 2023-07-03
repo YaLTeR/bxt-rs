@@ -65,6 +65,9 @@ pub struct Editor {
     /// no visible frame which could be under the cursor).
     hovered_frame_idx: Option<usize>,
 
+    /// Mouse state from the last time `tick()` was called.
+    prev_mouse_state: MouseState,
+
     // Adjustments MUST BE applied or cancelled, never simply dropped. Dropping without applying or
     // cancelling will result in database corruption!
     /// Frame bulk frame count adjustment.
@@ -80,9 +83,7 @@ pub struct Editor {
     /// Preserves the total frame count of the two adjacent frame bulks.
     ///
     /// This adjustment requires a following frame bulk to exist (since it keeps the total frame
-    /// count the same). However, even if the following frame bulk does not exist, this adjustment
-    /// will still activate but do nothing. This is done to make the mouse grabbing behavior more
-    /// obvious.
+    /// count the same).
     adjacent_frame_count_adjustment: Option<MouseAdjustment<u32>>,
     /// Adjacent frame bulk yaw adjustment.
     ///
@@ -271,6 +272,7 @@ impl Editor {
             hovered_bulk_idx: None,
             selected_bulk_idx: None,
             hovered_frame_idx: None,
+            prev_mouse_state: MouseState::default(),
             frame_count_adjustment: None,
             yaw_adjustment: None,
             left_right_count_adjustment: None,
@@ -403,8 +405,21 @@ impl Editor {
 
         let mouse_pos = mouse.pos.as_vec2();
 
-        // Only update the hovered and active bulk index if there are no ongoing adjustments.
-        if !self.is_any_adjustment_active() {
+        let any_mouse_was_down_before = self.prev_mouse_state.buttons.is_left_down()
+            || self.prev_mouse_state.buttons.is_right_down()
+            || self.prev_mouse_state.buttons.is_middle_down()
+            || self.prev_mouse_state.buttons.is_mouse4_down();
+
+        let any_mouse_is_down = mouse.buttons.is_left_down()
+            || mouse.buttons.is_right_down()
+            || mouse.buttons.is_middle_down()
+            || mouse.buttons.is_mouse4_down();
+
+        let mouse_became_down = !any_mouse_was_down_before && any_mouse_is_down;
+
+        // Only update the hovered and active bulk index if we are not holding, or just pressed a
+        // mouse button.
+        if !any_mouse_is_down || mouse_became_down {
             self.hovered_bulk_idx = iter::zip(
                 self.branches[self.branch_idx].frames.iter().skip(1),
                 bulk_idx_and_is_last(&self.branches[self.branch_idx].branch.script.lines),
@@ -436,196 +451,204 @@ impl Editor {
             // Extract bulk index.
             .map(|(_, bulk_idx)| bulk_idx);
 
-            // If any button is down, make the hovered bulk the selected bulk (or clear the selected
-            // bulk if not hovering anything).
-            if mouse.buttons.is_left_down()
-                || mouse.buttons.is_right_down()
-                || mouse.buttons.is_middle_down()
-                || mouse.buttons.is_mouse4_down()
-            {
+            // Only update the selected bulk and start the adjustments if the mouse has just been
+            // pressed.
+            if mouse_became_down {
+                // Since all mouse buttons that start adjustments have been down last frame, there
+                // cannot be any active adjustments now.
+                assert!(!self.is_any_adjustment_active());
+
+                // Make the hovered bulk the selected bulk (or clear the selected bulk if not
+                // hovering anything).
                 self.selected_bulk_idx = self.hovered_bulk_idx;
-            }
 
-            // Now that we have up-to-date active bulk index, start any adjustments if needed.
-            if let Some(active_bulk_idx) = self.selected_bulk_idx {
-                let branch = self.branch();
+                // Now that we have up-to-date active bulk index, start any adjustments if needed.
+                if let Some(active_bulk_idx) = self.selected_bulk_idx {
+                    let branch = self.branch();
 
-                // TODO add bulk to the iterator above to avoid re-walking.
-                //
-                // Prepare the iterator lazily in advance so it can be used in every branch.
-                //
-                // Returns the frame bulk and the index of the last frame simulated by this frame
-                // bulk. It seems to be 1 more than needed, but that is because the very first frame
-                // is always the initial frame, which is not simulated by any frame bulk, so we're
-                // essentially adding 1 to compensate.
-                let mut bulk_and_last_frame_idx = branch
-                    .branch
-                    .script
-                    .frame_bulks()
-                    .scan(0, |frame_idx, bulk| {
-                        *frame_idx += bulk.frame_count.get() as usize;
-                        Some((bulk, *frame_idx))
-                    })
-                    .skip(active_bulk_idx);
-
-                if mouse.buttons.is_left_down() {
-                    let (bulk, last_frame_idx) = bulk_and_last_frame_idx.next().unwrap();
-
-                    let frame = &branch.frames[last_frame_idx];
-                    let prev = &branch.frames[last_frame_idx - 1];
-
-                    let frame_screen = world_to_screen(frame.state.player.pos);
-                    let prev_screen = world_to_screen(prev.state.player.pos);
-
-                    let dir = match (frame_screen, prev_screen) {
-                        (Some(frame), Some(prev)) => frame - prev,
-                        // Presumably, previous frame is invisible, so just fall back.
-                        _ => Vec2::X,
-                    };
-
-                    self.frame_count_adjustment =
-                        Some(MouseAdjustment::new(bulk.frame_count.get(), mouse_pos, dir));
-                } else if mouse.buttons.is_right_down() {
-                    let (bulk, last_frame_idx) = bulk_and_last_frame_idx.next().unwrap();
-
-                    let frame = &branch.frames[last_frame_idx];
-                    let prev = &branch.frames[last_frame_idx - 1];
-
-                    let pos = frame.state.player.pos;
-                    let prev_pos = prev.state.player.pos;
-                    let perp = perpendicular(prev_pos, pos) * 5.;
-
-                    let a_screen = world_to_screen(pos + perp);
-                    let b_screen = world_to_screen(pos - perp);
-
-                    let dir = match (a_screen, b_screen) {
-                        (Some(a), Some(b)) => a - b,
-                        // Presumably, one of the points is invisible, so just fall back.
-                        _ => Vec2::X,
-                    };
-
-                    if let Some(yaw) = bulk.yaw() {
-                        self.yaw_adjustment = Some(MouseAdjustment::new(*yaw, mouse_pos, dir));
-                    } else if let Some(count) = bulk.left_right_count() {
-                        // Make the adjustment face the expected way.
-                        let dir = match bulk.auto_actions.movement {
-                            Some(AutoMovement::Strafe(StrafeSettings {
-                                dir: StrafeDir::RightLeft(_),
-                                ..
-                            })) => -dir,
-                            _ => dir,
-                        };
-
-                        self.left_right_count_adjustment =
-                            Some(MouseAdjustment::new(count.get(), mouse_pos, dir));
-                    }
-                } else if mouse.buttons.is_middle_down() {
-                    let (bulk, last_frame_idx) = bulk_and_last_frame_idx.next().unwrap();
-
-                    let frame = &branch.frames[last_frame_idx];
-                    let prev = &branch.frames[last_frame_idx - 1];
-
-                    let frame_screen = world_to_screen(frame.state.player.pos);
-                    let prev_screen = world_to_screen(prev.state.player.pos);
-
-                    let dir = match (frame_screen, prev_screen) {
-                        (Some(frame), Some(prev)) => frame - prev,
-                        // Presumably, previous frame is invisible, so just fall back.
-                        _ => Vec2::X,
-                    };
-
-                    self.adjacent_frame_count_adjustment =
-                        Some(MouseAdjustment::new(bulk.frame_count.get(), mouse_pos, dir));
-                } else if mouse.buttons.is_mouse4_down() {
-                    let (bulk, last_frame_idx) = bulk_and_last_frame_idx.next().unwrap();
-
-                    let frame = &branch.frames[last_frame_idx];
-                    let prev = &branch.frames[last_frame_idx - 1];
-
-                    let pos = frame.state.player.pos;
-                    let prev_pos = prev.state.player.pos;
-                    let perp = perpendicular(prev_pos, pos) * 5.;
-
-                    let a_screen = world_to_screen(pos + perp);
-                    let b_screen = world_to_screen(pos - perp);
-
-                    let dir = match (a_screen, b_screen) {
-                        (Some(a), Some(b)) => a - b,
-                        // Presumably, one of the points is invisible, so just fall back.
-                        _ => Vec2::X,
-                    };
-
-                    let active_line_idx = branch
+                    // TODO add bulk to the iterator above to avoid re-walking.
+                    //
+                    // Prepare the iterator lazily in advance so it can be used in every branch.
+                    //
+                    // Returns the frame bulk and the index of the last frame simulated by this
+                    // frame bulk. It seems to be 1 more than needed, but that is because the very
+                    // first frame is always the initial frame, which is not simulated by any frame
+                    // bulk, so we're essentially adding 1 to compensate.
+                    let mut bulk_and_last_frame_idx = branch
                         .branch
                         .script
-                        .lines
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, line)| matches!(line, Line::FrameBulk(_)))
-                        .nth(active_bulk_idx)
-                        .unwrap()
-                        .0;
+                        .frame_bulks()
+                        .scan(0, |frame_idx, bulk| {
+                            *frame_idx += bulk.frame_count.get() as usize;
+                            Some((bulk, *frame_idx))
+                        })
+                        .skip(active_bulk_idx);
 
-                    let bulks = branch
-                        .branch
-                        .script
-                        .lines
-                        .iter()
-                        .take(active_line_idx + 1)
-                        .rev()
-                        .filter_map(|prev_line| prev_line.frame_bulk())
-                        .enumerate();
+                    if mouse.buttons.is_left_down() {
+                        let (bulk, last_frame_idx) = bulk_and_last_frame_idx.next().unwrap();
 
-                    if let Some(yaw) = bulk.yaw() {
-                        let affected_bulk_count_back = bulks
-                            .take_while(|(_, prev_bulk)| prev_bulk.yaw() == Some(yaw))
-                            .last()
-                            .unwrap()
-                            .0;
-                        let first_bulk_idx = active_bulk_idx - affected_bulk_count_back;
+                        let frame = &branch.frames[last_frame_idx];
+                        let prev = &branch.frames[last_frame_idx - 1];
 
-                        let bulk_count = bulk_and_last_frame_idx
-                            .take_while(|(next_bulk, _)| next_bulk.yaw() == Some(yaw))
-                            .count()
-                            + (active_bulk_idx - first_bulk_idx + 1);
+                        let frame_screen = world_to_screen(frame.state.player.pos);
+                        let prev_screen = world_to_screen(prev.state.player.pos);
 
-                        self.adjacent_yaw_adjustment = Some(AdjacentYawAdjustment {
-                            mouse_adjustment: MouseAdjustment::new(*yaw, mouse_pos, dir),
-                            first_bulk_idx,
-                            bulk_count,
-                        });
-                    } else if let Some(count) = bulk.left_right_count() {
-                        let affected_bulk_count_back = bulks
-                            .take_while(|(_, prev_bulk)| {
-                                prev_bulk.left_right_count() == Some(count)
-                            })
-                            .last()
-                            .unwrap()
-                            .0;
-                        let first_bulk_idx = active_bulk_idx - affected_bulk_count_back;
-
-                        let bulk_count = bulk_and_last_frame_idx
-                            .take_while(|(next_bulk, _)| {
-                                next_bulk.left_right_count() == Some(count)
-                            })
-                            .count()
-                            + (active_bulk_idx - first_bulk_idx + 1);
-
-                        // Make the adjustment face the expected way.
-                        let dir = match bulk.auto_actions.movement {
-                            Some(AutoMovement::Strafe(StrafeSettings {
-                                dir: StrafeDir::RightLeft(_),
-                                ..
-                            })) => -dir,
-                            _ => dir,
+                        let dir = match (frame_screen, prev_screen) {
+                            (Some(frame), Some(prev)) => frame - prev,
+                            // Presumably, previous frame is invisible, so just fall back.
+                            _ => Vec2::X,
                         };
 
-                        self.adjacent_left_right_count_adjustment =
-                            Some(AdjacentLeftRightCountAdjustment {
-                                mouse_adjustment: MouseAdjustment::new(count.get(), mouse_pos, dir),
+                        self.frame_count_adjustment =
+                            Some(MouseAdjustment::new(bulk.frame_count.get(), mouse_pos, dir));
+                    } else if mouse.buttons.is_right_down() {
+                        let (bulk, last_frame_idx) = bulk_and_last_frame_idx.next().unwrap();
+
+                        let frame = &branch.frames[last_frame_idx];
+                        let prev = &branch.frames[last_frame_idx - 1];
+
+                        let pos = frame.state.player.pos;
+                        let prev_pos = prev.state.player.pos;
+                        let perp = perpendicular(prev_pos, pos) * 5.;
+
+                        let a_screen = world_to_screen(pos + perp);
+                        let b_screen = world_to_screen(pos - perp);
+
+                        let dir = match (a_screen, b_screen) {
+                            (Some(a), Some(b)) => a - b,
+                            // Presumably, one of the points is invisible, so just fall back.
+                            _ => Vec2::X,
+                        };
+
+                        if let Some(yaw) = bulk.yaw() {
+                            self.yaw_adjustment = Some(MouseAdjustment::new(*yaw, mouse_pos, dir));
+                        } else if let Some(count) = bulk.left_right_count() {
+                            // Make the adjustment face the expected way.
+                            let dir = match bulk.auto_actions.movement {
+                                Some(AutoMovement::Strafe(StrafeSettings {
+                                    dir: StrafeDir::RightLeft(_),
+                                    ..
+                                })) => -dir,
+                                _ => dir,
+                            };
+
+                            self.left_right_count_adjustment =
+                                Some(MouseAdjustment::new(count.get(), mouse_pos, dir));
+                        }
+                    } else if mouse.buttons.is_middle_down() {
+                        let (bulk, last_frame_idx) = bulk_and_last_frame_idx.next().unwrap();
+
+                        if bulk_and_last_frame_idx.next().is_some() {
+                            let frame = &branch.frames[last_frame_idx];
+                            let prev = &branch.frames[last_frame_idx - 1];
+
+                            let frame_screen = world_to_screen(frame.state.player.pos);
+                            let prev_screen = world_to_screen(prev.state.player.pos);
+
+                            let dir = match (frame_screen, prev_screen) {
+                                (Some(frame), Some(prev)) => frame - prev,
+                                // Presumably, previous frame is invisible, so just fall back.
+                                _ => Vec2::X,
+                            };
+
+                            self.adjacent_frame_count_adjustment =
+                                Some(MouseAdjustment::new(bulk.frame_count.get(), mouse_pos, dir));
+                        }
+                    } else if mouse.buttons.is_mouse4_down() {
+                        let (bulk, last_frame_idx) = bulk_and_last_frame_idx.next().unwrap();
+
+                        let frame = &branch.frames[last_frame_idx];
+                        let prev = &branch.frames[last_frame_idx - 1];
+
+                        let pos = frame.state.player.pos;
+                        let prev_pos = prev.state.player.pos;
+                        let perp = perpendicular(prev_pos, pos) * 5.;
+
+                        let a_screen = world_to_screen(pos + perp);
+                        let b_screen = world_to_screen(pos - perp);
+
+                        let dir = match (a_screen, b_screen) {
+                            (Some(a), Some(b)) => a - b,
+                            // Presumably, one of the points is invisible, so just fall back.
+                            _ => Vec2::X,
+                        };
+
+                        let active_line_idx = branch
+                            .branch
+                            .script
+                            .lines
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, line)| matches!(line, Line::FrameBulk(_)))
+                            .nth(active_bulk_idx)
+                            .unwrap()
+                            .0;
+
+                        let bulks = branch
+                            .branch
+                            .script
+                            .lines
+                            .iter()
+                            .take(active_line_idx + 1)
+                            .rev()
+                            .filter_map(|prev_line| prev_line.frame_bulk())
+                            .enumerate();
+
+                        if let Some(yaw) = bulk.yaw() {
+                            let affected_bulk_count_back = bulks
+                                .take_while(|(_, prev_bulk)| prev_bulk.yaw() == Some(yaw))
+                                .last()
+                                .unwrap()
+                                .0;
+                            let first_bulk_idx = active_bulk_idx - affected_bulk_count_back;
+
+                            let bulk_count = bulk_and_last_frame_idx
+                                .take_while(|(next_bulk, _)| next_bulk.yaw() == Some(yaw))
+                                .count()
+                                + (active_bulk_idx - first_bulk_idx + 1);
+
+                            self.adjacent_yaw_adjustment = Some(AdjacentYawAdjustment {
+                                mouse_adjustment: MouseAdjustment::new(*yaw, mouse_pos, dir),
                                 first_bulk_idx,
                                 bulk_count,
                             });
+                        } else if let Some(count) = bulk.left_right_count() {
+                            let affected_bulk_count_back = bulks
+                                .take_while(|(_, prev_bulk)| {
+                                    prev_bulk.left_right_count() == Some(count)
+                                })
+                                .last()
+                                .unwrap()
+                                .0;
+                            let first_bulk_idx = active_bulk_idx - affected_bulk_count_back;
+
+                            let bulk_count = bulk_and_last_frame_idx
+                                .take_while(|(next_bulk, _)| {
+                                    next_bulk.left_right_count() == Some(count)
+                                })
+                                .count()
+                                + (active_bulk_idx - first_bulk_idx + 1);
+
+                            // Make the adjustment face the expected way.
+                            let dir = match bulk.auto_actions.movement {
+                                Some(AutoMovement::Strafe(StrafeSettings {
+                                    dir: StrafeDir::RightLeft(_),
+                                    ..
+                                })) => -dir,
+                                _ => dir,
+                            };
+
+                            self.adjacent_left_right_count_adjustment =
+                                Some(AdjacentLeftRightCountAdjustment {
+                                    mouse_adjustment: MouseAdjustment::new(
+                                        count.get(),
+                                        mouse_pos,
+                                        dir,
+                                    ),
+                                    first_bulk_idx,
+                                    bulk_count,
+                                });
+                        }
                     }
                 }
             }
@@ -651,6 +674,8 @@ impl Editor {
             })
             // Extract frame index.
             .map(|(frame_idx, _)| frame_idx);
+
+        self.prev_mouse_state = mouse;
 
         Ok(())
     }
@@ -827,9 +852,7 @@ impl Editor {
             return self.store_operation(op);
         }
 
-        let Some((next_bulk, _)) = bulks.next() else {
-            return Ok(());
-        };
+        let next_bulk = bulks.next().unwrap().0;
         drop(bulks);
 
         let speed = keyboard.adjustment_speed();
@@ -1041,21 +1064,18 @@ impl Editor {
             let mut bulks =
                 bulk_and_first_frame_idx_mut(&mut self.branch_mut().branch.script).skip(bulk_idx);
             let (bulk, first_frame_idx) = bulks.next().unwrap();
+            let next_bulk = bulks.next().unwrap().0;
+            drop(bulks);
 
-            if let Some((next_bulk, _)) = bulks.next() {
-                drop(bulks);
+            let frame_count = bulk.frame_count.get();
+            if frame_count != original_value {
+                bulk.frame_count = NonZeroU32::new(original_value).unwrap();
 
-                let frame_count = bulk.frame_count.get();
-                if frame_count != original_value {
-                    bulk.frame_count = NonZeroU32::new(original_value).unwrap();
+                let delta = original_value as i64 - frame_count as i64;
+                next_bulk.frame_count =
+                    NonZeroU32::new((next_bulk.frame_count.get() as i64 - delta) as u32).unwrap();
 
-                    let delta = original_value as i64 - frame_count as i64;
-                    next_bulk.frame_count =
-                        NonZeroU32::new((next_bulk.frame_count.get() as i64 - delta) as u32)
-                            .unwrap();
-
-                    self.invalidate(first_frame_idx + min(frame_count, original_value) as usize);
-                }
+                self.invalidate(first_frame_idx + min(frame_count, original_value) as usize);
             }
         }
 
