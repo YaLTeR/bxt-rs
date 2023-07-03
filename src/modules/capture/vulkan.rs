@@ -710,26 +710,10 @@ impl Vulkan {
         self.device
             .end_command_buffer(self.command_buffer_accumulate)?;
 
-        // XXX: As far as I can tell, waiting for a fence here should not be required (and it makes
-        // the process quite slower). Unfortunately, I'm getting GPU fence timeouts if I don't do
-        // it. Maybe there's a synchronization bug in the code, but I don't see it, and the
-        // validation layers are silent too.
-        let create_info = vk::FenceCreateInfo::default();
-        let fence = self.device.create_fence(&create_info, None)?;
-
         let command_buffers = [self.command_buffer_accumulate];
         let submit_info = vk::SubmitInfo::builder().command_buffers(&command_buffers);
         self.device
-            .queue_submit(self.queue, &[*submit_info], fence)?;
-
-        {
-            let _span = info_span!("wait for fence").entered();
-
-            self.device
-                .wait_for_fences(&[fence], true, u64::max_value())?;
-        }
-
-        self.device.destroy_fence(fence, None);
+            .queue_submit(self.queue, &[*submit_info], vk::Fence::null())?;
 
         Ok(())
     }
