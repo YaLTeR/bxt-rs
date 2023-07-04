@@ -57,7 +57,7 @@ pub struct Player {
 
 impl Player {
     /// Returns the collision hull to use for tracing for this player state.
-    fn hull(&self) -> Hull {
+    pub fn hull(&self) -> Hull {
         if self.ducking {
             Hull::Ducked
         } else {
