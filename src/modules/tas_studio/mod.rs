@@ -54,6 +54,7 @@ impl Module for TasStudio {
             &BXT_HUD_TAS_STUDIO,
             &BXT_TAS_STUDIO_SHOW_CAMERA_ANGLES,
             &BXT_TAS_STUDIO_AUTO_SMOOTHING,
+            &BXT_TAS_STUDIO_SHOW_PLAYER_BBOX,
         ];
         CVARS
     }
@@ -151,6 +152,13 @@ will be displayed in orange alongside the original path.
 This is useful when working with global smoothing, as it will ever so slightly change the inputs, \
 which can easily snowball into desyncs. Seeing the smoothed path will let you adjust the TAS to \
 avoid big desyncs.",
+);
+
+static BXT_TAS_STUDIO_SHOW_PLAYER_BBOX: CVar = CVar::new(
+    b"bxt_tas_studio_show_player_bbox\0",
+    b"0\0",
+    "\
+Whether to show the player bbox for the frame under the cursor.",
 );
 
 static BXT_TAS_STUDIO_LOAD: Command = Command::new(
@@ -1250,6 +1258,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
 
     editor.set_show_camera_angles(BXT_TAS_STUDIO_SHOW_CAMERA_ANGLES.as_bool(marker));
     editor.set_auto_smoothing(BXT_TAS_STUDIO_AUTO_SMOOTHING.as_bool(marker));
+    editor.set_show_player_bbox(BXT_TAS_STUDIO_SHOW_PLAYER_BBOX.as_bool(marker));
 
     // SAFETY: if we have access to TriangleApi, it's safe to do player tracing too.
     let tracer = unsafe { Tracer::new(marker, true) }.unwrap();

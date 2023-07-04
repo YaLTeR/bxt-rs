@@ -7,7 +7,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use bxt_ipc_types::Frame;
-use bxt_strafe::Trace;
+use bxt_strafe::{Hull, Trace};
 use color_eyre::eyre::{self, ensure};
 use glam::{Vec2, Vec3};
 use hltas::types::{AutoMovement, Line, StrafeDir, StrafeSettings, VectorialStrafingConstraints};
@@ -99,6 +99,8 @@ pub struct Editor {
     show_camera_angles: bool,
     /// Whether to enable automatic global smoothing.
     auto_smoothing: bool,
+    /// Whether to show the player bbox for the frame under cursor.
+    show_player_bbox: bool,
     /// Index of the first frame that should be fully shown and able to be interacted with.
     ///
     /// Frames before this cannot be interacted with and can be hidden from display.
@@ -281,6 +283,7 @@ impl Editor {
             adjacent_left_right_count_adjustment: None,
             show_camera_angles: false,
             auto_smoothing: false,
+            show_player_bbox: false,
             first_shown_frame_idx: 0,
         })
     }
@@ -339,6 +342,10 @@ impl Editor {
 
     pub fn set_auto_smoothing(&mut self, value: bool) {
         self.auto_smoothing = value;
+    }
+
+    pub fn set_show_player_bbox(&mut self, value: bool) {
+        self.show_player_bbox = value;
     }
 
     /// Invalidates frames starting from given.
@@ -2170,6 +2177,52 @@ impl Editor {
                     end: pos + perp,
                     color: color * 0.5,
                 });
+            }
+
+            // If the frame is hovered, draw the player bbox.
+            if is_hovered && self.show_player_bbox {
+                let hull = frame.state.player.hull();
+
+                const HALF_SIZE: f32 = 16.;
+
+                let half_height = match hull {
+                    Hull::Standing => 36.,
+                    Hull::Ducked => 18.,
+                    Hull::Point => unreachable!(),
+                };
+
+                let offset = Vec3::new(HALF_SIZE, HALF_SIZE, half_height);
+
+                let mut draw_aa_cuboid = |corner1: Vec3, corner2: Vec3, color: Vec3| {
+                    let delta = corner2 - corner1;
+                    let dx = delta * Vec3::X;
+                    let dy = delta * Vec3::Y;
+                    let dz = delta * Vec3::Z;
+
+                    let lines = [
+                        // Bottom.
+                        (corner1, corner1 + dx),
+                        (corner1, corner1 + dy),
+                        (corner1 + dx, corner1 + dx + dy),
+                        (corner1 + dy, corner1 + dx + dy),
+                        // Top.
+                        (corner1 + dz, corner1 + dx + dz),
+                        (corner1 + dz, corner1 + dy + dz),
+                        (corner1 + dx + dz, corner1 + dx + dy + dz),
+                        (corner1 + dy + dz, corner1 + dx + dy + dz),
+                        // Sides.
+                        (corner1, corner1 + dz),
+                        (corner1 + dx, corner1 + dx + dz),
+                        (corner1 + dy, corner1 + dy + dz),
+                        (corner1 + dx + dy, corner1 + dx + dy + dz),
+                    ];
+
+                    for (start, end) in lines {
+                        draw(DrawLine { start, end, color });
+                    }
+                };
+
+                draw_aa_cuboid(pos - offset, pos + offset, color);
             }
 
             // If this is the stop frame, draw an indicator.
