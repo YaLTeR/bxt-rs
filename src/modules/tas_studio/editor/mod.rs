@@ -32,6 +32,10 @@ pub mod operation;
 pub mod toggle_auto_action;
 pub mod utils;
 
+const SMOOTHING_WINDOW_S: f32 = 0.15;
+const SMOOTHING_SMALL_WINDOW_S: f32 = 0.03;
+const SMOOTHING_SMALL_WINDOW_MUL: f32 = 3.;
+
 pub struct Editor {
     /// Database storing information on disk.
     db: Db,
@@ -1697,7 +1701,12 @@ impl Editor {
 
         // TODO: Skip the very last frame because we never have accurate info for it at the moment.
         let frames = &self.branch().frames;
-        let smoothed = smoothed_yaws(0.15, 0.03, 3., &frames[..frames.len() - 1]);
+        let smoothed = smoothed_yaws(
+            SMOOTHING_WINDOW_S,
+            SMOOTHING_SMALL_WINDOW_S,
+            SMOOTHING_SMALL_WINDOW_MUL,
+            &frames[..frames.len() - 1],
+        );
 
         let mut line = "target_yaw_override".to_string();
         // Skip the first frame because it is the initial frame before the start of the TAS.
@@ -1847,7 +1856,12 @@ impl Editor {
                 );
 
                 // Compute and insert the smoothed TargetYawOverride line.
-                let mut smoothed = smoothed_yaws(0.15, 0.03, 3., &branch.frames);
+                let mut smoothed = smoothed_yaws(
+                    SMOOTHING_WINDOW_S,
+                    SMOOTHING_SMALL_WINDOW_S,
+                    SMOOTHING_SMALL_WINDOW_MUL,
+                    &branch.frames,
+                );
                 // First yaw corresponds to the initial frame, which is not controlled by the TAS.
                 smoothed.remove(0);
                 for yaw in &mut smoothed {
