@@ -2189,7 +2189,7 @@ impl Editor {
             }
 
             // If the frame is hovered and not last in bulk, draw a splitting guide.
-            if is_hovered && !is_last_in_bulk {
+            if is_hovered && (!is_last_in_bulk || self.show_camera_angles) {
                 let perp = perpendicular(prev_pos, pos) * 2.;
 
                 draw(DrawLine {
