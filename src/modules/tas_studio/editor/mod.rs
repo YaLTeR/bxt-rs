@@ -2064,10 +2064,66 @@ impl Editor {
     fn draw_current_branch(&self, mut draw: impl FnMut(DrawLine)) {
         let branch = self.branch();
 
+        // Pairs of frames: (0, 1), (1, 2), (2, 3) and so on.
+        let mut frame_tuples = branch.frames.iter().tuple_windows().enumerate();
+
+        // This iterator returns indices of boundary frames between regions where smoothing is
+        // idempotent and where it isn't. The very first region is assumed to be idempotent.
+        //
+        // TODO: This should check the differences between successive yaws, not the yaws themselves.
+        //
+        // Our smoothing infinitely pads the input frames from both sides.
+        let mut same_yaw_duration = f32::INFINITY;
+        let mut same_yaw_started_at = Some(0);
+        let mut same_yaw_boundary_idx = None;
+        let mut yaw_region_change_frame_indices = iter::from_fn(|| {
+            if let Some(idx) = same_yaw_boundary_idx.take() {
+                return Some(idx);
+            }
+
+            for (prev_idx, (prev, frame)) in &mut frame_tuples {
+                let idx = prev_idx + 1;
+                let prev_yaw = prev.state.prev_frame_input.yaw;
+                let yaw = frame.state.prev_frame_input.yaw;
+
+                let mut starting_idx_to_return = None;
+                if yaw != prev_yaw {
+                    // TODO: check for off-by-ones.
+                    if same_yaw_duration >= SMOOTHING_WINDOW_S {
+                        starting_idx_to_return = same_yaw_started_at.take();
+                    }
+
+                    same_yaw_duration = 0.;
+
+                    // Rememeber the first frame of the same-yaw region.
+                    same_yaw_started_at = Some(idx);
+
+                    // We're starting a new window of yaws, and this frame is already included. So,
+                    // let the += below run.
+                }
+
+                same_yaw_duration += frame.parameters.frame_time;
+
+                if let Some(starting_idx) = starting_idx_to_return.take() {
+                    // If we went from a same-yaw region to a changing-yaw region, we need to return
+                    // both the index of the start of the same-yaw region, and the current index. Do
+                    // it with the help of an extra state variable.
+                    same_yaw_boundary_idx = Some(idx);
+                    return Some(starting_idx);
+                }
+            }
+
+            None
+        })
+        // We don't want the 0 element at the start.
+        .skip(1)
+        .peekable();
+
         // Draw regular frames.
         //
         // Note: there's no iterator cloning, which means all values are computed once, in one go.
         let mut collided_this_bulk = false;
+        let mut in_idempotent_smoothing_region = true;
         let iter = iter::zip(
             // Pairs of frames: (0, 1), (1, 2), (2, 3) and so on.
             branch.frames.iter().tuple_windows(),
@@ -2109,6 +2165,14 @@ impl Editor {
             let is_hovered = self.hovered_frame_idx == Some(idx);
             // If frame is the stop frame.
             let is_stop_frame = branch.branch.stop_frame as usize == idx;
+            // If frame is a smoothing boundary frame.
+            let is_smoothing_boundary = yaw_region_change_frame_indices.peek() == Some(&idx);
+
+            if is_smoothing_boundary {
+                in_idempotent_smoothing_region = !in_idempotent_smoothing_region;
+                // Advance the iterator if we hit the next frame.
+                yaw_region_change_frame_indices.next();
+            }
 
             // How many frames until the visible part, clamped in a way to allow for smooth dimming.
             let frames_until_hidden = self.first_shown_frame_idx.saturating_sub(idx - 1).min(20);
@@ -2157,10 +2221,16 @@ impl Editor {
                 let camera_yaw = frame.state.prev_frame_input.yaw;
                 let camera_vector = forward(camera_pitch, camera_yaw);
 
+                let hue = if in_idempotent_smoothing_region {
+                    Vec3::new(0., 1., 0.)
+                } else {
+                    Vec3::new(0.5, 0.5, 1.)
+                };
+
                 draw(DrawLine {
                     start: pos,
                     end: pos + camera_vector * 5.,
-                    color: Vec3::new(0.5, 0.5, 1.) * dim,
+                    color: hue * dim_inaccurate * dim_hidden,
                 });
             } else {
                 // If this frame is last in its frame bulk, draw a frame bulk handle.
