@@ -2113,20 +2113,18 @@ impl Editor {
             // How many frames until the visible part, clamped in a way to allow for smooth dimming.
             let frames_until_hidden = self.first_shown_frame_idx.saturating_sub(idx - 1).min(20);
 
-            let dim = {
-                // Inaccurate frames get dimmed.
-                let dim_inaccurate = if is_predicted { 0.6 } else { 1. };
-                // Unhovered bulks get dimmed.
-                let dim_unhovered = if is_hovered_bulk { 1. } else { 0.7 };
-                // Hidden frames become invisible, smoothly transition into visible.
-                let dim_hidden = if frames_until_hidden == 0 {
-                    1.
-                } else {
-                    (20 - frames_until_hidden) as f32 / 40.
-                };
-
-                dim_inaccurate * dim_unhovered * dim_hidden
+            // Inaccurate frames get dimmed.
+            let dim_inaccurate = if is_predicted { 0.6 } else { 1. };
+            // Unhovered bulks get dimmed.
+            let dim_unhovered = if is_hovered_bulk { 1. } else { 0.7 };
+            // Hidden frames become invisible, smoothly transition into visible.
+            let dim_hidden = if frames_until_hidden == 0 {
+                1.
+            } else {
+                (20 - frames_until_hidden) as f32 / 40.
             };
+            let dim = dim_inaccurate * dim_unhovered * dim_hidden;
+
             // Deselected bulks get desaturated.
             let saturation = if is_selected_bulk { 1. } else { 0.3 };
 
