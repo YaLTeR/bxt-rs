@@ -340,6 +340,14 @@ impl Editor {
         self.selected_bulk_idx
     }
 
+    pub fn hovered_frame_idx(&self) -> Option<usize> {
+        self.hovered_frame_idx
+    }
+
+    pub fn hovered_frame(&self) -> Option<&Frame> {
+        self.hovered_frame_idx.map(|idx| &self.branch().frames[idx])
+    }
+
     pub fn set_show_camera_angles(&mut self, value: bool) {
         self.show_camera_angles = value;
     }

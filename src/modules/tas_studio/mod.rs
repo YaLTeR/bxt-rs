@@ -1473,6 +1473,11 @@ pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
         }
     };
 
+    if let Some(hovered_frame) = editor.hovered_frame() {
+        let hovered_frame_idx = editor.hovered_frame_idx().unwrap();
+        add_hovered_frame_hud_lines(&mut text, hovered_frame_idx, hovered_frame);
+    }
+
     // Measure using our longest string and draw background.
     let height = text.split_inclusive(|c| *c == b'\0').count() as i32 * info.iCharHeight;
 
@@ -1491,6 +1496,15 @@ pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
     for line in text.split_inclusive(|c| *c == b'\0') {
         ml.line(line);
     }
+}
+
+fn add_hovered_frame_hud_lines(text: &mut Vec<u8>, frame_idx: usize, frame: &Frame) {
+    text.extend(b"Hovered Frame Info:\0");
+
+    write!(text, "  Frame #{}\0", frame_idx).unwrap();
+
+    let yaw = frame.state.prev_frame_input.yaw.to_degrees();
+    write!(text, "  Yaw: {:.3}\0", yaw).unwrap();
 }
 
 static PREVENT_UNPAUSE: MainThreadCell<bool> = MainThreadCell::new(false);
