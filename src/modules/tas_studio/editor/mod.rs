@@ -2186,7 +2186,14 @@ impl Editor {
             // Inaccurate frames get dimmed.
             let dim_inaccurate = if is_predicted { 0.6 } else { 1. };
             // Unhovered bulks get dimmed.
-            let dim_unhovered = if is_hovered_bulk { 1. } else { 0.7 };
+            let dim_unhovered = if self.in_camera_editor {
+                // TODO: fill this in when the camera editor gets editing.
+                1.
+            } else if is_hovered_bulk {
+                1.
+            } else {
+                0.7
+            };
             // Hidden frames become invisible, smoothly transition into visible.
             let dim_hidden = if frames_until_hidden == 0 {
                 1.
@@ -2195,21 +2202,26 @@ impl Editor {
             };
             let dim = dim_inaccurate * dim_unhovered * dim_hidden;
 
-            // Deselected bulks get desaturated.
-            let saturation = if is_selected_bulk { 1. } else { 0.3 };
-
-            let hue = if collided_this_frame {
-                // Collided frames are red.
-                Vec3::new(1., 0., 0.)
-            } else if collided_this_bulk {
-                // Non-collided frames in collided bulk are pink.
-                Vec3::new(1., 0.6, 0.6)
-            } else {
-                // Other frames are green.
-                Vec3::new(0., 1., 0.)
-            };
             const WHITE: Vec3 = Vec3::new(1., 1., 1.);
-            let color = WHITE.lerp(hue, saturation) * dim;
+            let color = if self.in_camera_editor {
+                WHITE * dim * 0.5
+            } else {
+                // Deselected bulks get desaturated.
+                let saturation = if is_selected_bulk { 1. } else { 0.3 };
+
+                let hue = if collided_this_frame {
+                    // Collided frames are red.
+                    Vec3::new(1., 0., 0.)
+                } else if collided_this_bulk {
+                    // Non-collided frames in collided bulk are pink.
+                    Vec3::new(1., 0.6, 0.6)
+                } else {
+                    // Other frames are green.
+                    Vec3::new(0., 1., 0.)
+                };
+
+                WHITE.lerp(hue, saturation) * dim
+            };
 
             let prev_pos = prev.state.player.pos;
             let pos = frame.state.player.pos;
@@ -2268,10 +2280,16 @@ impl Editor {
             if is_hovered && (!is_last_in_bulk || self.in_camera_editor) {
                 let perp = perpendicular(prev_pos, pos) * 2.;
 
+                let splitting_guide_color = if self.in_camera_editor {
+                    color
+                } else {
+                    color * 0.5
+                };
+
                 draw(DrawLine {
                     start: pos - perp,
                     end: pos + perp,
-                    color: color * 0.5,
+                    color: splitting_guide_color,
                 });
             }
 
