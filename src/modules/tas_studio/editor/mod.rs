@@ -57,12 +57,6 @@ pub struct Editor {
     /// Generation increases with every change to any of the branches' scripts and ensures that we
     /// don't store accurate frames that came from an outdated script.
     generation: u16,
-    /// Index of the hovered frame bulk.
-    hovered_bulk_idx: Option<usize>,
-    /// Index of the selected frame bulk.
-    ///
-    /// When drag-editing a frame bulk, it remains the selected one.
-    selected_bulk_idx: Option<usize>,
     /// Index of the hovered frame.
     ///
     /// Might be `None` for example if the player is looking away from the entire path (so there's
@@ -71,6 +65,27 @@ pub struct Editor {
 
     /// Mouse state from the last time `tick()` was called.
     prev_mouse_state: MouseState,
+
+    /// Whether to enable automatic global smoothing.
+    auto_smoothing: bool,
+    /// Whether to show the player bbox for the frame under cursor.
+    show_player_bbox: bool,
+    /// Index of the first frame that should be fully shown and able to be interacted with.
+    ///
+    /// Frames before this cannot be interacted with and can be hidden from display.
+    first_shown_frame_idx: usize,
+
+    /// Whether the editor is in the camera editor mode.
+    in_camera_editor: bool,
+
+    // ==============================================
+    // Movement-editor-specific state.
+    /// Index of the hovered frame bulk.
+    hovered_bulk_idx: Option<usize>,
+    /// Index of the selected frame bulk.
+    ///
+    /// When drag-editing a frame bulk, it remains the selected one.
+    selected_bulk_idx: Option<usize>,
 
     // Adjustments MUST BE applied or cancelled, never simply dropped. Dropping without applying or
     // cancelling will result in database corruption!
@@ -98,17 +113,8 @@ pub struct Editor {
     /// Adjusts the left-right count in the same way for all adjacent frame bulks with equal
     /// left-right count.
     adjacent_left_right_count_adjustment: Option<AdjacentLeftRightCountAdjustment>,
-
-    /// Whether to show camera angles for every frame.
-    show_camera_angles: bool,
-    /// Whether to enable automatic global smoothing.
-    auto_smoothing: bool,
-    /// Whether to show the player bbox for the frame under cursor.
-    show_player_bbox: bool,
-    /// Index of the first frame that should be fully shown and able to be interacted with.
-    ///
-    /// Frames before this cannot be interacted with and can be hidden from display.
-    first_shown_frame_idx: usize,
+    // ==============================================
+    // Camera-editor-specific state.
 }
 
 #[derive(Debug, Clone)]
@@ -285,7 +291,7 @@ impl Editor {
             adjacent_frame_count_adjustment: None,
             adjacent_yaw_adjustment: None,
             adjacent_left_right_count_adjustment: None,
-            show_camera_angles: false,
+            in_camera_editor: false,
             auto_smoothing: false,
             show_player_bbox: false,
             first_shown_frame_idx: 0,
@@ -348,8 +354,8 @@ impl Editor {
         self.hovered_frame_idx.map(|idx| &self.branch().frames[idx])
     }
 
-    pub fn set_show_camera_angles(&mut self, value: bool) {
-        self.show_camera_angles = value;
+    pub fn set_in_camera_editor(&mut self, value: bool) {
+        self.in_camera_editor = value;
     }
 
     pub fn set_auto_smoothing(&mut self, value: bool) {
@@ -2215,7 +2221,7 @@ impl Editor {
                 color,
             });
 
-            if self.show_camera_angles {
+            if self.in_camera_editor {
                 // Draw camera angle line.
                 let camera_pitch = frame.state.prev_frame_input.pitch;
                 let camera_yaw = frame.state.prev_frame_input.yaw;
@@ -2259,7 +2265,7 @@ impl Editor {
             }
 
             // If the frame is hovered and not last in bulk, draw a splitting guide.
-            if is_hovered && (!is_last_in_bulk || self.show_camera_angles) {
+            if is_hovered && (!is_last_in_bulk || self.in_camera_editor) {
                 let perp = perpendicular(prev_pos, pos) * 2.;
 
                 draw(DrawLine {

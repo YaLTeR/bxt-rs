@@ -52,7 +52,7 @@ impl Module for TasStudio {
     fn cvars(&self) -> &'static [&'static CVar] {
         static CVARS: &[&CVar] = &[
             &BXT_HUD_TAS_STUDIO,
-            &BXT_TAS_STUDIO_SHOW_CAMERA_ANGLES,
+            &BXT_TAS_STUDIO_CAMERA_EDITOR,
             &BXT_TAS_STUDIO_AUTO_SMOOTHING,
             &BXT_TAS_STUDIO_SHOW_PLAYER_BBOX,
         ];
@@ -132,11 +132,11 @@ static BXT_HUD_TAS_STUDIO: CVar = CVar::new(
 Whether to show the TAS studio HUD when in the TAS editor.",
 );
 
-static BXT_TAS_STUDIO_SHOW_CAMERA_ANGLES: CVar = CVar::new(
-    b"bxt_tas_studio_show_camera_angles\0",
+static BXT_TAS_STUDIO_CAMERA_EDITOR: CVar = CVar::new(
+    b"bxt_tas_studio_camera_editor\0",
     b"0\0",
     "\
-Whether to show the camera angles for evrey frame in the TAS editor.",
+Switches the TAS editor to the camera editor mode.",
 );
 
 static BXT_TAS_STUDIO_AUTO_SMOOTHING: CVar = CVar::new(
@@ -1256,7 +1256,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
         }
     }
 
-    editor.set_show_camera_angles(BXT_TAS_STUDIO_SHOW_CAMERA_ANGLES.as_bool(marker));
+    editor.set_in_camera_editor(BXT_TAS_STUDIO_CAMERA_EDITOR.as_bool(marker));
     editor.set_auto_smoothing(BXT_TAS_STUDIO_AUTO_SMOOTHING.as_bool(marker));
     editor.set_show_player_bbox(BXT_TAS_STUDIO_SHOW_PLAYER_BBOX.as_bool(marker));
 
