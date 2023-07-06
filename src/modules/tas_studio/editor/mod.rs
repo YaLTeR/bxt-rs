@@ -1733,6 +1733,100 @@ impl Editor {
         self.apply_operation(op)
     }
 
+    /// Applies smoothing to the segment under cursor.
+    pub fn apply_smoothing_to_hovered_segment(&mut self) -> eyre::Result<()> {
+        // Don't apply during active adjustments for consistency with other operations.
+        if self.is_any_adjustment_active() {
+            return Ok(());
+        }
+
+        if !self.in_camera_editor {
+            return Ok(());
+        }
+
+        let Some(hovered_frame_idx) = self.hovered_frame_idx else {
+            return Ok(());
+        };
+
+        // Find the input region the user is pointing at.
+        let frames = &self.branch().frames;
+        let Some([start, end]) = smoothing_input_regions(SMOOTHING_WINDOW_S, frames)
+            .find(|&[start, end]| hovered_frame_idx >= start && hovered_frame_idx <= end)
+        else {
+            return Ok(());
+        };
+
+        // Only smooth when we have all accurate frames.
+        if self.branch().first_predicted_frame <= end {
+            return Ok(());
+        }
+
+        let mut smoothed = smoothed_yaws(
+            SMOOTHING_WINDOW_S,
+            SMOOTHING_SMALL_WINDOW_S,
+            SMOOTHING_SMALL_WINDOW_MUL,
+            &frames[start..=end],
+        );
+
+        // Skip the first frame because it is the initial frame before the start of the TAS.
+        let first = start.max(1);
+        if start == 0 {
+            smoothed.remove(0);
+        }
+
+        // Convert to degrees for .hltas.
+        for yaw in &mut smoothed {
+            *yaw = yaw.to_degrees();
+        }
+
+        // Figure out where to insert the line.
+        let (line_idx, repeat) =
+            line_idx_and_repeat_at_frame(&self.branch().branch.script.lines, first - 1).unwrap();
+
+        if repeat == 0 {
+            let mut line = "target_yaw_override".to_string();
+            for yaw in smoothed {
+                write!(&mut line, " {yaw}").unwrap();
+            }
+
+            // There's already a frame bulk edge here, no need to split.
+            let op = Operation::Insert { line_idx, line };
+            self.apply_operation(op)
+        } else {
+            let target_yaw_override = Line::TargetYawOverride(smoothed);
+
+            // We need to insert the line in the middle of a frame bulk, so split it.
+            let mut line = self.branch().branch.script.lines[line_idx].clone();
+
+            let mut buffer = Vec::new();
+            hltas::write::gen_lines(&mut buffer, [&line])
+                .expect("writing to an in-memory buffer should never fail");
+            let from = String::from_utf8(buffer)
+                .expect("Line serialization should never produce invalid UTF-8");
+
+            let mut new_line = line.clone();
+
+            let bulk = line.frame_bulk_mut().unwrap();
+            let new_bulk = new_line.frame_bulk_mut().unwrap();
+
+            bulk.frame_count = NonZeroU32::new(repeat).unwrap();
+            new_bulk.frame_count = NonZeroU32::new(new_bulk.frame_count.get() - repeat).unwrap();
+
+            let mut buffer = Vec::new();
+            hltas::write::gen_lines(&mut buffer, [&line, &target_yaw_override, &new_line])
+                .expect("writing to an in-memory buffer should never fail");
+            let to = String::from_utf8(buffer)
+                .expect("Line serialization should never produce invalid UTF-8");
+
+            let op = Operation::ReplaceMultiple {
+                first_line_idx: line_idx,
+                from,
+                to,
+            };
+            self.apply_operation(op)
+        }
+    }
+
     /// Hides frames before the hovered frame, or shows all frames if there's no hovered frame.
     pub fn hide_frames_up_to_hovered(&mut self) -> eyre::Result<()> {
         // Don't apply during active adjustments for consistency with other operations.
@@ -2070,74 +2164,41 @@ impl Editor {
     fn draw_current_branch(&self, mut draw: impl FnMut(DrawLine)) {
         let branch = self.branch();
 
-        // Pairs of frames: (0, 1), (1, 2), (2, 3) and so on.
-        let mut frame_tuples = branch.frames.iter().tuple_windows().enumerate();
+        let mut is_idempotent_smoothing_region = false;
+        let in_idempotent_smoothing_region =
+            smoothing_idempotent_regions(SMOOTHING_WINDOW_S, &branch.frames)
+                .flatten()
+                .tuple_windows()
+                .flat_map(|(start, end)| {
+                    is_idempotent_smoothing_region = !is_idempotent_smoothing_region;
+                    (start..end).map(move |_| is_idempotent_smoothing_region)
+                });
 
-        // This iterator returns indices of boundary frames between regions where smoothing is
-        // idempotent and where it isn't. The very first region is assumed to be idempotent.
-        //
-        // TODO: This should check the differences between successive yaws, not the yaws themselves.
-        //
-        // Our smoothing infinitely pads the input frames from both sides.
-        let mut same_yaw_duration = f32::INFINITY;
-        let mut same_yaw_started_at = Some(0);
-        let mut same_yaw_boundary_idx = None;
-        let mut yaw_region_change_frame_indices = iter::from_fn(|| {
-            if let Some(idx) = same_yaw_boundary_idx.take() {
-                return Some(idx);
-            }
-
-            for (prev_idx, (prev, frame)) in &mut frame_tuples {
-                let idx = prev_idx + 1;
-                let prev_yaw = prev.state.prev_frame_input.yaw;
-                let yaw = frame.state.prev_frame_input.yaw;
-
-                let mut starting_idx_to_return = None;
-                if yaw != prev_yaw {
-                    // TODO: check for off-by-ones.
-                    if same_yaw_duration >= SMOOTHING_WINDOW_S {
-                        starting_idx_to_return = same_yaw_started_at.take();
-                    }
-
-                    same_yaw_duration = 0.;
-
-                    // Rememeber the first frame of the same-yaw region.
-                    same_yaw_started_at = Some(idx);
-
-                    // We're starting a new window of yaws, and this frame is already included. So,
-                    // let the += below run.
-                }
-
-                same_yaw_duration += frame.parameters.frame_time;
-
-                if let Some(starting_idx) = starting_idx_to_return.take() {
-                    // If we went from a same-yaw region to a changing-yaw region, we need to return
-                    // both the index of the start of the same-yaw region, and the current index. Do
-                    // it with the help of an extra state variable.
-                    same_yaw_boundary_idx = Some(idx);
-                    return Some(starting_idx);
-                }
-            }
-
-            None
-        })
-        // We don't want the 0 element at the start.
-        .skip(1)
-        .peekable();
+        // This does the same loop as `smoothing_idempotent_regions()` internally resulting in
+        // duplicate computation. This could be improved.
+        let smoothing_input_region = self.hovered_frame_idx.and_then(|hovered| {
+            smoothing_input_regions(SMOOTHING_WINDOW_S, &branch.frames)
+                .find(|&[start, end]| hovered >= start && hovered <= end)
+        });
 
         // Draw regular frames.
         //
         // Note: there's no iterator cloning, which means all values are computed once, in one go.
         let mut collided_this_bulk = false;
-        let mut in_idempotent_smoothing_region = true;
         let iter = iter::zip(
             // Pairs of frames: (0, 1), (1, 2), (2, 3) and so on.
             branch.frames.iter().tuple_windows(),
             // For second frame in pair: its frame bulk index and whether it's last in its bulk.
             bulk_idx_and_is_last(&branch.branch.script.lines),
         )
+        // For second frame in pair: whether it's in an idempotent smoothing region.
+        .zip(in_idempotent_smoothing_region.skip(1))
         .enumerate();
-        for (prev_idx, ((prev, frame), (bulk_idx, bulk, is_last_in_bulk))) in iter {
+        for (
+            prev_idx,
+            (((prev, frame), (bulk_idx, bulk, is_last_in_bulk)), in_idempotent_smoothing_region),
+        ) in iter
+        {
             let idx = prev_idx + 1;
 
             // Figure out if we had a collision this frame.
@@ -2171,14 +2232,10 @@ impl Editor {
             let is_hovered = self.hovered_frame_idx == Some(idx);
             // If frame is the stop frame.
             let is_stop_frame = branch.branch.stop_frame as usize == idx;
-            // If frame is a smoothing boundary frame.
-            let is_smoothing_boundary = yaw_region_change_frame_indices.peek() == Some(&idx);
 
-            if is_smoothing_boundary {
-                in_idempotent_smoothing_region = !in_idempotent_smoothing_region;
-                // Advance the iterator if we hit the next frame.
-                yaw_region_change_frame_indices.next();
-            }
+            // If frame is in the smoothing input region.
+            let in_smoothing_input_region =
+                smoothing_input_region.map_or(false, |[start, end]| idx >= start && idx <= end);
 
             // How many frames until the visible part, clamped in a way to allow for smooth dimming.
             let frames_until_hidden = self.first_shown_frame_idx.saturating_sub(idx - 1).min(20);
@@ -2239,7 +2296,9 @@ impl Editor {
                 let camera_yaw = frame.state.prev_frame_input.yaw;
                 let camera_vector = forward(camera_pitch, camera_yaw);
 
-                let hue = if in_idempotent_smoothing_region {
+                let hue = if in_smoothing_input_region {
+                    Vec3::new(1., 1., 0.)
+                } else if in_idempotent_smoothing_region {
                     Vec3::new(0., 1., 0.)
                 } else {
                     Vec3::new(0.5, 0.5, 1.)
@@ -2685,6 +2744,105 @@ fn replace_multiple_params<'a>(
     Some((first_line_idx, count, to))
 }
 
+/// Returns an iterator of pairs of start and one-past-end frame indices of regions where smoothing
+/// is idempotent.
+fn smoothing_idempotent_regions(
+    smoothing_window_size: f32,
+    frames: &[Frame],
+) -> impl Iterator<Item = [usize; 2]> + '_ {
+    // Pairs of frames: (0, 1), (1, 2), (2, 3) and so on.
+    let mut frame_tuples = frames.iter().tuple_windows().enumerate();
+
+    // TODO: This should check the differences between successive yaws, not the yaws themselves.
+    //
+    // Our smoothing infinitely pads the input frames from both sides.
+    let mut same_yaw_duration = f32::INFINITY;
+    let mut same_yaw_started_at = 0;
+    let mut done = false;
+    iter::from_fn(move || {
+        if done {
+            return None;
+        }
+
+        for (prev_idx, (prev, frame)) in &mut frame_tuples {
+            let idx = prev_idx + 1;
+            let prev_yaw = prev.state.prev_frame_input.yaw;
+            let yaw = frame.state.prev_frame_input.yaw;
+
+            let mut starting_idx_to_return = None;
+            if yaw != prev_yaw {
+                // TODO: check for off-by-ones.
+                if same_yaw_duration >= smoothing_window_size {
+                    starting_idx_to_return = Some(same_yaw_started_at);
+                }
+
+                same_yaw_duration = 0.;
+
+                // Rememeber the first frame of the same-yaw region.
+                same_yaw_started_at = idx;
+
+                // We're starting a new window of yaws, and this frame is already included. So, let
+                // the += below run.
+            }
+
+            same_yaw_duration += frame.parameters.frame_time;
+
+            if let Some(starting_idx) = starting_idx_to_return.take() {
+                // We detect when we go from a long-enough same-yaw region to a changing-yaw region.
+                // Therefore, we need to return both the index of the start of the same-yaw region,
+                // and the current index.
+                return Some([starting_idx, idx]);
+            }
+        }
+
+        done = true;
+
+        // Since our smoothing infinitely pads input frames from both sides, we can return the last
+        // region regardless of how many frames it contains.
+        Some([same_yaw_started_at, frames.len()])
+    })
+}
+
+/// Returns an iterator of pairs of start and end frame indices of input regions for smoothing.
+///
+/// Note: unlike `smoothing_idempotent_regions()`, this function returns inclusive end indices.
+fn smoothing_input_regions(
+    smoothing_window_size: f32,
+    frames: &[Frame],
+) -> impl Iterator<Item = [usize; 2]> + '_ {
+    smoothing_idempotent_regions(smoothing_window_size, frames)
+        .flatten()
+        .skip(1)
+        .tuples()
+        .map(move |(start, one_past_end)| {
+            let walk_back = move |mut idx: usize| {
+                let mut rem_win_size =
+                    smoothing_window_size / 2. - frames[idx].parameters.frame_time / 2.;
+
+                while idx > 0 && rem_win_size >= 0. {
+                    idx -= 1;
+                    rem_win_size -= frames[idx].parameters.frame_time;
+                }
+
+                idx
+            };
+
+            let walk_forward = move |mut idx: usize| {
+                let mut rem_win_size =
+                    smoothing_window_size / 2. - frames[idx].parameters.frame_time / 2.;
+
+                while idx + 1 < frames.len() && rem_win_size >= 0. {
+                    idx += 1;
+                    rem_win_size -= frames[idx].parameters.frame_time;
+                }
+
+                idx
+            };
+
+            [walk_back(start), walk_forward(one_past_end - 1)]
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use bxt_strafe::{Input, Parameters, State};
@@ -3006,6 +3164,153 @@ mod tests {
                     0.28000003,
                     -0.4,
                     -0.9,
+                ]
+            "#]],
+        );
+    }
+
+    fn check_smoothing_idempotent_regions(
+        input: impl IntoIterator<Item = (f32, f32)>,
+        window_size: f32,
+        expect: Expect,
+    ) {
+        let frames: Vec<Frame> = input
+            .into_iter()
+            .map(|(frame_time, yaw)| Frame {
+                parameters: Parameters {
+                    frame_time,
+                    ..Default::default()
+                },
+                state: State {
+                    prev_frame_input: Input {
+                        yaw,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+            })
+            .collect();
+
+        let regions = smoothing_idempotent_regions(window_size, &frames).collect::<Vec<_>>();
+        expect.assert_debug_eq(&regions);
+    }
+
+    #[test]
+    fn test_smoothing_idempotent_regions() {
+        check_smoothing_idempotent_regions(
+            [
+                (0.4, 1.),
+                (0.4, 1.),
+                (0.4, 3.),
+                (0.4, 3.),
+                (0.4, 4.),
+                (0.4, 4.),
+                (0.4, 4.),
+                (0.4, 5.),
+                (0.4, 5.),
+            ],
+            1.,
+            expect![[r#"
+                [
+                    [
+                        0,
+                        2,
+                    ],
+                    [
+                        4,
+                        7,
+                    ],
+                    [
+                        7,
+                        9,
+                    ],
+                ]
+            "#]],
+        );
+    }
+
+    fn check_smoothing_input_regions(
+        input: impl IntoIterator<Item = (f32, f32)>,
+        window_size: f32,
+        expect: Expect,
+    ) {
+        let frames: Vec<Frame> = input
+            .into_iter()
+            .map(|(frame_time, yaw)| Frame {
+                parameters: Parameters {
+                    frame_time,
+                    ..Default::default()
+                },
+                state: State {
+                    prev_frame_input: Input {
+                        yaw,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+            })
+            .collect();
+
+        let regions = smoothing_input_regions(window_size, &frames).collect::<Vec<_>>();
+        expect.assert_debug_eq(&regions);
+    }
+
+    #[test]
+    fn test_smoothing_input_regions_1() {
+        check_smoothing_input_regions(
+            [
+                (0.4, 1.),
+                (0.4, 1.),
+                (0.4, 3.),
+                (0.4, 3.),
+                (0.4, 4.),
+                (0.4, 4.),
+                (0.4, 4.),
+                (0.4, 5.),
+                (0.4, 5.),
+            ],
+            1.,
+            expect![[r#"
+                [
+                    [
+                        1,
+                        4,
+                    ],
+                    [
+                        6,
+                        7,
+                    ],
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn test_smoothing_input_regions_2() {
+        check_smoothing_input_regions(
+            [
+                (0.4, 1.),
+                (0.4, 1.),
+                (0.4, 3.),
+                (0.4, 3.),
+                (0.4, 4.),
+                (0.4, 4.),
+                (0.4, 4.),
+                (0.4, 5.),
+                (0.4, 5.),
+                (0.4, 6.),
+            ],
+            1.,
+            expect![[r#"
+                [
+                    [
+                        1,
+                        4,
+                    ],
+                    [
+                        6,
+                        9,
+                    ],
                 ]
             "#]],
         );

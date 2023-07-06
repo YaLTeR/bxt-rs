@@ -61,6 +61,7 @@ impl Module for TasStudio {
 
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[
+            &BXT_TAS_STUDIO_SMOOTH_GLOBALLY,
             &BXT_TAS_STUDIO_LOAD,
             &BXT_TAS_STUDIO_CONVERT_HLTAS,
             &BXT_TAS_STUDIO_REPLAY,
@@ -759,7 +760,7 @@ static BXT_TAS_STUDIO_SMOOTH: Command = Command::new(
     handler!(
         "bxt_tas_studio_smooth
 
-Applies global smoothing to the entire script.",
+Applies smoothing to the hovered segment.",
         smooth as fn(_)
     ),
 );
@@ -770,8 +771,30 @@ fn smooth(marker: MainThreadMarker) {
         return;
     };
 
+    if let Err(err) = editor.apply_smoothing_to_hovered_segment() {
+        con_print(marker, &format!("Error applying smoothing: {err}\n"));
+        *state = State::Idle;
+    }
+}
+
+static BXT_TAS_STUDIO_SMOOTH_GLOBALLY: Command = Command::new(
+    b"_bxt_tas_studio_smooth_globally\0",
+    handler!(
+        "_bxt_tas_studio_smooth_globally
+
+Applies smoothing to the entire script.",
+        smooth_globally as fn(_)
+    ),
+);
+
+fn smooth_globally(marker: MainThreadMarker) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
+
     if let Err(err) = editor.apply_global_smoothing() {
-        con_print(marker, &format!("Error applying global smoothing: {err}\n"));
+        con_print(marker, &format!("Error applying smoothing: {err}\n"));
         *state = State::Idle;
     }
 }
