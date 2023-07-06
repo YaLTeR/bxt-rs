@@ -355,6 +355,11 @@ impl Editor {
     }
 
     pub fn set_in_camera_editor(&mut self, value: bool) {
+        if self.in_camera_editor == value {
+            return;
+        }
+
+        self.cancel_ongoing_adjustments();
         self.in_camera_editor = value;
     }
 
@@ -1357,6 +1362,10 @@ impl Editor {
             return Ok(());
         }
 
+        if self.in_camera_editor {
+            return Ok(());
+        }
+
         let Some(bulk_idx) = self.selected_bulk_idx else {
             return Ok(());
         };
@@ -1392,6 +1401,10 @@ impl Editor {
             return Ok(());
         }
 
+        if self.in_camera_editor {
+            return Ok(());
+        }
+
         let Some((line_idx, line)) = self
             .branch()
             .branch
@@ -1422,6 +1435,10 @@ impl Editor {
     pub fn split(&mut self) -> eyre::Result<()> {
         // Don't split during active adjustments because they store the frame bulk index.
         if self.is_any_adjustment_active() {
+            return Ok(());
+        }
+
+        if self.in_camera_editor {
             return Ok(());
         }
 
@@ -1462,6 +1479,10 @@ impl Editor {
             return Ok(());
         }
 
+        if self.in_camera_editor {
+            return Ok(());
+        }
+
         let Some(bulk_idx) = self.selected_bulk_idx else {
             return Ok(());
         };
@@ -1485,6 +1506,10 @@ impl Editor {
     pub fn toggle_auto_action(&mut self, target: ToggleAutoActionTarget) -> eyre::Result<()> {
         // Don't toggle during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
+            return Ok(());
+        }
+
+        if self.in_camera_editor {
             return Ok(());
         }
 
@@ -1530,6 +1555,10 @@ impl Editor {
             return Ok(());
         }
 
+        if self.in_camera_editor {
+            return Ok(());
+        }
+
         let Some(bulk_idx) = self.selected_bulk_idx else {
             return Ok(());
         };
@@ -1571,6 +1600,10 @@ impl Editor {
     pub fn set_yaw(&mut self, new_yaw: Option<f32>) -> eyre::Result<()> {
         // Don't toggle during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
+            return Ok(());
+        }
+
+        if self.in_camera_editor {
             return Ok(());
         }
 
