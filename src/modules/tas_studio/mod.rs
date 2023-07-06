@@ -1053,6 +1053,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
                     let _ = remote::maybe_send_request_to_client(play_request);
                 }
             }
+            editor.recompute_extra_frame_data_if_needed();
         }
         State::PreparingToPlayToEditor(_, _) => unreachable!(),
     }
@@ -1141,6 +1142,7 @@ pub unsafe fn on_tas_playback_frame(
             }
             State::PlayingToEditor { editor, .. } => {
                 let _ = editor.apply_accurate_frame(accurate_frame);
+                editor.recompute_extra_frame_data_if_needed();
             }
             _ => unreachable!(),
         };

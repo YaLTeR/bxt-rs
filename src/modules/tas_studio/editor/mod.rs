@@ -413,6 +413,15 @@ impl Editor {
         self.generation = self.generation.wrapping_add(1);
     }
 
+    pub fn recompute_extra_frame_data_if_needed(&mut self) {
+        for branch_idx in 0..self.branches.len() {
+            let branch = &self.branches[branch_idx];
+            if branch.extra.len() != branch.frames.len() {
+                self.recompute_extra_frame_data(branch_idx);
+            }
+        }
+    }
+
     fn recompute_extra_frame_data(&mut self, branch_idx: usize) {
         let branch = &mut self.branches[branch_idx];
         let lines = &branch.branch.script.lines;
@@ -577,22 +586,20 @@ impl Editor {
 
             let branch = self.branch_mut();
             let simulator = Simulator::new(tracer, &branch.frames, &branch.branch.script.lines);
-
-            let mut pushed = false;
             for frame in simulator {
                 // Always simulate at least one frame.
                 branch.frames.push(frame);
-                pushed = true;
 
                 // Break if the deadline has passed.
                 if Instant::now() >= deadline {
                     break;
                 }
             }
+        }
 
-            if pushed {
-                self.recompute_extra_frame_data(self.branch_idx);
-            }
+        {
+            let _span = info_span!("recompute extra").entered();
+            self.recompute_extra_frame_data_if_needed();
         }
 
         let mouse_pos = mouse.pos.as_vec2();
@@ -2071,6 +2078,7 @@ impl Editor {
         Ok(())
     }
 
+    // You MUST check and recompute `extra` after calling this.
     pub fn apply_accurate_frame(&mut self, frame: AccurateFrame) -> Option<PlayRequest> {
         if frame.generation != self.generation {
             return None;
@@ -2089,8 +2097,7 @@ impl Editor {
                 if branch.frames.is_empty() {
                     branch.frames.push(frame.frame.clone());
                     branch.first_predicted_frame = 1;
-
-                    self.recompute_extra_frame_data(branch_idx);
+                    branch.extra.clear();
                 }
             }
 
@@ -2128,7 +2135,7 @@ impl Editor {
 
         if branch.frames.len() == frame.frame_idx {
             branch.frames.push(frame.frame);
-            self.recompute_extra_frame_data(self.branch_idx);
+            branch.extra.clear();
         } else {
             let current_frame = &mut branch.frames[frame.frame_idx];
             if *current_frame != frame.frame {
@@ -2137,7 +2144,7 @@ impl Editor {
                 branch.frames.truncate(frame.frame_idx + 1);
                 branch.first_predicted_frame =
                     min(branch.first_predicted_frame, frame.frame_idx + 1);
-                self.recompute_extra_frame_data(self.branch_idx);
+                branch.extra.clear();
             }
         }
 
