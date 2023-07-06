@@ -133,8 +133,9 @@ pub static ClientDLL_Init: Pointer<unsafe extern "C" fn()> = Pointer::empty_patt
 pub static ClientDLL_DrawTransparentTriangles: Pointer<unsafe extern "C" fn()> =
     Pointer::empty_patterns(
         b"ClientDLL_DrawTransparentTriangles\0",
-        // To find, search for "HUD_DrawTransparentTriangles". This sets the HUD_DrawTransparentTriangles pointer in
-        // cl_funcs; the larger function calling the pointer is ClientDLL_DrawTransparentTriangles().
+        // To find, search for "HUD_DrawTransparentTriangles". This sets the
+        // HUD_DrawTransparentTriangles pointer in cl_funcs; the larger function calling
+        // the pointer is ClientDLL_DrawTransparentTriangles().
         Patterns(&[
             // 8684
             pattern!(A1 ?? ?? ?? ?? 85 C0 74 ?? FF D0 6A 00 FF 15 ?? ?? ?? ?? 59 C3 90 90 90 90 90 90 90 90 90 90 90 A1 ?? ?? ?? ?? 85 C0 74 ?? FF E0),
@@ -186,8 +187,8 @@ pub static Con_Printf: Pointer<unsafe extern "C" fn(*const c_char, ...)> = Point
 );
 pub static Con_ToggleConsole_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"Con_ToggleConsole_f\0",
-    // To find, search for "toggleconsole". Look for console command registration, the callback will
-    // be Con_ToggleConsole_f().
+    // To find, search for "toggleconsole". Look for console command registration, the callback
+    // will be Con_ToggleConsole_f().
     Patterns(&[
         // 6153
         pattern!(E8 ?? ?? ?? ?? 85 C0 74 ?? E9 ?? ?? ?? ?? E9 ?? ?? ?? ?? 90 90 90 90 90 90 90 90 90 90 90 90 90),
@@ -307,10 +308,11 @@ pub static LoadEntityDLLs: Pointer<unsafe extern "C" fn(*const c_char)> = Pointe
 pub static Mod_LeafPVS: Pointer<unsafe extern "C" fn(*mut mleaf_s, *mut model_s) -> *mut c_void> =
     Pointer::empty_patterns(
         b"Mod_LeafPVS\0",
-        // To find, search for "Spawned a NULL entity!", the referencing function is CreateNamedEntity
-        // Find cross references, go to the global data, that data is g_engfuncsExportedToDlls
-        // Go up 5 entries and you'll find PVSFindEntities, inside this function first function
-        // call is Mod_PointInLeaf and the 2nd one is Mod_LeafPVS.
+        // To find, search for "Spawned a NULL entity!", the referencing function is
+        // CreateNamedEntity. Find cross references, go to the global data, that data is
+        // g_engfuncsExportedToDlls Go up 5 entries and you'll find PVSFindEntities, inside
+        // this function first function call is Mod_PointInLeaf and the 2nd one is
+        // Mod_LeafPVS.
         Patterns(&[
             // 6153
             pattern!(55 8B EC 8B 55 ?? 8B 45 ?? 8B 8A),
@@ -551,9 +553,10 @@ pub static R_DrawSkyBox: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
 pub static R_DrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     // To find, search for "R_RenderView". This is R_RenderView.
     // There will be an assignment of `mirror = false` and a function call follows.
-    // The next line should be branching of `r_refdef.onlyClientDraws == false`, which will repeat again in R_RenderView().
-    // R_DrawViewModel is called in the block where branch appears the second time.
-    // In that branch block, it contains two functions called. The first one is R_DrawViewModel().
+    // The next line should be branching of `r_refdef.onlyClientDraws == false`, which will repeat
+    // again in R_RenderView(). R_DrawViewModel is called in the block where branch appears the
+    // second time. In that branch block, it contains two functions called. The first one is
+    // R_DrawViewModel().
     b"R_DrawViewModel\0",
     Patterns(&[
         // 8684
@@ -566,8 +569,9 @@ pub static R_DrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_pat
 pub static R_PreDrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     // To find, search for "R_RenderView". This is R_RenderView.
     // There will be an assignment of `mirror = false` and a function call follows.
-    // The next line should be branching of `r_refdef.onlyClientDraws == false`, which will repeat again in R_RenderView().
-    // In that branching block, there is one function called, that is R_PreDrawViewModel().
+    // The next line should be branching of `r_refdef.onlyClientDraws == false`, which will repeat
+    // again in R_RenderView(). In that branching block, there is one function called, that is
+    // R_PreDrawViewModel().
     b"R_PreDrawViewModel\0",
     Patterns(&[
         // 8684
@@ -578,8 +582,8 @@ pub static R_PreDrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_
 pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"R_SetFrustum\0",
     // To find, search for "R_RenderView". This is R_RenderView(). The call between two if (global
-    // == 0) {} conditions is R_RenderScene(). Open R_RenderScene(). The second call after the first
-    // check is R_SetFrustum().
+    // == 0) {} conditions is R_RenderScene(). Open R_RenderScene(). The second call after the
+    // first check is R_SetFrustum().
     Patterns(&[
         // 6153
         pattern!(55 8B EC 83 EC 08 DB 05),
@@ -619,8 +623,8 @@ pub static S_PaintChannels: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empt
 pub static S_TransferStereo16: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
     b"S_TransferStereo16\0",
     // To find, find S_PaintChannels(), go into the last call before the while () condition in the
-    // end and this will be the function that that one falls through into. Alternatively, search for
-    // "S_TransferStereo16".
+    // end and this will be the function that that one falls through into. Alternatively, search
+    // for "S_TransferStereo16".
     Patterns(&[
         // 6153
         pattern!(55 8B EC 83 EC 0C D9 05 ?? ?? ?? ?? D8 0D),
@@ -640,10 +644,12 @@ pub static SCR_DrawLoading: Pointer<unsafe extern "C" fn()> = Pointer::empty_pat
     // This pattern also works for the pre-Steampipe builds.
 
     // Another way to find this would be as follows:
-    // To find, search for "transition" string, there is two functions with that string: SCR_BeginLoadingPlaque and SCR_EndLoadingPlaque.
-    // Go to SCR_EndLoadingPlaque, it can be recognized by having much less code than in SCR_BeginLoadingPlaque.
-    // Find second variable inside of that function, it would be scr_drawloading boolean.
-    // Now to references of variable and find other function with shortest code in it, that would be SCR_DrawLoading function.
+    // To find, search for "transition" string, there is two functions with that string:
+    // SCR_BeginLoadingPlaque and SCR_EndLoadingPlaque. Go to SCR_EndLoadingPlaque, it can be
+    // recognized by having much less code than in SCR_BeginLoadingPlaque. Find second variable
+    // inside of that function, it would be scr_drawloading boolean. Now to references of
+    // variable and find other function with shortest code in it, that would be SCR_DrawLoading
+    // function.
     Patterns(&[
         // 6153
         pattern!(A1 ?? ?? ?? ?? 85 C0 74 05 E9 ?? ?? FF FF C3 90),
@@ -735,8 +741,8 @@ pub static Sys_VID_FlipScreen_old: Pointer<unsafe extern "system" fn(*mut c_void
     Pointer::empty_patterns(
         // Not a real symbol name.
         b"_Z18Sys_VID_FlipScreenv_old\0",
-        // To find, search for "wglSwapBuffers". This pointer is assigned to a global, which is called
-        // in a single function, this is Sys_VID_FlipScreen().
+        // To find, search for "wglSwapBuffers". This pointer is assigned to a global, which is
+        // called in a single function, this is Sys_VID_FlipScreen().
         Patterns(&[
             // 1712
             pattern!(8B 44 24 ?? 50 FF 15 ?? ?? ?? ?? C2 04 00),
@@ -748,9 +754,9 @@ pub static V_ApplyShake: Pointer<unsafe extern "C" fn(*mut [f32; 3], *mut [f32; 
     Pointer::empty_patterns(
         b"V_ApplyShake\0",
         // To find, search for "ScreenShake". This is ClientDLL_Init(), near the bottom there are
-        // two similar function calls, one is using our string as the 1st param and another function
-        // as the 2nd param, open that function in the 2nd param. This is V_ScreenShake(), right
-        // above it is V_ApplyShake().
+        // two similar function calls, one is using our string as the 1st param and another
+        // function as the 2nd param, open that function in the 2nd param. This is
+        // V_ScreenShake(), right above it is V_ApplyShake().
         Patterns(&[
             // 6153
             pattern!(55 8B EC 8D 45 ?? 8D 4D ?? 50 8D 55 ?? 51 52 FF 15 ?? ?? ?? ?? 8B 45 ?? 83 C4 0C),

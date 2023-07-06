@@ -31,8 +31,9 @@ impl ToggleAutoActionTarget {
         match self {
             ToggleAutoActionTarget::Strafe { mut dir, type_ } => {
                 if matches!(dir, StrafeDir::Yaw(_) | StrafeDir::Line { .. }) {
-                    // Figure out the yaw we'll use by walking frame bulks backwards, starting from the
-                    // current one, until we find a frame bulk with a yaw angle set.
+                    // Figure out the yaw we'll use by walking frame bulks backwards, starting from
+                    // the current one, until we find a frame bulk with a yaw
+                    // angle set.
                     let line_idx = script
                         .lines
                         .iter()

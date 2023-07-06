@@ -1,5 +1,6 @@
 #![allow(unused, nonstandard_style, deref_nullptr, clippy::upper_case_acronyms)]
-/* bindgen halflife/common/triangleapi.h --allowlist-type triangleapi_s --allowlist-var 'TRI_.*' -- --target=i686-unknown-linux-gnu > src/ffi/triangleapi.rs */
+/* bindgen halflife/common/triangleapi.h --allowlist-type triangleapi_s --allowlist-var 'TRI_.*'
+ * -- --target=i686-unknown-linux-gnu > src/ffi/triangleapi.rs */
 
 use std::mem::{align_of, size_of};
 use std::os::raw::*;

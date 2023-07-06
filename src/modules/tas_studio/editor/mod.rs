@@ -160,8 +160,8 @@ struct MouseAdjustment<T> {
     ///
     /// We want dragging in the same direction to do the same thing over the whole duration of
     /// holding the mouse down. However, as we move the mouse and adjust the frame bulk, the
-    /// direction will change, as the path moves around. Therefore we need to store the direction at
-    /// the time the mouse was pressed and use that for the computation.
+    /// direction will change, as the path moves around. Therefore we need to store the direction
+    /// at the time the mouse was pressed and use that for the computation.
     ///
     /// The direction is normalized.
     reference_direction: Vec2,
@@ -251,8 +251,8 @@ struct DrawLine {
 struct AutoSmoothing {
     /// Smoothed script when it is available.
     ///
-    /// The smoothed script can only be created after receiving all accurate frames for the original
-    /// script. Before that it is `None`.
+    /// The smoothed script can only be created after receiving all accurate frames for the
+    /// original script. Before that it is `None`.
     script: Option<HLTAS>,
     /// Smoothed accurate frames.
     ///
@@ -2691,8 +2691,8 @@ fn smoothed_yaws(
                 }
 
                 if frame_time <= 0. {
-                    // Ran out of frame time in the branch above (entire frame was covered by the small
-                    // window).
+                    // Ran out of frame time in the branch above (entire frame was covered by the
+                    // small window).
                     return ControlFlow::Continue((rem_win_size, rem_small_win_size));
                 }
 

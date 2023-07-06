@@ -16,7 +16,8 @@ pub struct Frame {
 pub enum ServerRequest {
     /// Play this HLTAS without opening the editor.
     ///
-    /// Used for secondary clients that play the TAS to send the accurate frames to the main client.
+    /// Used for secondary clients that play the TAS to send the accurate frames to the main
+    /// client.
     Play(Play),
 }
 

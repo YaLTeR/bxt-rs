@@ -44,8 +44,8 @@ pub unsafe fn strip_prefix_comments(text: *const i8) -> *const i8 {
         while *text != 0 {
             match *text {
                 b'"' => quote = !quote,
-                // ; and \n terminate the command, but only outside of quotes. Make sure to leave the
-                // terminating character.
+                // ; and \n terminate the command, but only outside of quotes. Make sure to leave
+                // the terminating character.
                 b';' | b'\n' if !quote => break,
                 _ => (),
             }

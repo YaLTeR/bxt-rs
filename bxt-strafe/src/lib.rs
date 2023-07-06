@@ -126,8 +126,8 @@ pub struct State {
     pub prev_frame_input: Input,
     pub jumped: bool,
     pub move_traces: ArrayVec<TraceResult, 4>,
-    // Number of frames for [`StrafeDir::LeftRight`] or [`StrafeDir::RightLeft`] which goes from `0`
-    // to `count - 1`.
+    // Number of frames for [`StrafeDir::LeftRight`] or [`StrafeDir::RightLeft`] which goes from
+    // `0` to `count - 1`.
     pub strafe_cycle_frame_count: u32,
 }
 
