@@ -2830,12 +2830,10 @@ fn smoothing_idempotent_regions(
     smoothing_window_size: f32,
     frames: &[Frame],
 ) -> impl Iterator<Item = [usize; 2]> + '_ {
-    // Pairs of frames: (0, 1), (1, 2), (2, 3) and so on.
-    let mut frame_tuples = frames.iter().tuple_windows().enumerate();
-
     // TODO: This should check the differences between successive yaws, not the yaws themselves.
     //
     // Our smoothing infinitely pads the input frames from both sides.
+    let mut idx = 1;
     let mut same_yaw_duration = f32::INFINITY;
     let mut same_yaw_started_at = 0;
     let mut done = false;
@@ -2844,8 +2842,10 @@ fn smoothing_idempotent_regions(
             return None;
         }
 
-        for (prev_idx, (prev, frame)) in &mut frame_tuples {
-            let idx = prev_idx + 1;
+        while idx < frames.len() {
+            let prev = &frames[idx - 1];
+            let frame = &frames[idx];
+
             let prev_yaw = prev.state.prev_frame_input.yaw;
             let yaw = frame.state.prev_frame_input.yaw;
 
@@ -2867,11 +2867,13 @@ fn smoothing_idempotent_regions(
 
             same_yaw_duration += frame.parameters.frame_time;
 
-            if let Some(starting_idx) = starting_idx_to_return.take() {
+            idx += 1;
+
+            if let Some(starting_idx) = starting_idx_to_return {
                 // We detect when we go from a long-enough same-yaw region to a changing-yaw region.
                 // Therefore, we need to return both the index of the start of the same-yaw region,
                 // and the current index.
-                return Some([starting_idx, idx]);
+                return Some([starting_idx, idx - 1]);
             }
         }
 
