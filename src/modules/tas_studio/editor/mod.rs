@@ -19,8 +19,7 @@ use self::operation::{Key, Operation};
 use self::toggle_auto_action::ToggleAutoActionTarget;
 use self::utils::{
     bulk_and_first_frame_idx, bulk_and_first_frame_idx_mut, bulk_idx_and_is_last,
-    bulk_idx_and_repeat_at_frame, bulks_with_non_bulk_lines, line_idx_and_repeat_at_frame,
-    FrameBulkExt,
+    bulk_idx_and_repeat_at_frame, line_idx_and_repeat_at_frame, FrameBulkExt,
 };
 use super::remote::{AccurateFrame, PlayRequest};
 use crate::hooks::sdl::MouseState;
@@ -131,6 +130,10 @@ pub struct BranchData {
     pub frames: Vec<Frame>,
     /// Index of the first frame in `frames` that is predicted (inaccurate) rather than played.
     first_predicted_frame: usize,
+    /// Extra data for every frame.
+    ///
+    /// Has the same number of elements as `frames`.
+    extra: Vec<ExtraFrameData>,
     /// Data for auto-smoothing.
     auto_smoothing: AutoSmoothing,
 }
@@ -141,10 +144,31 @@ impl BranchData {
             branch,
             frames: vec![],
             first_predicted_frame: 0,
+            extra: vec![],
             auto_smoothing: AutoSmoothing {
                 script: None,
                 frames: vec![],
             },
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ExtraFrameData {
+    /// Index into `script.lines` of the frame bulk simulating this frame.
+    ///
+    /// For the very first frame, not simulated by any frame bulk, is equal to `usize::MAX`.
+    bulk_line_idx: usize,
+    in_smoothing_idempotent_region: bool,
+    smoothing_input_region: Option<(usize, usize)>,
+}
+
+impl Default for ExtraFrameData {
+    fn default() -> Self {
+        Self {
+            bulk_line_idx: usize::MAX,
+            in_smoothing_idempotent_region: false,
+            smoothing_input_region: None,
         }
     }
 }
@@ -384,7 +408,137 @@ impl Editor {
         branch.auto_smoothing.script = None;
         branch.auto_smoothing.frames.clear();
 
+        self.recompute_extra_frame_data(self.branch_idx);
+
         self.generation = self.generation.wrapping_add(1);
+    }
+
+    fn recompute_extra_frame_data(&mut self, branch_idx: usize) {
+        let branch = &mut self.branches[branch_idx];
+        let lines = &branch.branch.script.lines;
+        let frames = &branch.frames;
+
+        // Some of the data is dependent on future frames and cannot be trivially invalidated. To
+        // be safe, recompute it from scratch.
+        branch.extra.clear();
+
+        // First frame, not simulated by any frame bulk.
+        branch.extra.push(ExtraFrameData::default());
+
+        if frames.len() <= 1 {
+            // No frames past the initial frame.
+            return;
+        }
+
+        // Fill in all vector elements and `bulk_line_idx` values.
+        let (mut bulk_line_idx, mut frame_count) = lines
+            .iter()
+            .enumerate()
+            .find_map(|(idx, line)| line.frame_bulk().map(|bulk| (idx, bulk.frame_count.get())))
+            .unwrap();
+        let mut repeat = 0;
+        for _ in 1..frames.len() {
+            if repeat == frame_count {
+                loop {
+                    bulk_line_idx += 1;
+
+                    if let Some(bulk) = lines[bulk_line_idx].frame_bulk() {
+                        frame_count = bulk.frame_count.get();
+                        repeat = 0;
+                        break;
+                    }
+                }
+            }
+            repeat += 1;
+
+            branch.extra.push(ExtraFrameData {
+                bulk_line_idx,
+                ..Default::default()
+            });
+        }
+
+        // Fill in the rest of the fields.
+
+        // These functions find the first and the last frame of the smoothing input region, given
+        // the boundary frames of the non-idempotent region.
+        let walk_back = move |mut idx: usize| {
+            let mut rem_win_size = SMOOTHING_WINDOW_S / 2. - frames[idx].parameters.frame_time / 2.;
+
+            while idx > 0 && rem_win_size >= 0. {
+                idx -= 1;
+                rem_win_size -= frames[idx].parameters.frame_time;
+            }
+
+            idx
+        };
+
+        let walk_forward = move |mut idx: usize| {
+            let mut rem_win_size = SMOOTHING_WINDOW_S / 2. - frames[idx].parameters.frame_time / 2.;
+
+            while idx + 1 < frames.len() && rem_win_size >= 0. {
+                idx += 1;
+                rem_win_size -= frames[idx].parameters.frame_time;
+            }
+
+            idx
+        };
+
+        // TODO: This should check the differences between successive yaws, not the yaws themselves.
+        //
+        // Our smoothing infinitely pads the input frames from both sides.
+        let mut idempotent_duration = f32::INFINITY;
+        let mut idempotent_started_at = 0;
+        let mut input_started_at = 0;
+        for (prev_idx, (prev, frame)) in frames.iter().tuple_windows().enumerate() {
+            let idx = prev_idx + 1;
+
+            let prev_yaw = prev.state.prev_frame_input.yaw;
+            let yaw = frame.state.prev_frame_input.yaw;
+
+            if yaw != prev_yaw {
+                // TODO: check for off-by-ones.
+                if idempotent_duration >= SMOOTHING_WINDOW_S {
+                    // The region that just ended was idempotent. Mark it as such.
+                    for extra in &mut branch.extra[idempotent_started_at..idx] {
+                        extra.in_smoothing_idempotent_region = true;
+                    }
+
+                    if idempotent_started_at > 0 {
+                        let input_ended_at = walk_forward(idempotent_started_at - 1);
+                        let region = Some((input_started_at, input_ended_at));
+                        for extra in &mut branch.extra[input_started_at..=input_ended_at] {
+                            extra.smoothing_input_region = region;
+                        }
+                    }
+
+                    input_started_at = walk_back(idx);
+                }
+
+                idempotent_duration = 0.;
+
+                // Rememeber the first frame of the potentially idempotent region.
+                idempotent_started_at = idx;
+
+                // We're starting a new window of frames, and this frame is already included. So,
+                // let the += below run.
+            }
+
+            idempotent_duration += frame.parameters.frame_time;
+        }
+
+        // Since our smoothing infinitely pads input frames from both sides, the last region is
+        // idempotent regardless of how many frames it contains.
+        for extra in &mut branch.extra[idempotent_started_at..] {
+            extra.in_smoothing_idempotent_region = true;
+        }
+
+        if idempotent_started_at > 0 {
+            let input_ended_at = walk_forward(idempotent_started_at - 1);
+            let region = Some((input_started_at, input_ended_at));
+            for extra in &mut branch.extra[input_started_at..=input_ended_at] {
+                extra.smoothing_input_region = region;
+            }
+        }
     }
 
     fn is_any_adjustment_active(&self) -> bool {
@@ -423,14 +577,21 @@ impl Editor {
 
             let branch = self.branch_mut();
             let simulator = Simulator::new(tracer, &branch.frames, &branch.branch.script.lines);
+
+            let mut pushed = false;
             for frame in simulator {
                 // Always simulate at least one frame.
                 branch.frames.push(frame);
+                pushed = true;
 
                 // Break if the deadline has passed.
                 if Instant::now() >= deadline {
                     break;
                 }
+            }
+
+            if pushed {
+                self.recompute_extra_frame_data(self.branch_idx);
             }
         }
 
@@ -1784,8 +1945,7 @@ impl Editor {
 
         // Find the input region the user is pointing at.
         let frames = &self.branch().frames;
-        let Some([start, end]) = smoothing_input_regions(SMOOTHING_WINDOW_S, frames)
-            .find(|&[start, end]| hovered_frame_idx >= start && hovered_frame_idx <= end)
+        let Some((start, end)) = self.branch().extra[hovered_frame_idx].smoothing_input_region
         else {
             return Ok(());
         };
@@ -1919,14 +2079,18 @@ impl Editor {
         // TODO: make this nicer somehow maybe?
         if frame.frame_idx == 0 {
             // Initial frame is the same for all branches and between smoothed/unsmoothed.
-            for branch in &mut self.branches {
-                if branch.frames.is_empty() {
-                    branch.frames.push(frame.frame.clone());
-                    branch.first_predicted_frame = 1;
-                }
+            for branch_idx in 0..self.branches.len() {
+                let branch = &mut self.branches[branch_idx];
 
                 if branch.auto_smoothing.frames.is_empty() {
                     branch.auto_smoothing.frames.push(frame.frame.clone());
+                }
+
+                if branch.frames.is_empty() {
+                    branch.frames.push(frame.frame.clone());
+                    branch.first_predicted_frame = 1;
+
+                    self.recompute_extra_frame_data(branch_idx);
                 }
             }
 
@@ -1964,6 +2128,7 @@ impl Editor {
 
         if branch.frames.len() == frame.frame_idx {
             branch.frames.push(frame.frame);
+            self.recompute_extra_frame_data(self.branch_idx);
         } else {
             let current_frame = &mut branch.frames[frame.frame_idx];
             if *current_frame != frame.frame {
@@ -1972,10 +2137,12 @@ impl Editor {
                 branch.frames.truncate(frame.frame_idx + 1);
                 branch.first_predicted_frame =
                     min(branch.first_predicted_frame, frame.frame_idx + 1);
+                self.recompute_extra_frame_data(self.branch_idx);
             }
         }
 
         if self.auto_smoothing {
+            let branch = &mut self.branches[frame.branch_idx];
             let frame_count = branch
                 .branch
                 .script
@@ -2198,37 +2365,9 @@ impl Editor {
     fn draw_current_branch(&self, mut draw: impl FnMut(DrawLine)) {
         let branch = self.branch();
 
-        let mut is_idempotent_smoothing_region = false;
-        let in_idempotent_smoothing_region =
-            smoothing_idempotent_regions(SMOOTHING_WINDOW_S, &branch.frames)
-                .flatten()
-                .tuple_windows()
-                .flat_map(|(start, end)| {
-                    is_idempotent_smoothing_region = !is_idempotent_smoothing_region;
-                    (start..end).map(move |_| is_idempotent_smoothing_region)
-                });
-
-        // This does the same loop as `smoothing_idempotent_regions()` internally resulting in
-        // duplicate computation. This could be improved.
-        let smoothing_input_region = self.hovered_frame_idx.and_then(|hovered| {
-            smoothing_input_regions(SMOOTHING_WINDOW_S, &branch.frames)
-                .find(|&[start, end]| hovered >= start && hovered <= end)
-        });
-
-        let non_bulk_lines = bulks_with_non_bulk_lines(&branch.branch.script.lines)
-            .flat_map(|lines| {
-                let (end, empties) = if let Some(frame_bulk) = lines.last().unwrap().frame_bulk() {
-                    (lines.len() - 1, frame_bulk.frame_count.get() - 1)
-                } else {
-                    (lines.len(), 0)
-                };
-                iter::once(&lines[0..end]).chain((0..empties).map(|_| &[][..]))
-            })
-            // When the script ends with a frame bulk, this iterator will be missing the last frame.
-            // To fix this, append an empty element unconditionally. Since zip cuts off the iterator
-            // when any of the iterators ends, this element should not pose a problem when the
-            // script ends with a non-bulk frame.
-            .chain([&[][..]]);
+        let smoothing_input_region = self
+            .hovered_frame_idx
+            .and_then(|idx| branch.extra[idx].smoothing_input_region);
 
         // Draw regular frames.
         //
@@ -2240,21 +2379,10 @@ impl Editor {
             // For second frame in pair: its frame bulk index and whether it's last in its bulk.
             bulk_idx_and_is_last(&branch.branch.script.lines),
         )
-        // For second frame in pair: whether it's in an idempotent smoothing region.
-        .zip(in_idempotent_smoothing_region.skip(1))
-        .zip(non_bulk_lines.skip(1))
+        // Extra data for the second frame in the pair.
+        .zip(branch.extra.iter().skip(1))
         .enumerate();
-        for (
-            prev_idx,
-            (
-                (
-                    ((prev, frame), (bulk_idx, bulk, is_last_in_bulk)),
-                    in_idempotent_smoothing_region,
-                ),
-                non_bulk_lines,
-            ),
-        ) in iter
-        {
+        for (prev_idx, (((prev, frame), (bulk_idx, bulk, is_last_in_bulk)), extra)) in iter {
             let idx = prev_idx + 1;
 
             // Figure out if we had a collision this frame.
@@ -2291,7 +2419,7 @@ impl Editor {
 
             // If frame is in the smoothing input region.
             let in_smoothing_input_region =
-                smoothing_input_region.map_or(false, |[start, end]| idx >= start && idx <= end);
+                smoothing_input_region.map_or(false, |(start, end)| idx >= start && idx <= end);
 
             // How many frames until the visible part, clamped in a way to allow for smooth dimming.
             let frames_until_hidden = self.first_shown_frame_idx.saturating_sub(idx - 1).min(20);
@@ -2354,7 +2482,7 @@ impl Editor {
 
                 let hue = if in_smoothing_input_region {
                     Vec3::new(1., 0.75, 0.5)
-                } else if in_idempotent_smoothing_region {
+                } else if extra.in_smoothing_idempotent_region {
                     Vec3::new(0., 1., 0.)
                 } else {
                     Vec3::new(0.5, 0.5, 1.)
@@ -2366,28 +2494,34 @@ impl Editor {
                     color: hue * dim_inaccurate * dim_hidden,
                 });
 
-                // Show the last camera line, if any.
-                if let Some(camera_line) = non_bulk_lines.iter().rfind(|line| {
-                    matches!(
-                        line,
-                        Line::Change(_)
-                            | Line::TargetYawOverride { .. }
-                            | Line::RenderYawOverride { .. }
-                    )
-                }) {
-                    let perp = perpendicular(prev_pos, pos) * 5.;
+                if is_last_in_bulk {
+                    // Show the last camera line, if any.
+                    if let Some(camera_line) = branch.branch.script.lines[extra.bulk_line_idx + 1..]
+                        .iter()
+                        .take_while(|line| line.frame_bulk().is_none())
+                        .find(|line| {
+                            matches!(
+                                line,
+                                Line::Change(_)
+                                    | Line::TargetYawOverride { .. }
+                                    | Line::RenderYawOverride { .. }
+                            )
+                        })
+                    {
+                        let perp = perpendicular(prev_pos, pos) * 5.;
 
-                    let hue = match camera_line {
-                        Line::TargetYawOverride { .. } => Vec3::new(1., 0.75, 0.5),
-                        Line::RenderYawOverride { .. } => Vec3::new(1., 0., 0.),
-                        _ => WHITE,
-                    };
+                        let hue = match camera_line {
+                            Line::TargetYawOverride { .. } => Vec3::new(1., 0.75, 0.5),
+                            Line::RenderYawOverride { .. } => Vec3::new(1., 0., 0.),
+                            _ => WHITE,
+                        };
 
-                    draw(DrawLine {
-                        start: pos - perp,
-                        end: pos + perp,
-                        color: hue * dim,
-                    });
+                        draw(DrawLine {
+                            start: pos - perp,
+                            end: pos + perp,
+                            color: hue * dim,
+                        });
+                    }
                 }
             } else {
                 // If this frame is last in its frame bulk, draw a frame bulk handle.
@@ -2824,107 +2958,6 @@ fn replace_multiple_params<'a>(
     Some((first_line_idx, count, to))
 }
 
-/// Returns an iterator of pairs of start and one-past-end frame indices of regions where smoothing
-/// is idempotent.
-fn smoothing_idempotent_regions(
-    smoothing_window_size: f32,
-    frames: &[Frame],
-) -> impl Iterator<Item = [usize; 2]> + '_ {
-    // TODO: This should check the differences between successive yaws, not the yaws themselves.
-    //
-    // Our smoothing infinitely pads the input frames from both sides.
-    let mut idx = 1;
-    let mut same_yaw_duration = f32::INFINITY;
-    let mut same_yaw_started_at = 0;
-    let mut done = false;
-    iter::from_fn(move || {
-        if done {
-            return None;
-        }
-
-        while idx < frames.len() {
-            let prev = &frames[idx - 1];
-            let frame = &frames[idx];
-
-            let prev_yaw = prev.state.prev_frame_input.yaw;
-            let yaw = frame.state.prev_frame_input.yaw;
-
-            let mut starting_idx_to_return = None;
-            if yaw != prev_yaw {
-                // TODO: check for off-by-ones.
-                if same_yaw_duration >= smoothing_window_size {
-                    starting_idx_to_return = Some(same_yaw_started_at);
-                }
-
-                same_yaw_duration = 0.;
-
-                // Rememeber the first frame of the same-yaw region.
-                same_yaw_started_at = idx;
-
-                // We're starting a new window of yaws, and this frame is already included. So, let
-                // the += below run.
-            }
-
-            same_yaw_duration += frame.parameters.frame_time;
-
-            idx += 1;
-
-            if let Some(starting_idx) = starting_idx_to_return {
-                // We detect when we go from a long-enough same-yaw region to a changing-yaw region.
-                // Therefore, we need to return both the index of the start of the same-yaw region,
-                // and the current index.
-                return Some([starting_idx, idx - 1]);
-            }
-        }
-
-        done = true;
-
-        // Since our smoothing infinitely pads input frames from both sides, we can return the last
-        // region regardless of how many frames it contains.
-        Some([same_yaw_started_at, frames.len()])
-    })
-}
-
-/// Returns an iterator of pairs of start and end frame indices of input regions for smoothing.
-///
-/// Note: unlike `smoothing_idempotent_regions()`, this function returns inclusive end indices.
-fn smoothing_input_regions(
-    smoothing_window_size: f32,
-    frames: &[Frame],
-) -> impl Iterator<Item = [usize; 2]> + '_ {
-    smoothing_idempotent_regions(smoothing_window_size, frames)
-        .flatten()
-        .skip(1)
-        .tuples()
-        .map(move |(start, one_past_end)| {
-            let walk_back = move |mut idx: usize| {
-                let mut rem_win_size =
-                    smoothing_window_size / 2. - frames[idx].parameters.frame_time / 2.;
-
-                while idx > 0 && rem_win_size >= 0. {
-                    idx -= 1;
-                    rem_win_size -= frames[idx].parameters.frame_time;
-                }
-
-                idx
-            };
-
-            let walk_forward = move |mut idx: usize| {
-                let mut rem_win_size =
-                    smoothing_window_size / 2. - frames[idx].parameters.frame_time / 2.;
-
-                while idx + 1 < frames.len() && rem_win_size >= 0. {
-                    idx += 1;
-                    rem_win_size -= frames[idx].parameters.frame_time;
-                }
-
-                idx
-            };
-
-            [walk_back(start), walk_forward(one_past_end - 1)]
-        })
-}
-
 #[cfg(test)]
 mod tests {
     use bxt_strafe::{Input, Parameters, State};
@@ -3246,153 +3279,6 @@ mod tests {
                     0.28000003,
                     -0.4,
                     -0.9,
-                ]
-            "#]],
-        );
-    }
-
-    fn check_smoothing_idempotent_regions(
-        input: impl IntoIterator<Item = (f32, f32)>,
-        window_size: f32,
-        expect: Expect,
-    ) {
-        let frames: Vec<Frame> = input
-            .into_iter()
-            .map(|(frame_time, yaw)| Frame {
-                parameters: Parameters {
-                    frame_time,
-                    ..Default::default()
-                },
-                state: State {
-                    prev_frame_input: Input {
-                        yaw,
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-            })
-            .collect();
-
-        let regions = smoothing_idempotent_regions(window_size, &frames).collect::<Vec<_>>();
-        expect.assert_debug_eq(&regions);
-    }
-
-    #[test]
-    fn test_smoothing_idempotent_regions() {
-        check_smoothing_idempotent_regions(
-            [
-                (0.4, 1.),
-                (0.4, 1.),
-                (0.4, 3.),
-                (0.4, 3.),
-                (0.4, 4.),
-                (0.4, 4.),
-                (0.4, 4.),
-                (0.4, 5.),
-                (0.4, 5.),
-            ],
-            1.,
-            expect![[r#"
-                [
-                    [
-                        0,
-                        2,
-                    ],
-                    [
-                        4,
-                        7,
-                    ],
-                    [
-                        7,
-                        9,
-                    ],
-                ]
-            "#]],
-        );
-    }
-
-    fn check_smoothing_input_regions(
-        input: impl IntoIterator<Item = (f32, f32)>,
-        window_size: f32,
-        expect: Expect,
-    ) {
-        let frames: Vec<Frame> = input
-            .into_iter()
-            .map(|(frame_time, yaw)| Frame {
-                parameters: Parameters {
-                    frame_time,
-                    ..Default::default()
-                },
-                state: State {
-                    prev_frame_input: Input {
-                        yaw,
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-            })
-            .collect();
-
-        let regions = smoothing_input_regions(window_size, &frames).collect::<Vec<_>>();
-        expect.assert_debug_eq(&regions);
-    }
-
-    #[test]
-    fn test_smoothing_input_regions_1() {
-        check_smoothing_input_regions(
-            [
-                (0.4, 1.),
-                (0.4, 1.),
-                (0.4, 3.),
-                (0.4, 3.),
-                (0.4, 4.),
-                (0.4, 4.),
-                (0.4, 4.),
-                (0.4, 5.),
-                (0.4, 5.),
-            ],
-            1.,
-            expect![[r#"
-                [
-                    [
-                        1,
-                        4,
-                    ],
-                    [
-                        6,
-                        7,
-                    ],
-                ]
-            "#]],
-        );
-    }
-
-    #[test]
-    fn test_smoothing_input_regions_2() {
-        check_smoothing_input_regions(
-            [
-                (0.4, 1.),
-                (0.4, 1.),
-                (0.4, 3.),
-                (0.4, 3.),
-                (0.4, 4.),
-                (0.4, 4.),
-                (0.4, 4.),
-                (0.4, 5.),
-                (0.4, 5.),
-                (0.4, 6.),
-            ],
-            1.,
-            expect![[r#"
-                [
-                    [
-                        1,
-                        4,
-                    ],
-                    [
-                        6,
-                        9,
-                    ],
                 ]
             "#]],
         );

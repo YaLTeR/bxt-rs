@@ -174,25 +174,3 @@ pub fn bulk_idx_and_repeat_at_frame(hltas: &HLTAS, frame_idx: usize) -> Option<(
         })
         .nth(frame_idx)
 }
-
-pub fn bulks_with_non_bulk_lines(lines: &[Line]) -> impl Iterator<Item = &[Line]> + '_ {
-    let mut start_idx = 0;
-    iter::from_fn(move || {
-        if start_idx == lines.len() {
-            return None;
-        }
-
-        let mut end_idx = start_idx + 1;
-        while end_idx < lines.len() {
-            if lines[end_idx - 1].frame_bulk().is_some() {
-                break;
-            }
-
-            end_idx += 1;
-        }
-
-        let rv = &lines[start_idx..end_idx];
-        start_idx = end_idx;
-        Some(rv)
-    })
-}
