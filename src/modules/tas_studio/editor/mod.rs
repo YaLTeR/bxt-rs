@@ -2297,7 +2297,7 @@ impl Editor {
                 let camera_vector = forward(camera_pitch, camera_yaw);
 
                 let hue = if in_smoothing_input_region {
-                    Vec3::new(1., 1., 0.)
+                    Vec3::new(1., 0.75, 0.5)
                 } else if in_idempotent_smoothing_region {
                     Vec3::new(0., 1., 0.)
                 } else {
