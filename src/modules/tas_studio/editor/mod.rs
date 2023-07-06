@@ -19,7 +19,8 @@ use self::operation::{Key, Operation};
 use self::toggle_auto_action::ToggleAutoActionTarget;
 use self::utils::{
     bulk_and_first_frame_idx, bulk_and_first_frame_idx_mut, bulk_idx_and_is_last,
-    bulk_idx_and_repeat_at_frame, line_idx_and_repeat_at_frame, FrameBulkExt,
+    bulk_idx_and_repeat_at_frame, bulks_with_non_bulk_lines, line_idx_and_repeat_at_frame,
+    FrameBulkExt,
 };
 use super::remote::{AccurateFrame, PlayRequest};
 use crate::hooks::sdl::MouseState;
@@ -2214,6 +2215,21 @@ impl Editor {
                 .find(|&[start, end]| hovered >= start && hovered <= end)
         });
 
+        let non_bulk_lines = bulks_with_non_bulk_lines(&branch.branch.script.lines)
+            .flat_map(|lines| {
+                let (end, empties) = if let Some(frame_bulk) = lines.last().unwrap().frame_bulk() {
+                    (lines.len() - 1, frame_bulk.frame_count.get() - 1)
+                } else {
+                    (lines.len(), 0)
+                };
+                iter::once(&lines[0..end]).chain((0..empties).map(|_| &[][..]))
+            })
+            // When the script ends with a frame bulk, this iterator will be missing the last frame.
+            // To fix this, append an empty element unconditionally. Since zip cuts off the iterator
+            // when any of the iterators ends, this element should not pose a problem when the
+            // script ends with a non-bulk frame.
+            .chain([&[][..]]);
+
         // Draw regular frames.
         //
         // Note: there's no iterator cloning, which means all values are computed once, in one go.
@@ -2226,10 +2242,17 @@ impl Editor {
         )
         // For second frame in pair: whether it's in an idempotent smoothing region.
         .zip(in_idempotent_smoothing_region.skip(1))
+        .zip(non_bulk_lines.skip(1))
         .enumerate();
         for (
             prev_idx,
-            (((prev, frame), (bulk_idx, bulk, is_last_in_bulk)), in_idempotent_smoothing_region),
+            (
+                (
+                    ((prev, frame), (bulk_idx, bulk, is_last_in_bulk)),
+                    in_idempotent_smoothing_region,
+                ),
+                non_bulk_lines,
+            ),
         ) in iter
         {
             let idx = prev_idx + 1;
@@ -2342,6 +2365,30 @@ impl Editor {
                     end: pos + camera_vector * 5.,
                     color: hue * dim_inaccurate * dim_hidden,
                 });
+
+                // Show the last camera line, if any.
+                if let Some(camera_line) = non_bulk_lines.iter().rfind(|line| {
+                    matches!(
+                        line,
+                        Line::Change(_)
+                            | Line::TargetYawOverride { .. }
+                            | Line::RenderYawOverride { .. }
+                    )
+                }) {
+                    let perp = perpendicular(prev_pos, pos) * 5.;
+
+                    let hue = match camera_line {
+                        Line::TargetYawOverride { .. } => Vec3::new(1., 0.75, 0.5),
+                        Line::RenderYawOverride { .. } => Vec3::new(1., 0., 0.),
+                        _ => WHITE,
+                    };
+
+                    draw(DrawLine {
+                        start: pos - perp,
+                        end: pos + perp,
+                        color: hue * dim,
+                    });
+                }
             } else {
                 // If this frame is last in its frame bulk, draw a frame bulk handle.
                 if is_last_in_bulk {
