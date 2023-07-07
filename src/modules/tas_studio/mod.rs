@@ -599,7 +599,7 @@ static BXT_TAS_STUDIO_TOGGLE: Command = Command::new(
     handler!(
         "bxt_tas_studio_toggle <what>
 
-Toggles a value on the frame bulk under cursor.
+Toggles a value on the selected frame bulk.
 
 Values that you can toggle:
 
