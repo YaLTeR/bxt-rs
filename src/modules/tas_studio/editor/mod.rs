@@ -597,7 +597,10 @@ impl Editor {
 
             if matches!(
                 line,
-                Line::Change(_) | Line::TargetYawOverride { .. } | Line::RenderYawOverride { .. }
+                Line::Change(_)
+                    | Line::TargetYawOverride { .. }
+                    | Line::RenderYawOverride { .. }
+                    | Line::VectorialStrafingConstraints(_)
             ) {
                 branch.extra[frame_idx - 1]
                     .camera_line_that_starts_or_ends_here
@@ -2673,6 +2676,7 @@ impl Editor {
                                 Line::Change(_)
                                     | Line::TargetYawOverride { .. }
                                     | Line::RenderYawOverride { .. }
+                                    | Line::VectorialStrafingConstraints(_)
                             )
                         })
                         .map(|(n, line)| (n + extra.bulk_line_idx + 1, line))
@@ -2727,6 +2731,31 @@ impl Editor {
                                 end: pos + perp,
                                 color: hue * dim * dim_unhovered,
                             });
+
+                            if let Line::VectorialStrafingConstraints(constraints) = camera_line {
+                                let hue = match constraints {
+                                    VectorialStrafingConstraints::VelocityYaw { .. }
+                                    | VectorialStrafingConstraints::AvgVelocityYaw { .. }
+                                    | VectorialStrafingConstraints::VelocityYawLocking { .. } => {
+                                        Vec3::new(0., 1., 0.)
+                                    }
+                                    // TODO: for Yaw we can draw the Yaw itself, for YawRange we can
+                                    // draw the range too.
+                                    VectorialStrafingConstraints::Yaw { .. }
+                                    | VectorialStrafingConstraints::YawRange { .. } => {
+                                        Vec3::new(0., 1., 1.)
+                                    }
+                                    VectorialStrafingConstraints::LookAt { .. } => {
+                                        Vec3::new(1., 0., 1.)
+                                    }
+                                };
+
+                                draw(DrawLine {
+                                    start: pos,
+                                    end: pos + camera_vector * 20.,
+                                    color: hue * dim * dim_unhovered,
+                                });
+                            }
                         }
                     }
                 }
