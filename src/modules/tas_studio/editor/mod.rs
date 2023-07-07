@@ -569,7 +569,7 @@ impl Editor {
 
         let script = &branch.branch.script;
         for (line_idx, frame_idx) in line_first_frame_idx(script).enumerate() {
-            if frame_idx > branch.extra.len() {
+            if frame_idx >= branch.extra.len() {
                 break;
             }
 
@@ -602,7 +602,7 @@ impl Editor {
                     | Line::RenderYawOverride { .. }
                     | Line::VectorialStrafingConstraints(_)
             ) {
-                branch.extra[frame_idx - 1]
+                branch.extra[frame_idx]
                     .camera_line_that_starts_or_ends_here
                     .push(line_idx);
             }
@@ -682,7 +682,7 @@ impl Editor {
                 self.hovered_bulk_idx = None;
 
                 self.hovered_line_idx = iter::zip(
-                    self.branches[self.branch_idx].frames.iter().skip(1),
+                    self.branches[self.branch_idx].frames.iter(),
                     self.branches[self.branch_idx].extra.iter().skip(1),
                 )
                 // Add frame indices.
@@ -696,8 +696,8 @@ impl Editor {
                     }
                 })
                 // Take the last of the change lines.
-                .filter_map(|(frame, extra)| {
-                    extra
+                .filter_map(|(frame, next_extra)| {
+                    next_extra
                         .camera_line_that_starts_or_ends_here
                         .last()
                         .map(|line_idx| (frame, *line_idx))
@@ -2627,12 +2627,12 @@ impl Editor {
                     draw(DrawLine {
                         start: pos - perp - diff,
                         end: pos,
-                        color: WHITE * dim * dim_unhovered,
+                        color: WHITE * dim_hidden * dim_unhovered,
                     });
                     draw(DrawLine {
                         start: pos,
                         end: pos + perp - diff,
-                        color: WHITE * dim * dim_unhovered,
+                        color: WHITE * dim_hidden * dim_unhovered,
                     });
 
                     // Draw the target angle.
@@ -2657,105 +2657,91 @@ impl Editor {
                     draw(DrawLine {
                         start: pos,
                         end: pos + target_vector * 20.,
-                        color: Vec3::new(1., 1., 0.) * dim * dim_unhovered,
+                        color: Vec3::new(1., 1., 0.) * dim_hidden * dim_unhovered,
                     });
                 }
 
-                if is_last_in_bulk {
-                    // Show camera lines, if any.
-                    // TODO: this should show change starts from the frame after it for correct
-                    // arrow orientation.
-                    for (camera_line_idx, camera_line) in branch.branch.script.lines
-                        [extra.bulk_line_idx + 1..]
-                        .iter()
-                        .take_while(|line| line.frame_bulk().is_none())
-                        .enumerate()
-                        .filter(|(_, line)| {
-                            matches!(
-                                line,
-                                Line::Change(_)
-                                    | Line::TargetYawOverride { .. }
-                                    | Line::RenderYawOverride { .. }
-                                    | Line::VectorialStrafingConstraints(_)
-                            )
-                        })
-                        .map(|(n, line)| (n + extra.bulk_line_idx + 1, line))
-                    {
-                        let perp = perpendicular(prev_pos, pos) * 5.;
+                for &camera_line_idx in &extra.camera_line_that_starts_or_ends_here {
+                    if extra.change_line_that_ends_here.contains(&camera_line_idx) {
+                        // We're only interested in starts here, and this is an end.
+                        continue;
+                    }
 
-                        let hue = match camera_line {
-                            Line::TargetYawOverride { .. } => Vec3::new(1., 0.75, 0.5),
-                            Line::RenderYawOverride { .. } => Vec3::new(1., 0., 0.),
-                            _ => WHITE,
+                    let camera_line = &branch.branch.script.lines[camera_line_idx];
+                    let perp = perpendicular(prev_pos, pos) * 5.;
+
+                    let hue = match camera_line {
+                        Line::TargetYawOverride { .. } => Vec3::new(1., 0.75, 0.5),
+                        Line::RenderYawOverride { .. } => Vec3::new(1., 0., 0.),
+                        _ => WHITE,
+                    };
+
+                    let dim_unhovered = if self.hovered_line_idx == Some(camera_line_idx) {
+                        1.
+                    } else {
+                        0.7
+                    };
+
+                    if let Line::Change(Change { target, .. }) = camera_line {
+                        let diff = (pos - prev_pos).normalize_or_zero() * 5.;
+
+                        // Draw the arrow.
+                        draw(DrawLine {
+                            start: prev_pos - perp + diff,
+                            end: prev_pos,
+                            color: hue * dim_hidden * dim_unhovered,
+                        });
+                        draw(DrawLine {
+                            start: prev_pos,
+                            end: prev_pos + perp + diff,
+                            color: hue * dim_hidden * dim_unhovered,
+                        });
+
+                        // Draw the starting angle.
+                        let target_vector = match target {
+                            ChangeTarget::Yaw | ChangeTarget::VectorialStrafingYaw => {
+                                forward(0., camera_yaw)
+                            }
+                            ChangeTarget::Pitch => camera_vector,
+                            // TODO: how to draw this? Maybe skip it?
+                            ChangeTarget::VectorialStrafingYawOffset => camera_vector,
                         };
 
-                        let dim_unhovered = if self.hovered_line_idx == Some(camera_line_idx) {
-                            1.
-                        } else {
-                            0.7
-                        };
+                        draw(DrawLine {
+                            start: prev_pos,
+                            end: prev_pos + target_vector * 20.,
+                            color: Vec3::new(1., 0., 0.) * dim_hidden * dim_unhovered,
+                        });
+                    } else {
+                        draw(DrawLine {
+                            start: prev_pos - perp,
+                            end: prev_pos + perp,
+                            color: hue * dim_hidden * dim_unhovered,
+                        });
 
-                        if let Line::Change(Change { target, .. }) = camera_line {
-                            let diff = (pos - prev_pos).normalize_or_zero() * 5.;
-
-                            // Draw the arrow.
-                            draw(DrawLine {
-                                start: pos - perp + diff,
-                                end: pos,
-                                color: hue * dim * dim_unhovered,
-                            });
-                            draw(DrawLine {
-                                start: pos,
-                                end: pos + perp + diff,
-                                color: hue * dim * dim_unhovered,
-                            });
-
-                            // Draw the starting angle.
-                            let target_vector = match target {
-                                ChangeTarget::Yaw | ChangeTarget::VectorialStrafingYaw => {
-                                    forward(0., camera_yaw)
+                        if let Line::VectorialStrafingConstraints(constraints) = camera_line {
+                            let hue = match constraints {
+                                VectorialStrafingConstraints::VelocityYaw { .. }
+                                | VectorialStrafingConstraints::AvgVelocityYaw { .. }
+                                | VectorialStrafingConstraints::VelocityYawLocking { .. } => {
+                                    Vec3::new(0., 1., 0.)
                                 }
-                                ChangeTarget::Pitch => camera_vector,
-                                // TODO: how to draw this? Maybe skip it?
-                                ChangeTarget::VectorialStrafingYawOffset => camera_vector,
+                                // TODO: for Yaw we can draw the Yaw itself, for YawRange we can
+                                // draw the range too.
+                                VectorialStrafingConstraints::Yaw { .. }
+                                | VectorialStrafingConstraints::YawRange { .. } => {
+                                    Vec3::new(0., 1., 1.)
+                                }
+                                VectorialStrafingConstraints::LookAt { .. } => {
+                                    Vec3::new(1., 0., 1.)
+                                }
                             };
 
                             draw(DrawLine {
-                                start: pos,
-                                end: pos + target_vector * 20.,
-                                color: Vec3::new(1., 0., 0.) * dim * dim_unhovered,
+                                start: prev_pos,
+                                end: prev_pos + camera_vector * 20.,
+                                color: hue * dim_hidden * dim_unhovered,
                             });
-                        } else {
-                            draw(DrawLine {
-                                start: pos - perp,
-                                end: pos + perp,
-                                color: hue * dim * dim_unhovered,
-                            });
-
-                            if let Line::VectorialStrafingConstraints(constraints) = camera_line {
-                                let hue = match constraints {
-                                    VectorialStrafingConstraints::VelocityYaw { .. }
-                                    | VectorialStrafingConstraints::AvgVelocityYaw { .. }
-                                    | VectorialStrafingConstraints::VelocityYawLocking { .. } => {
-                                        Vec3::new(0., 1., 0.)
-                                    }
-                                    // TODO: for Yaw we can draw the Yaw itself, for YawRange we can
-                                    // draw the range too.
-                                    VectorialStrafingConstraints::Yaw { .. }
-                                    | VectorialStrafingConstraints::YawRange { .. } => {
-                                        Vec3::new(0., 1., 1.)
-                                    }
-                                    VectorialStrafingConstraints::LookAt { .. } => {
-                                        Vec3::new(1., 0., 1.)
-                                    }
-                                };
-
-                                draw(DrawLine {
-                                    start: pos,
-                                    end: pos + camera_vector * 20.,
-                                    color: hue * dim * dim_unhovered,
-                                });
-                            }
                         }
                     }
                 }
