@@ -10,7 +10,10 @@ use bxt_ipc_types::Frame;
 use bxt_strafe::{Hull, Trace};
 use color_eyre::eyre::{self, ensure};
 use glam::{Vec2, Vec3};
-use hltas::types::{AutoMovement, Line, StrafeDir, StrafeSettings, VectorialStrafingConstraints};
+use hltas::types::{
+    AutoMovement, Change, ChangeTarget, Line, StrafeDir, StrafeSettings,
+    VectorialStrafingConstraints,
+};
 use hltas::HLTAS;
 use itertools::Itertools;
 
@@ -19,7 +22,7 @@ use self::operation::{Key, Operation};
 use self::toggle_auto_action::ToggleAutoActionTarget;
 use self::utils::{
     bulk_and_first_frame_idx, bulk_and_first_frame_idx_mut, bulk_idx_and_is_last,
-    bulk_idx_and_repeat_at_frame, line_idx_and_repeat_at_frame, FrameBulkExt,
+    bulk_idx_and_repeat_at_frame, line_first_frame_idx, line_idx_and_repeat_at_frame, FrameBulkExt,
 };
 use super::remote::{AccurateFrame, PlayRequest};
 use crate::hooks::sdl::MouseState;
@@ -113,8 +116,14 @@ pub struct Editor {
     /// Adjusts the left-right count in the same way for all adjacent frame bulks with equal
     /// left-right count.
     adjacent_left_right_count_adjustment: Option<AdjacentLeftRightCountAdjustment>,
+
     // ==============================================
     // Camera-editor-specific state.
+    // TODO: we want to be able to drag the end points of the change lines separately from the
+    // start points. This cannot be tracked with just line index.
+    // TODO: camera editor actions should also use selection and not hover.
+    /// Index of the hovered frame bulk.
+    hovered_line_idx: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -161,6 +170,11 @@ struct ExtraFrameData {
     bulk_line_idx: usize,
     in_smoothing_idempotent_region: bool,
     smoothing_input_region: Option<(usize, usize)>,
+    /// Index into `script.lines` of a change frame that ends on this frame.
+    change_line_that_ends_here: Vec<usize>,
+    /// Index of a frame where the change line which starts on this frame ends.
+    change_ends_at: Vec<usize>,
+    camera_line_that_starts_or_ends_here: Vec<usize>,
 }
 
 impl Default for ExtraFrameData {
@@ -169,6 +183,9 @@ impl Default for ExtraFrameData {
             bulk_line_idx: usize::MAX,
             in_smoothing_idempotent_region: false,
             smoothing_input_region: None,
+            change_line_that_ends_here: vec![],
+            change_ends_at: vec![],
+            camera_line_that_starts_or_ends_here: vec![],
         }
     }
 }
@@ -320,6 +337,7 @@ impl Editor {
             auto_smoothing: false,
             show_player_bbox: false,
             first_shown_frame_idx: 0,
+            hovered_line_idx: None,
         })
     }
 
@@ -548,6 +566,44 @@ impl Editor {
                 extra.smoothing_input_region = region;
             }
         }
+
+        let script = &branch.branch.script;
+        for (line_idx, frame_idx) in line_first_frame_idx(script).enumerate() {
+            if frame_idx > branch.extra.len() {
+                break;
+            }
+
+            let line = &script.lines[line_idx];
+            if let Line::Change(Change { mut over, .. }) = line {
+                // Find the end of the change.
+                let mut end_frame_idx = frame_idx + 1;
+                while end_frame_idx < branch.frames.len() {
+                    over -= branch.frames[end_frame_idx].parameters.frame_time;
+                    if over <= 0. {
+                        branch.extra[end_frame_idx]
+                            .change_line_that_ends_here
+                            .push(line_idx);
+                        branch.extra[frame_idx].change_ends_at.push(end_frame_idx);
+                        branch.extra[end_frame_idx]
+                            .camera_line_that_starts_or_ends_here
+                            .push(line_idx);
+                        break;
+                    }
+
+                    end_frame_idx += 1;
+                }
+                // If we ran out of frames, don't mark an end.
+            }
+
+            if matches!(
+                line,
+                Line::Change(_) | Line::TargetYawOverride { .. } | Line::RenderYawOverride { .. }
+            ) {
+                branch.extra[frame_idx - 1]
+                    .camera_line_that_starts_or_ends_here
+                    .push(line_idx);
+            }
+        }
     }
 
     fn is_any_adjustment_active(&self) -> bool {
@@ -619,36 +675,76 @@ impl Editor {
         // Only update the hovered and active bulk index if we are not holding, or just pressed a
         // mouse button.
         if !any_mouse_is_down || mouse_became_down {
-            self.hovered_bulk_idx = iter::zip(
-                self.branches[self.branch_idx].frames.iter().skip(1),
-                bulk_idx_and_is_last(&self.branches[self.branch_idx].branch.script.lines),
-            )
-            // Add frame indices.
-            .enumerate()
-            // Skip past hidden frames.
-            .filter_map(|(frame_idx, rest)| {
-                if frame_idx < self.first_shown_frame_idx {
-                    None
-                } else {
-                    Some(rest)
-                }
-            })
-            // Take only last frame in each bulk.
-            .filter_map(|(frame, (bulk_idx, _, is_last_in_bulk))| {
-                is_last_in_bulk.then_some((frame, bulk_idx))
-            })
-            // Convert to screen and take only successfully converted coordinates.
-            .filter_map(|(frame, bulk_idx)| {
-                world_to_screen(frame.state.player.pos).map(|screen| (screen, bulk_idx))
-            })
-            // Compute distance to cursor.
-            .map(|(screen, bulk_idx)| (screen.distance_squared(mouse_pos), bulk_idx))
-            // Take only ones close enough to the cursor.
-            // .filter(|(dist_sq, _)| *dist_sq < 100. * 100.)
-            // Find closest to cursor.
-            .min_by(|(dist_a, _), (dist_b, _)| dist_a.total_cmp(dist_b))
-            // Extract bulk index.
-            .map(|(_, bulk_idx)| bulk_idx);
+            if self.in_camera_editor {
+                self.hovered_bulk_idx = None;
+
+                self.hovered_line_idx = iter::zip(
+                    self.branches[self.branch_idx].frames.iter().skip(1),
+                    self.branches[self.branch_idx].extra.iter().skip(1),
+                )
+                // Add frame indices.
+                .enumerate()
+                // Skip past hidden frames.
+                .filter_map(|(frame_idx, rest)| {
+                    if frame_idx < self.first_shown_frame_idx {
+                        None
+                    } else {
+                        Some(rest)
+                    }
+                })
+                // Take the last of the change lines.
+                .filter_map(|(frame, extra)| {
+                    extra
+                        .camera_line_that_starts_or_ends_here
+                        .last()
+                        .map(|line_idx| (frame, *line_idx))
+                })
+                // Convert to screen and take only successfully converted coordinates.
+                .filter_map(|(frame, line_idx)| {
+                    world_to_screen(frame.state.player.pos).map(|screen| (screen, line_idx))
+                })
+                // Compute distance to cursor.
+                .map(|(screen, line_idx)| (screen.distance_squared(mouse_pos), line_idx))
+                // Take only ones close enough to the cursor.
+                // .filter(|(dist_sq, _)| *dist_sq < 100. * 100.)
+                // Find closest to cursor.
+                .min_by(|(dist_a, _), (dist_b, _)| dist_a.total_cmp(dist_b))
+                // Extract line index.
+                .map(|(_, line_idx)| line_idx);
+            } else {
+                self.hovered_bulk_idx = iter::zip(
+                    self.branches[self.branch_idx].frames.iter().skip(1),
+                    bulk_idx_and_is_last(&self.branches[self.branch_idx].branch.script.lines),
+                )
+                // Add frame indices.
+                .enumerate()
+                // Skip past hidden frames.
+                .filter_map(|(frame_idx, rest)| {
+                    if frame_idx < self.first_shown_frame_idx {
+                        None
+                    } else {
+                        Some(rest)
+                    }
+                })
+                // Take only last frame in each bulk.
+                .filter_map(|(frame, (bulk_idx, _, is_last_in_bulk))| {
+                    is_last_in_bulk.then_some((frame, bulk_idx))
+                })
+                // Convert to screen and take only successfully converted coordinates.
+                .filter_map(|(frame, bulk_idx)| {
+                    world_to_screen(frame.state.player.pos).map(|screen| (screen, bulk_idx))
+                })
+                // Compute distance to cursor.
+                .map(|(screen, bulk_idx)| (screen.distance_squared(mouse_pos), bulk_idx))
+                // Take only ones close enough to the cursor.
+                // .filter(|(dist_sq, _)| *dist_sq < 100. * 100.)
+                // Find closest to cursor.
+                .min_by(|(dist_a, _), (dist_b, _)| dist_a.total_cmp(dist_b))
+                // Extract bulk index.
+                .map(|(_, bulk_idx)| bulk_idx);
+
+                self.hovered_line_idx = None;
+            }
 
             // Only update the selected bulk and start the adjustments if the mouse has just been
             // pressed.
@@ -1524,7 +1620,7 @@ impl Editor {
         Ok(())
     }
 
-    /// Deletes the selected frame bulk, if any.
+    /// Deletes the selected line, if any.
     pub fn delete_selected(&mut self) -> eyre::Result<()> {
         // Don't delete during active adjustments because they store the frame bulk index.
         if self.is_any_adjustment_active() {
@@ -1532,7 +1628,23 @@ impl Editor {
         }
 
         if self.in_camera_editor {
-            return Ok(());
+            let Some(line_idx) = self.hovered_line_idx else {
+                return Ok(());
+            };
+
+            let line = &self.branch().branch.script.lines[line_idx];
+
+            let mut buffer = Vec::new();
+            hltas::write::gen_line(&mut buffer, line)
+                .expect("writing to an in-memory buffer should never fail");
+            let buffer = String::from_utf8(buffer)
+                .expect("Line serialization should never produce invalid UTF-8");
+
+            let op = Operation::Delete {
+                line_idx,
+                line: buffer,
+            };
+            return self.apply_operation(op);
         }
 
         let Some(bulk_idx) = self.selected_bulk_idx else {
@@ -2434,10 +2546,7 @@ impl Editor {
             // Inaccurate frames get dimmed.
             let dim_inaccurate = if is_predicted { 0.6 } else { 1. };
             // Unhovered bulks get dimmed.
-            let dim_unhovered = if self.in_camera_editor {
-                // TODO: fill this in when the camera editor gets editing.
-                1.
-            } else if is_hovered_bulk {
+            let dim_unhovered = if is_hovered_bulk || self.in_camera_editor {
                 1.
             } else {
                 0.7
@@ -2501,12 +2610,64 @@ impl Editor {
                     color: hue * dim_inaccurate * dim_hidden,
                 });
 
+                for &line_idx in &extra.change_line_that_ends_here {
+                    let perp = perpendicular(prev_pos, pos) * 5.;
+                    let diff = (pos - prev_pos).normalize_or_zero() * 5.;
+
+                    let dim_unhovered = if self.hovered_line_idx == Some(line_idx) {
+                        1.
+                    } else {
+                        0.7
+                    };
+
+                    // Draw the arrow.
+                    draw(DrawLine {
+                        start: pos - perp - diff,
+                        end: pos,
+                        color: WHITE * dim * dim_unhovered,
+                    });
+                    draw(DrawLine {
+                        start: pos,
+                        end: pos + perp - diff,
+                        color: WHITE * dim * dim_unhovered,
+                    });
+
+                    // Draw the target angle.
+                    let Line::Change(Change {
+                        target,
+                        final_value,
+                        ..
+                    }) = branch.branch.script.lines[line_idx]
+                    else {
+                        unreachable!()
+                    };
+
+                    let target_vector = match target {
+                        ChangeTarget::Yaw | ChangeTarget::VectorialStrafingYaw => {
+                            forward(0., final_value.to_radians())
+                        }
+                        ChangeTarget::Pitch => forward(final_value.to_radians(), camera_yaw),
+                        // TODO: how to draw this? Maybe skip it?
+                        ChangeTarget::VectorialStrafingYawOffset => camera_vector,
+                    };
+
+                    draw(DrawLine {
+                        start: pos,
+                        end: pos + target_vector * 20.,
+                        color: Vec3::new(1., 1., 0.) * dim * dim_unhovered,
+                    });
+                }
+
                 if is_last_in_bulk {
-                    // Show the last camera line, if any.
-                    if let Some(camera_line) = branch.branch.script.lines[extra.bulk_line_idx + 1..]
+                    // Show camera lines, if any.
+                    // TODO: this should show change starts from the frame after it for correct
+                    // arrow orientation.
+                    for (camera_line_idx, camera_line) in branch.branch.script.lines
+                        [extra.bulk_line_idx + 1..]
                         .iter()
                         .take_while(|line| line.frame_bulk().is_none())
-                        .find(|line| {
+                        .enumerate()
+                        .filter(|(_, line)| {
                             matches!(
                                 line,
                                 Line::Change(_)
@@ -2514,6 +2675,7 @@ impl Editor {
                                     | Line::RenderYawOverride { .. }
                             )
                         })
+                        .map(|(n, line)| (n + extra.bulk_line_idx + 1, line))
                     {
                         let perp = perpendicular(prev_pos, pos) * 5.;
 
@@ -2523,11 +2685,49 @@ impl Editor {
                             _ => WHITE,
                         };
 
-                        draw(DrawLine {
-                            start: pos - perp,
-                            end: pos + perp,
-                            color: hue * dim,
-                        });
+                        let dim_unhovered = if self.hovered_line_idx == Some(camera_line_idx) {
+                            1.
+                        } else {
+                            0.7
+                        };
+
+                        if let Line::Change(Change { target, .. }) = camera_line {
+                            let diff = (pos - prev_pos).normalize_or_zero() * 5.;
+
+                            // Draw the arrow.
+                            draw(DrawLine {
+                                start: pos - perp + diff,
+                                end: pos,
+                                color: hue * dim * dim_unhovered,
+                            });
+                            draw(DrawLine {
+                                start: pos,
+                                end: pos + perp + diff,
+                                color: hue * dim * dim_unhovered,
+                            });
+
+                            // Draw the starting angle.
+                            let target_vector = match target {
+                                ChangeTarget::Yaw | ChangeTarget::VectorialStrafingYaw => {
+                                    forward(0., camera_yaw)
+                                }
+                                ChangeTarget::Pitch => camera_vector,
+                                // TODO: how to draw this? Maybe skip it?
+                                ChangeTarget::VectorialStrafingYawOffset => camera_vector,
+                            };
+
+                            draw(DrawLine {
+                                start: pos,
+                                end: pos + target_vector * 20.,
+                                color: Vec3::new(1., 0., 0.) * dim * dim_unhovered,
+                            });
+                        } else {
+                            draw(DrawLine {
+                                start: pos - perp,
+                                end: pos + perp,
+                                color: hue * dim * dim_unhovered,
+                            });
+                        }
                     }
                 }
             } else {

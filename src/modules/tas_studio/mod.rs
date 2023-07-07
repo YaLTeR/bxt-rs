@@ -804,7 +804,7 @@ static BXT_TAS_STUDIO_DELETE: Command = Command::new(
     handler!(
         "bxt_tas_studio_delete
 
-Deletes the frame bulk under cursor.",
+Deletes the selected frame bulk or the line under cursor in the camera editor.",
         delete as fn(_)
     ),
 );
