@@ -441,6 +441,8 @@ impl Editor {
     }
 
     fn recompute_extra_frame_data(&mut self, branch_idx: usize) {
+        let _span = info_span!("recompute_extra_frame_data", branch_idx).entered();
+
         let branch = &mut self.branches[branch_idx];
         let lines = &branch.branch.script.lines;
         let frames = &branch.frames;
@@ -656,10 +658,7 @@ impl Editor {
             }
         }
 
-        {
-            let _span = info_span!("recompute extra").entered();
-            self.recompute_extra_frame_data_if_needed();
-        }
+        self.recompute_extra_frame_data_if_needed();
 
         let mouse_pos = mouse.pos.as_vec2();
 
