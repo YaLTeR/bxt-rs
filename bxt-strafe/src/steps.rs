@@ -468,6 +468,8 @@ impl<S: Step> Step for Friction<S> {
             }
 
             if parameters.has_stamina {
+                // This is part of PM_WalkMove(). We need it in here instead because Strafe step
+                // will change player speed.
                 let factor = (100. - (state.player.stamina_time / 1000.) * 19.) / 100.;
                 state.player.vel.x *= factor;
                 state.player.vel.y *= factor;
@@ -533,8 +535,9 @@ impl<S: Step> Step for Jump<S> {
         input: Input,
     ) -> (State, Input) {
         if parameters.has_stamina {
-            state.player.stamina_time =
-                (state.player.stamina_time - parameters.frame_time * 1000.).max(0.);
+            state.player.stamina_time = (state.player.stamina_time
+                - ((parameters.frame_time * 1000.) as i32) as f32)
+                .max(0.);
         }
 
         if input.jump && !state.prev_frame_input.jump && state.place == Place::Ground {
@@ -853,9 +856,9 @@ impl<S: Step> Step for LeaveGround<S> {
                 }
 
                 input.duck = true;
-                let do_action = self
-                    .0
-                    .simulate(tracer, parameters, frame_bulk, state, input);
+                let do_action =
+                    self.0
+                        .simulate(tracer, parameters, frame_bulk, state.clone(), input);
 
                 // The ducktap happens one frame later. For simulating the second frame, disable the
                 // leave-ground action to prevent a stack overflow caused by the simulation
@@ -868,11 +871,36 @@ impl<S: Step> Step for LeaveGround<S> {
                     .clone()
                     .simulate(tracer, parameters, &frame_bulk_without_action)
                     .0;
-                let next_action = do_action
-                    .0
-                    .clone()
-                    .simulate(tracer, parameters, &frame_bulk_without_action)
-                    .0;
+
+                let next_action = if parameters.duck_animation_slow_down {
+                    // For games like CS1.6, this should ducktap as soon as air speed is greater
+                    // than ground speed.
+                    // Without this step, prediction will always decide against ducktap
+                    // due to ducktap speed penalty.
+                    // At the end, the normal affected do_action is returned for correct prediction.
+                    let mut ignore_duck_animation_slow_parameter = parameters.clone();
+                    ignore_duck_animation_slow_parameter.duck_animation_slow_down = false;
+
+                    let do_action_without_duck_animation_slow = self.0.simulate(
+                        tracer,
+                        ignore_duck_animation_slow_parameter,
+                        frame_bulk,
+                        state,
+                        input,
+                    );
+
+                    do_action_without_duck_animation_slow
+                        .0
+                        .clone()
+                        .simulate(tracer, parameters, &frame_bulk_without_action)
+                        .0
+                } else {
+                    do_action
+                        .0
+                        .clone()
+                        .simulate(tracer, parameters, &frame_bulk_without_action)
+                        .0
+                };
 
                 let speed_nothing = next_nothing.player.vel.xy().length_squared();
                 let speed_action = next_action.player.vel.xy().length_squared();
