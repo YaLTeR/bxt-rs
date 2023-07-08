@@ -877,7 +877,7 @@ impl<S: Step> Step for LeaveGround<S> {
                     // than ground speed.
                     // Without this step, prediction will always decide against ducktap
                     // due to ducktap speed penalty.
-                    // At the end, the normal affected do_action is returned for correct prediction.
+                    // At the end, the unaffected do_action is returned for correct prediction.
                     let mut ignore_duck_animation_slow_parameter = parameters.clone();
                     ignore_duck_animation_slow_parameter.duck_animation_slow_down = false;
 
