@@ -87,6 +87,8 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_CLOSE,
             &BXT_TAS_STUDIO_OPTIM_INIT,
             &BXT_TAS_STUDIO_OPTIM_APPLY,
+            &PLUS_BXT_TAS_STUDIO_INSERT_CAMERA_LINE,
+            &MINUS_BXT_TAS_STUDIO_INSERT_CAMERA_LINE,
             &PLUS_BXT_TAS_STUDIO_LOOK_AROUND,
             &MINUS_BXT_TAS_STUDIO_LOOK_AROUND,
         ];
@@ -125,6 +127,7 @@ mod watcher;
 use hltas_bridge::Bridge;
 
 static LAST_BUTTONS: MainThreadCell<Buttons> = MainThreadCell::new(Buttons::empty());
+static INSERT_CAMERA_LINE_DOWN: MainThreadCell<bool> = MainThreadCell::new(false);
 
 static BXT_HUD_TAS_STUDIO: CVar = CVar::new(
     b"bxt_hud_tas_studio\0",
@@ -365,6 +368,52 @@ fn unset_yaw(marker: MainThreadMarker) {
         con_print(marker, &format!("Error unsetting yaw: {err}\n"));
         *state = State::Idle;
     }
+}
+
+static PLUS_BXT_TAS_STUDIO_INSERT_CAMERA_LINE: Command = Command::new(
+    b"+bxt_tas_studio_insert_camera_line\0",
+    handler!(
+        "+bxt_tas_studio_insert_camera_line [key]
+
+Hold to look around in the TAS editor.",
+        plus_insert_camera_line as fn(_),
+        plus_insert_camera_line_key as fn(_, _)
+    ),
+);
+
+fn plus_insert_camera_line(marker: MainThreadMarker) {
+    if !matches!(*STATE.borrow(marker), State::Editing { .. }) {
+        return;
+    }
+
+    INSERT_CAMERA_LINE_DOWN.set(marker, true);
+}
+
+fn plus_insert_camera_line_key(marker: MainThreadMarker, _key: i32) {
+    plus_insert_camera_line(marker);
+}
+
+static MINUS_BXT_TAS_STUDIO_INSERT_CAMERA_LINE: Command = Command::new(
+    b"-bxt_tas_studio_insert_camera_line\0",
+    handler!(
+        "-bxt_tas_studio_insert_camera_line [key]
+
+Hold to look around in the TAS editor.",
+        minus_insert_camera_line as fn(_),
+        minus_insert_camera_line_key as fn(_, _)
+    ),
+);
+
+fn minus_insert_camera_line(marker: MainThreadMarker) {
+    if !matches!(*STATE.borrow(marker), State::Editing { .. }) {
+        return;
+    }
+
+    INSERT_CAMERA_LINE_DOWN.set(marker, false);
+}
+
+fn minus_insert_camera_line_key(marker: MainThreadMarker, _key: i32) {
+    minus_insert_camera_line(marker);
 }
 
 static PLUS_BXT_TAS_STUDIO_LOOK_AROUND: Command = Command::new(
@@ -1301,6 +1350,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     let keyboard = KeyboardState {
         adjust_faster: last_buttons.contains(Buttons::IN_ALT1),
         adjust_slower: last_buttons.contains(Buttons::IN_DUCK),
+        insert_camera_line: INSERT_CAMERA_LINE_DOWN.get(marker),
     };
 
     let deadline = Instant::now() + Duration::from_millis(20);

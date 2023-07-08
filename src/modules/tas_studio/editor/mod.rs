@@ -22,7 +22,8 @@ use self::operation::{Key, Operation};
 use self::toggle_auto_action::ToggleAutoActionTarget;
 use self::utils::{
     bulk_and_first_frame_idx, bulk_and_first_frame_idx_mut, bulk_idx_and_is_last,
-    bulk_idx_and_repeat_at_frame, line_first_frame_idx, line_idx_and_repeat_at_frame, FrameBulkExt,
+    bulk_idx_and_repeat_at_frame, join_lines, line_first_frame_idx, line_idx_and_repeat_at_frame,
+    FrameBulkExt,
 };
 use super::remote::{AccurateFrame, PlayRequest};
 use crate::hooks::sdl::MouseState;
@@ -68,6 +69,8 @@ pub struct Editor {
 
     /// Mouse state from the last time `tick()` was called.
     prev_mouse_state: MouseState,
+    /// Keyboard state from the last time `tick()` was called.
+    prev_keyboard_state: KeyboardState,
 
     /// Whether to enable automatic global smoothing.
     auto_smoothing: bool,
@@ -124,6 +127,9 @@ pub struct Editor {
     // TODO: camera editor actions should also use selection and not hover.
     /// Index of the hovered frame bulk.
     hovered_line_idx: Option<usize>,
+
+    /// Adjustment to insert a camera line.
+    insert_camera_line_adjustment: Option<InsertCameraLineAdjustment>,
 }
 
 #[derive(Debug, Clone)]
@@ -162,36 +168,24 @@ impl BranchData {
     }
 }
 
-// TODO: most of this is needed only in the camera editor mode, so it would be better not to
+// TODO: all of this is needed only in the camera editor mode, so it would be better not to
 // recompute it from scratch every frame when we're not in the camera editor mode (so most of the
 // time).
 /// Extra data for every frame.
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 struct ExtraFrameData {
-    /// Index into `script.lines` of the frame bulk simulating this frame.
-    ///
-    /// For the very first frame, not simulated by any frame bulk, is equal to `usize::MAX`.
-    bulk_line_idx: usize,
+    /// Whether this frame is in a smoothing idempotent region.
     in_smoothing_idempotent_region: bool,
+    /// Frame indices of the smoothing input region this frame is part of.
     smoothing_input_region: Option<(usize, usize)>,
     /// Index into `script.lines` of a change frame that ends on this frame.
     change_line_that_ends_here: Vec<usize>,
     /// Index of a frame where the change line which starts on this frame ends.
     change_ends_at: Vec<usize>,
+    /// Index into `script.lines` of a camera frame that starts or ends on this frame.
     camera_line_that_starts_or_ends_here: Vec<usize>,
-}
-
-impl Default for ExtraFrameData {
-    fn default() -> Self {
-        Self {
-            bulk_line_idx: usize::MAX,
-            in_smoothing_idempotent_region: false,
-            smoothing_input_region: None,
-            change_line_that_ends_here: vec![],
-            change_ends_at: vec![],
-            camera_line_that_starts_or_ends_here: vec![],
-        }
-    }
+    /// Index into `script.lines` of a camera frame that starts on this frame.
+    camera_line_that_starts_here: Vec<usize>,
 }
 
 /// Data for handling adjustment done by pressing and dragging the mouse.
@@ -264,12 +258,25 @@ struct AdjacentLeftRightCountAdjustment {
     bulk_count: usize,
 }
 
+/// Data for handling the insert-camera-line adjustment.
 #[derive(Debug, Clone, Copy)]
+struct InsertCameraLineAdjustment {
+    /// The mouse adjustment itself.
+    mouse_adjustment: MouseAdjustment<i32>,
+    starting_frame_idx: usize,
+    camera_line_idx: usize,
+    initial_yaw: f32,
+    did_split: bool,
+}
+
+#[derive(Debug, Default, Clone, Copy)]
 pub struct KeyboardState {
     /// Whether the "faster" key is pressed.
     pub adjust_faster: bool,
     /// Whether the "slower" key is pressed.
     pub adjust_slower: bool,
+    /// Whether the "insert camera line" key is pressed.
+    pub insert_camera_line: bool,
 }
 
 impl KeyboardState {
@@ -331,6 +338,7 @@ impl Editor {
             selected_bulk_idx: None,
             hovered_frame_idx: None,
             prev_mouse_state: MouseState::default(),
+            prev_keyboard_state: KeyboardState::default(),
             frame_count_adjustment: None,
             yaw_adjustment: None,
             left_right_count_adjustment: None,
@@ -342,6 +350,7 @@ impl Editor {
             show_player_bbox: false,
             first_shown_frame_idx: 0,
             hovered_line_idx: None,
+            insert_camera_line_adjustment: None,
         })
     }
 
@@ -448,46 +457,20 @@ impl Editor {
         let _span = info_span!("recompute_extra_frame_data", branch_idx).entered();
 
         let branch = &mut self.branches[branch_idx];
-        let lines = &branch.branch.script.lines;
         let frames = &branch.frames;
 
         // Some of the data is dependent on future frames and cannot be trivially invalidated. To
         // be safe, recompute it from scratch.
         branch.extra.clear();
 
-        // First frame, not simulated by any frame bulk.
-        branch.extra.push(ExtraFrameData::default());
+        // Fill in all vector elements.
+        for _ in 0..frames.len() {
+            branch.extra.push(ExtraFrameData::default());
+        }
 
         if frames.len() <= 1 {
             // No frames past the initial frame.
             return;
-        }
-
-        // Fill in all vector elements and `bulk_line_idx` values.
-        let (mut bulk_line_idx, mut frame_count) = lines
-            .iter()
-            .enumerate()
-            .find_map(|(idx, line)| line.frame_bulk().map(|bulk| (idx, bulk.frame_count.get())))
-            .unwrap();
-        let mut repeat = 0;
-        for _ in 1..frames.len() {
-            if repeat == frame_count {
-                loop {
-                    bulk_line_idx += 1;
-
-                    if let Some(bulk) = lines[bulk_line_idx].frame_bulk() {
-                        frame_count = bulk.frame_count.get();
-                        repeat = 0;
-                        break;
-                    }
-                }
-            }
-            repeat += 1;
-
-            branch.extra.push(ExtraFrameData {
-                bulk_line_idx,
-                ..Default::default()
-            });
         }
 
         // Fill in the rest of the fields.
@@ -582,7 +565,7 @@ impl Editor {
             let line = &script.lines[line_idx];
             if let Line::Change(Change { mut over, .. }) = line {
                 // Find the end of the change.
-                let mut end_frame_idx = frame_idx + 1;
+                let mut end_frame_idx = frame_idx;
                 while end_frame_idx < branch.frames.len() {
                     over -= branch.frames[end_frame_idx].parameters.frame_time;
                     if over <= 0. {
@@ -608,6 +591,9 @@ impl Editor {
                     | Line::RenderYawOverride { .. }
                     | Line::VectorialStrafingConstraints(_)
             ) {
+                branch.extra[frame_idx]
+                    .camera_line_that_starts_here
+                    .push(line_idx);
                 branch.extra[frame_idx]
                     .camera_line_that_starts_or_ends_here
                     .push(line_idx);
@@ -642,6 +628,8 @@ impl Editor {
         self.tick_adjacent_frame_count_adjustment(mouse, keyboard)?;
         self.tick_adjacent_yaw_adjustment(mouse, keyboard)?;
         self.tick_adjacent_left_right_count_adjustment(mouse, keyboard)?;
+
+        self.tick_insert_camera_line_adjustment(mouse, keyboard)?;
 
         // Predict any frames that need prediction.
         //
@@ -986,7 +974,80 @@ impl Editor {
             // Extract frame index.
             .map(|(frame_idx, _)| frame_idx);
 
+        // Start the camera editor insert-camera-line adjustment here as, countrary to movement
+        // editor adjustments, it starts from the hovered frame, updated just above.
+        if self.in_camera_editor {
+            if let Some(hovered_frame_idx) = self.hovered_frame_idx {
+                if keyboard.insert_camera_line && !self.prev_keyboard_state.insert_camera_line {
+                    assert!(self.insert_camera_line_adjustment.is_none());
+
+                    let branch = self.branch_mut();
+
+                    let frame = &branch.frames[hovered_frame_idx];
+                    let prev = &branch.frames[hovered_frame_idx - 1];
+
+                    let frame_screen = world_to_screen(frame.state.player.pos);
+                    let prev_screen = world_to_screen(prev.state.player.pos);
+
+                    let dir = match (frame_screen, prev_screen) {
+                        (Some(frame), Some(prev)) => frame - prev,
+                        // Presumably, previous frame is invisible, so just fall back.
+                        _ => Vec2::X,
+                    };
+
+                    let lines = &mut branch.branch.script.lines;
+
+                    let line = Line::VectorialStrafingConstraints(
+                        VectorialStrafingConstraints::VelocityYawLocking { tolerance: 0. },
+                    );
+
+                    let (line_idx, repeat) =
+                        line_idx_and_repeat_at_frame(lines, hovered_frame_idx).unwrap();
+
+                    let camera_line_idx = if repeat == 0 {
+                        lines.insert(line_idx, line);
+                        line_idx
+                    } else {
+                        let Line::FrameBulk(bulk) = &mut lines[line_idx] else {
+                            unreachable!()
+                        };
+
+                        let mut new_bulk = bulk.clone();
+                        bulk.frame_count = NonZeroU32::new(repeat).unwrap();
+                        new_bulk.frame_count =
+                            NonZeroU32::new(new_bulk.frame_count.get() - repeat).unwrap();
+
+                        lines.insert(line_idx + 1, line);
+                        lines.insert(line_idx + 2, Line::FrameBulk(new_bulk));
+                        line_idx + 1
+                    };
+
+                    let initial_yaw = branch.frames[hovered_frame_idx]
+                        .state
+                        .prev_frame_input
+                        .yaw
+                        .to_degrees();
+
+                    // This unfortunately means we won't have any predicted frames past this
+                    // until the next tick, but oh well.
+                    branch.extra.clear();
+                    self.invalidate(hovered_frame_idx + 1);
+                    self.recompute_extra_frame_data_if_needed();
+
+                    self.insert_camera_line_adjustment = Some(InsertCameraLineAdjustment {
+                        mouse_adjustment: MouseAdjustment::new(0, mouse_pos, dir),
+                        starting_frame_idx: hovered_frame_idx,
+                        camera_line_idx,
+                        initial_yaw,
+                        did_split: repeat != 0,
+                    });
+                }
+            }
+        }
+
+        // Finally, update the previous mouse and keyboard state.
         self.prev_mouse_state = mouse;
+        self.prev_keyboard_state = keyboard;
 
         Ok(())
     }
@@ -1319,6 +1380,166 @@ impl Editor {
         Ok(())
     }
 
+    fn tick_insert_camera_line_adjustment(
+        &mut self,
+        mouse: MouseState,
+        keyboard: KeyboardState,
+    ) -> eyre::Result<()> {
+        let Some(InsertCameraLineAdjustment {
+            mouse_adjustment,
+            starting_frame_idx,
+            camera_line_idx,
+            initial_yaw,
+            did_split,
+        }) = &mut self.insert_camera_line_adjustment
+        else {
+            return Ok(());
+        };
+
+        let branch = &mut self.branches[self.branch_idx];
+
+        if !keyboard.insert_camera_line {
+            let line = &branch.branch.script.lines[*camera_line_idx];
+
+            let op = if *did_split {
+                let mut prev_line = branch.branch.script.lines[*camera_line_idx - 1].clone();
+                let next_line = &branch.branch.script.lines[*camera_line_idx + 1];
+
+                let mut buffer = Vec::new();
+                hltas::write::gen_lines(&mut buffer, [&prev_line, line, next_line])
+                    .expect("writing to an in-memory buffer should never fail");
+                let to = String::from_utf8(buffer)
+                    .expect("Line serialization should never produce invalid UTF-8");
+
+                join_lines(&mut prev_line, next_line);
+                let mut buffer = Vec::new();
+                hltas::write::gen_lines(&mut buffer, [&prev_line])
+                    .expect("writing to an in-memory buffer should never fail");
+                let from = String::from_utf8(buffer)
+                    .expect("Line serialization should never produce invalid UTF-8");
+
+                Operation::ReplaceMultiple {
+                    first_line_idx: *camera_line_idx - 1,
+                    from,
+                    to,
+                }
+            } else {
+                let mut buffer = Vec::new();
+                hltas::write::gen_lines(&mut buffer, [line])
+                    .expect("writing to an in-memory buffer should never fail");
+                let line = String::from_utf8(buffer)
+                    .expect("Line serialization should never produce invalid UTF-8");
+
+                Operation::Insert {
+                    line_idx: *camera_line_idx,
+                    line,
+                }
+            };
+
+            self.insert_camera_line_adjustment = None;
+            return self.store_operation(op);
+        }
+
+        let speed = keyboard.adjustment_speed();
+        let delta = (mouse_adjustment.delta(mouse.pos.as_vec2()) * 0.1 * speed).round() as i32;
+        // The original value is always 0 in this case so just use delta as is.
+        //
+        // Only allow dragging back from the original point as this is what makes the most sense.
+        let delta = delta.min(0);
+
+        let mut invalidate = false;
+
+        // Switch the line type if dragging in or out of the initial frame.
+        let line = &mut branch.branch.script.lines[*camera_line_idx];
+        match line {
+            Line::VectorialStrafingConstraints(_) => {
+                if delta == 0 {
+                    // We remain on the initial frame, nothing to change.
+                    return Ok(());
+                }
+
+                // We dragged out of the initial frame, switch the line to a change.
+                *line = Line::Change(Change {
+                    target: ChangeTarget::VectorialStrafingYaw,
+                    final_value: *initial_yaw,
+                    over: 0.,
+                });
+                invalidate = true;
+            }
+            Line::Change(Change { .. }) => {
+                if delta == 0 {
+                    // We dragged back into the initial frame, switch the line back to target_yaw
+                    // velocity_lock.
+                    *line = Line::VectorialStrafingConstraints(
+                        VectorialStrafingConstraints::VelocityYawLocking { tolerance: 0. },
+                    );
+                    invalidate = true;
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        let new_frame_idx = starting_frame_idx.saturating_add_signed(delta as isize);
+        let curr_frame_idx = line_first_frame_idx(&branch.branch.script)
+            .nth(*camera_line_idx)
+            .unwrap()
+            - 1;
+
+        if new_frame_idx == curr_frame_idx {
+            // No change.
+            assert!(!invalidate);
+            return Ok(());
+        }
+
+        let mut line = branch.branch.script.lines.remove(*camera_line_idx);
+        let lines = &mut branch.branch.script.lines;
+
+        // Try to re-join frame bulks we might have split before.
+        if *did_split {
+            let next_line = lines[*camera_line_idx].clone();
+            let prev_line = &mut lines[*camera_line_idx - 1];
+
+            join_lines(prev_line, &next_line);
+            lines.remove(*camera_line_idx);
+        }
+
+        let (line_idx, repeat) = line_idx_and_repeat_at_frame(&*lines, new_frame_idx).unwrap();
+
+        if let Line::Change(Change { over, .. }) = &mut line {
+            *over = 0.;
+            for (_, bulk, _) in bulk_idx_and_is_last(&*lines)
+                .take(*starting_frame_idx)
+                .skip(new_frame_idx)
+            {
+                *over += bulk.frame_time.parse::<f32>().unwrap_or(0.);
+            }
+            *over -= 1e-6;
+        };
+
+        if repeat == 0 {
+            lines.insert(line_idx, line);
+            *camera_line_idx = line_idx;
+            *did_split = false;
+        } else {
+            let Line::FrameBulk(bulk) = &mut lines[line_idx] else {
+                unreachable!()
+            };
+
+            let mut new_bulk = bulk.clone();
+            bulk.frame_count = NonZeroU32::new(repeat).unwrap();
+            new_bulk.frame_count = NonZeroU32::new(new_bulk.frame_count.get() - repeat).unwrap();
+
+            lines.insert(line_idx + 1, line);
+            lines.insert(line_idx + 2, Line::FrameBulk(new_bulk));
+            *camera_line_idx = line_idx + 1;
+            *did_split = true;
+        }
+
+        self.invalidate(new_frame_idx);
+
+        Ok(())
+    }
+
     pub fn cancel_ongoing_adjustments(&mut self) {
         if let Some(adjustment) = self.frame_count_adjustment.take() {
             let original_value = adjustment.original_value;
@@ -1444,6 +1665,32 @@ impl Editor {
                 drop(bulks);
                 self.invalidate(first_frame_idx);
             }
+        }
+
+        if let Some(InsertCameraLineAdjustment {
+            camera_line_idx,
+            did_split,
+            ..
+        }) = self.insert_camera_line_adjustment.take()
+        {
+            let branch = &mut self.branches[self.branch_idx];
+            let curr_frame_idx = line_first_frame_idx(&branch.branch.script)
+                .nth(camera_line_idx)
+                .unwrap()
+                - 1;
+
+            branch.branch.script.lines.remove(camera_line_idx);
+
+            if did_split {
+                let lines = &mut branch.branch.script.lines;
+                let next_line = lines[camera_line_idx].clone();
+                let prev_line = &mut lines[camera_line_idx - 1];
+
+                join_lines(prev_line, &next_line);
+                lines.remove(camera_line_idx);
+            }
+
+            self.invalidate(curr_frame_idx);
         }
     }
 
@@ -2674,12 +2921,7 @@ impl Editor {
                     });
                 }
 
-                for &camera_line_idx in &extra.camera_line_that_starts_or_ends_here {
-                    if extra.change_line_that_ends_here.contains(&camera_line_idx) {
-                        // We're only interested in starts here, and this is an end.
-                        continue;
-                    }
-
+                for &camera_line_idx in &extra.camera_line_that_starts_here {
                     let camera_line = &branch.branch.script.lines[camera_line_idx];
                     let perp = perpendicular(prev_pos, pos) * 5.;
 

@@ -174,3 +174,18 @@ pub fn bulk_idx_and_repeat_at_frame(hltas: &HLTAS, frame_idx: usize) -> Option<(
         })
         .nth(frame_idx)
 }
+
+#[track_caller]
+pub fn join_lines(prev: &mut Line, next: &Line) {
+    let next_bulk = next.frame_bulk().unwrap();
+    let prev_bulk = prev.frame_bulk_mut().unwrap();
+
+    // Verify that the frame bulks are equal.
+    let temp = prev_bulk.frame_count;
+    prev_bulk.frame_count = next_bulk.frame_count;
+    let equal = prev_bulk == next_bulk;
+    prev_bulk.frame_count = temp;
+    assert!(equal, "frame bulks are not equal");
+
+    prev_bulk.frame_count = NonZeroU32::new(temp.get() + next_bulk.frame_count.get()).unwrap();
+}
