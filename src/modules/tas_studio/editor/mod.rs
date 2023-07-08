@@ -162,6 +162,10 @@ impl BranchData {
     }
 }
 
+// TODO: most of this is needed only in the camera editor mode, so it would be better not to
+// recompute it from scratch every frame when we're not in the camera editor mode (so most of the
+// time).
+/// Extra data for every frame.
 #[derive(Debug, Clone)]
 struct ExtraFrameData {
     /// Index into `script.lines` of the frame bulk simulating this frame.
@@ -642,6 +646,10 @@ impl Editor {
         // Predict any frames that need prediction.
         //
         // Do this after adjustment and before computing input to have the most up-to-date data.
+        //
+        // TODO: add a timeout on running prediction after receiving an accurate frame. So that when
+        // we're receiving accurate frames, we don't run prediction every frame, which will be
+        // invalidated next frame due to receiving the next accurate frame.
         {
             let _span = info_span!("predict").entered();
 
@@ -658,6 +666,7 @@ impl Editor {
             }
         }
 
+        // Recompute extra data in case the prediction above added frames.
         self.recompute_extra_frame_data_if_needed();
 
         let mouse_pos = mouse.pos.as_vec2();
@@ -677,11 +686,16 @@ impl Editor {
         // Only update the hovered and active bulk index if we are not holding, or just pressed a
         // mouse button.
         if !any_mouse_is_down || mouse_became_down {
+            // If we're in the camera editor, update its hover and make the movement editor's hover
+            // `None`. If we're in the movement editor, do the opposite.
             if self.in_camera_editor {
                 self.hovered_bulk_idx = None;
 
                 self.hovered_line_idx = iter::zip(
                     self.branches[self.branch_idx].frames.iter(),
+                    // We take the next frame's extra here because we're mostly concerned with
+                    // camera line *starts*, and those are rendered *before* the frame, rather than
+                    // after the frame. So visually we see it one frame index earlier.
                     self.branches[self.branch_idx].extra.iter().skip(1),
                 )
                 // Add frame indices.
