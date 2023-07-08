@@ -2286,17 +2286,16 @@ impl Editor {
             .sum::<usize>();
 
         // Only smooth when we have all accurate frames.
-        if self.branch().first_predicted_frame != frame_count {
+        if self.branch().first_predicted_frame != frame_count + 1 {
             return Ok(());
         }
 
-        // TODO: Skip the very last frame because we never have accurate info for it at the moment.
         let frames = &self.branch().frames;
         let smoothed = smoothed_yaws(
             SMOOTHING_WINDOW_S,
             SMOOTHING_SMALL_WINDOW_S,
             SMOOTHING_SMALL_WINDOW_MUL,
-            &frames[..frames.len() - 1],
+            &frames[..frames.len()],
         );
 
         let mut line = "target_yaw_override".to_string();
