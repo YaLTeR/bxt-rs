@@ -1375,7 +1375,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                 is_smoothed: false,
             });
 
-            bridge.update_on_disk(editor.script());
+            bridge.update_on_disk(editor.script().clone());
         }
     }
 
