@@ -1189,58 +1189,24 @@ pub unsafe fn on_tas_playback_frame(
                     stop = true;
                 }
             }
-            State::PlayingToEditor { editor, .. } => {
+            State::PlayingToEditor {
+                editor,
+                frames_played,
+                ..
+            } => {
                 let _ = editor.apply_accurate_frame(accurate_frame);
                 editor.recompute_extra_frame_data_if_needed();
+
+                if *frames_played == editor.stop_frame() as usize + 1 {
+                    stop = true;
+                }
             }
             _ => unreachable!(),
         };
     }
 
-    match mem::take(&mut *state) {
-        State::PlayingToEditor {
-            editor,
-            frames_played,
-            bridge,
-        } if frames_played == editor.stop_frame() as usize + 1 => {
-            stop = true;
-
-            let generation = editor.generation();
-            let branch_idx = editor.branch_idx();
-            remote::maybe_send_request_to_client(PlayRequest {
-                script: editor.script().clone(),
-                generation,
-                branch_idx,
-                is_smoothed: false,
-            });
-            *state = State::Editing {
-                editor,
-                last_generation: generation,
-                last_branch_idx: branch_idx,
-                simulate_at: None,
-                bridge,
-            };
-
-            sdl::set_relative_mouse_mode(marker, false);
-            client::activate_mouse(marker, false);
-            // TODO: figure out how to make freecam less weird.
-            //
-            // When we show_ui we stop, and when we stop we don't insert any commands, so we can
-            // use wait.
-            engine::prepend_command(
-                marker,
-                "bxt_freecam 1;wait;bxt_freecam 0;wait;bxt_freecam 1\n",
-            );
-        }
-        other => *state = other,
-    }
-
     if stop {
         debug!("stopping TAS playback");
-        engine::prepend_command(
-            marker,
-            "host_framerate 0;_bxt_norefresh 0;_bxt_min_frametime 0;bxt_taslog 0;pause\n",
-        );
     }
 
     stop
@@ -1273,11 +1239,7 @@ pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
             // use wait.
             engine::prepend_command(
                 marker,
-                "bxt_freecam 1;wait;bxt_freecam 0;wait;bxt_freecam 1\n",
-            );
-            engine::prepend_command(
-                marker,
-                "host_framerate 0;_bxt_norefresh 0;_bxt_min_frametime 0;bxt_taslog 0;pause\n",
+                "_bxt_norefresh 0;setpause;bxt_freecam 1;wait;bxt_freecam 0;wait;bxt_freecam 1\n",
             );
 
             if BXT_IS_TAS_EDITOR_ACTIVE.get(marker)() != 0 {
