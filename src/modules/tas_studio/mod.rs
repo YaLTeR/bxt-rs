@@ -1543,6 +1543,13 @@ fn add_hovered_frame_hud_lines(text: &mut Vec<u8>, frame_idx: usize, frame: &Fra
 
     let yaw = frame.state.prev_frame_input.yaw.to_degrees();
     write!(text, "  Yaw: {:.3}\0", yaw).unwrap();
+
+    write!(
+        text,
+        "  {:.0} HP {:.1} AP\0",
+        frame.state.player.health, frame.state.player.armor,
+    )
+    .unwrap();
 }
 
 static PREVENT_UNPAUSE: MainThreadCell<bool> = MainThreadCell::new(false);

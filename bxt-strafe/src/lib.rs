@@ -53,6 +53,10 @@ pub struct Player {
     pub duck_time: i32,
     /// Stamina timer for games like CS1.6.
     pub stamina_time: f32,
+    /// Player health.
+    pub health: f32,
+    /// Player armor.
+    pub armor: f32,
 }
 
 impl Player {
@@ -276,6 +280,8 @@ mod tests {
             in_duck_animation: false,
             duck_time: 0,
             stamina_time: 0.0,
+            health: 100.,
+            armor: 0.,
         }
     }
 
@@ -442,7 +448,7 @@ mod tests {
             duck_time in 0..1000,
             stamina_time in 0f32..1315.789429,
         ) -> Player {
-            Player { pos, vel, base_vel, ducking, in_duck_animation, duck_time, stamina_time }
+            Player { pos, vel, base_vel, ducking, in_duck_animation, duck_time, stamina_time, health: 100., armor: 0. }
         }
     }
 

@@ -815,6 +815,8 @@ pub unsafe fn player_data(marker: MainThreadMarker) -> Option<Player> {
         in_duck_animation: edict.v.bInDuck != 0,
         duck_time: edict.v.flDuckTime,
         stamina_time: edict.v.fuser2,
+        health: edict.v.health,
+        armor: edict.v.armorvalue,
     })
 }
 
