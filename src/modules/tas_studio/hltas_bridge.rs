@@ -166,6 +166,8 @@ impl Bridge {
 
         info!("reading updated bridged .hltas");
 
+        let _span = info_span!("bridge reading script").entered();
+
         match fs::read_to_string(&self.path) {
             Ok(input) => match HLTAS::from_str(&input) {
                 Ok(script) => Some(script),
