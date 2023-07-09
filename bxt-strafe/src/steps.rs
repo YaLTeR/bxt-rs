@@ -535,9 +535,8 @@ impl<S: Step> Step for Jump<S> {
         input: Input,
     ) -> (State, Input) {
         if parameters.has_stamina {
-            state.player.stamina_time = (state.player.stamina_time
-                - ((parameters.frame_time * 1000.) as i32) as f32)
-                .max(0.);
+            state.player.stamina_time =
+                (state.player.stamina_time - (parameters.frame_time * 1000.).floor()).max(0.);
         }
 
         if input.jump && !state.prev_frame_input.jump && state.place == Place::Ground {
