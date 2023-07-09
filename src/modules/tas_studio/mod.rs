@@ -100,6 +100,7 @@ impl Module for TasStudio {
             && engine::Cbuf_InsertText.is_set(marker)
             && engine::hudGetViewAngles.is_set(marker)
             && engine::window_rect.is_set(marker)
+            && engine::cls.is_set(marker)
             && sdl::SDL_SetRelativeMouseMode.is_set(marker)
             && sdl::SDL_GetMouseState.is_set(marker)
             && bxt::BXT_TAS_LOAD_SCRIPT_FROM_STRING.is_set(marker)
@@ -1023,11 +1024,11 @@ impl Default for State {
 static STATE: MainThreadRefCell<State> = MainThreadRefCell::new(State::Idle);
 
 pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker) {
-    let Some(cls) = engine::cls.get_opt(marker) else {
+    if !TasStudio.is_enabled(marker) {
         return;
-    };
+    }
 
-    let client_state = (*cls).state;
+    let client_state = (*engine::cls.get(marker)).state;
     if client_state != 1 && client_state != 5 {
         return;
     }
