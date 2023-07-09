@@ -145,10 +145,11 @@ pub struct BranchData {
     pub frames: Vec<Frame>,
     /// Index of the first frame in `frames` that is predicted (inaccurate) rather than played.
     first_predicted_frame: usize,
-    /// Extra data for every frame.
+    /// Extra camera editor data for every frame.
     ///
-    /// Has the same number of elements as `frames`.
-    extra: Vec<ExtraFrameData>,
+    /// Has the same number of elements as `frames`. Valid/computed only when in the camera editor
+    /// mode.
+    extra_cam: Vec<ExtraCameraEditorFrameData>,
     /// Data for auto-smoothing.
     auto_smoothing: AutoSmoothing,
 }
@@ -159,7 +160,7 @@ impl BranchData {
             branch,
             frames: vec![],
             first_predicted_frame: 0,
-            extra: vec![],
+            extra_cam: vec![],
             auto_smoothing: AutoSmoothing {
                 script: None,
                 frames: vec![],
@@ -168,12 +169,9 @@ impl BranchData {
     }
 }
 
-// TODO: all of this is needed only in the camera editor mode, so it would be better not to
-// recompute it from scratch every frame when we're not in the camera editor mode (so most of the
-// time).
-/// Extra data for every frame.
+/// Extra camera editor data for every frame.
 #[derive(Debug, Default, Clone)]
-struct ExtraFrameData {
+struct ExtraCameraEditorFrameData {
     /// Whether this frame is in a smoothing idempotent region.
     in_smoothing_idempotent_region: bool,
     /// Frame indices of the smoothing input region this frame is part of.
@@ -417,6 +415,8 @@ impl Editor {
 
         self.cancel_ongoing_adjustments();
         self.in_camera_editor = value;
+
+        self.recompute_extra_camera_frame_data_if_needed();
     }
 
     pub fn set_auto_smoothing(&mut self, value: bool) {
@@ -439,21 +439,25 @@ impl Editor {
         branch.auto_smoothing.script = None;
         branch.auto_smoothing.frames.clear();
 
-        self.recompute_extra_frame_data(self.branch_idx);
+        self.recompute_extra_camera_frame_data_if_needed();
 
         self.generation = self.generation.wrapping_add(1);
     }
 
-    pub fn recompute_extra_frame_data_if_needed(&mut self) {
+    pub fn recompute_extra_camera_frame_data_if_needed(&mut self) {
+        if !self.in_camera_editor {
+            return;
+        }
+
         for branch_idx in 0..self.branches.len() {
             let branch = &self.branches[branch_idx];
-            if branch.extra.len() != branch.frames.len() {
-                self.recompute_extra_frame_data(branch_idx);
+            if branch.extra_cam.len() != branch.frames.len() {
+                self.recompute_extra_camera_frame_data(branch_idx);
             }
         }
     }
 
-    fn recompute_extra_frame_data(&mut self, branch_idx: usize) {
+    fn recompute_extra_camera_frame_data(&mut self, branch_idx: usize) {
         let _span = info_span!("recompute_extra_frame_data", branch_idx).entered();
 
         let branch = &mut self.branches[branch_idx];
@@ -461,11 +465,11 @@ impl Editor {
 
         // Some of the data is dependent on future frames and cannot be trivially invalidated. To
         // be safe, recompute it from scratch.
-        branch.extra.clear();
+        branch.extra_cam.clear();
 
         // Fill in all vector elements.
         for _ in 0..frames.len() {
-            branch.extra.push(ExtraFrameData::default());
+            branch.extra_cam.push(ExtraCameraEditorFrameData::default());
         }
 
         if frames.len() <= 1 {
@@ -515,15 +519,15 @@ impl Editor {
                 // TODO: check for off-by-ones.
                 if idempotent_duration >= SMOOTHING_WINDOW_S {
                     // The region that just ended was idempotent. Mark it as such.
-                    for extra in &mut branch.extra[idempotent_started_at..idx] {
-                        extra.in_smoothing_idempotent_region = true;
+                    for extra_cam in &mut branch.extra_cam[idempotent_started_at..idx] {
+                        extra_cam.in_smoothing_idempotent_region = true;
                     }
 
                     if idempotent_started_at > 0 {
                         let input_ended_at = walk_forward(idempotent_started_at - 1);
                         let region = Some((input_started_at, input_ended_at));
-                        for extra in &mut branch.extra[input_started_at..=input_ended_at] {
-                            extra.smoothing_input_region = region;
+                        for extra_cam in &mut branch.extra_cam[input_started_at..=input_ended_at] {
+                            extra_cam.smoothing_input_region = region;
                         }
                     }
 
@@ -544,21 +548,21 @@ impl Editor {
 
         // Since our smoothing infinitely pads input frames from both sides, the last region is
         // idempotent regardless of how many frames it contains.
-        for extra in &mut branch.extra[idempotent_started_at..] {
-            extra.in_smoothing_idempotent_region = true;
+        for extra_cam in &mut branch.extra_cam[idempotent_started_at..] {
+            extra_cam.in_smoothing_idempotent_region = true;
         }
 
         if idempotent_started_at > 0 {
             let input_ended_at = walk_forward(idempotent_started_at - 1);
             let region = Some((input_started_at, input_ended_at));
-            for extra in &mut branch.extra[input_started_at..=input_ended_at] {
-                extra.smoothing_input_region = region;
+            for extra_cam in &mut branch.extra_cam[input_started_at..=input_ended_at] {
+                extra_cam.smoothing_input_region = region;
             }
         }
 
         let script = &branch.branch.script;
         for (line_idx, frame_idx) in line_first_frame_idx(script).enumerate() {
-            if frame_idx >= branch.extra.len() {
+            if frame_idx >= branch.extra_cam.len() {
                 break;
             }
 
@@ -569,11 +573,13 @@ impl Editor {
                 while end_frame_idx < branch.frames.len() {
                     over -= branch.frames[end_frame_idx].parameters.frame_time;
                     if over <= 0. {
-                        branch.extra[end_frame_idx]
+                        branch.extra_cam[end_frame_idx]
                             .change_line_that_ends_here
                             .push(line_idx);
-                        branch.extra[frame_idx].change_ends_at.push(end_frame_idx);
-                        branch.extra[end_frame_idx]
+                        branch.extra_cam[frame_idx]
+                            .change_ends_at
+                            .push(end_frame_idx);
+                        branch.extra_cam[end_frame_idx]
                             .camera_line_that_starts_or_ends_here
                             .push(line_idx);
                         break;
@@ -591,10 +597,10 @@ impl Editor {
                     | Line::RenderYawOverride { .. }
                     | Line::VectorialStrafingConstraints(_)
             ) {
-                branch.extra[frame_idx]
+                branch.extra_cam[frame_idx]
                     .camera_line_that_starts_here
                     .push(line_idx);
-                branch.extra[frame_idx]
+                branch.extra_cam[frame_idx]
                     .camera_line_that_starts_or_ends_here
                     .push(line_idx);
             }
@@ -655,7 +661,7 @@ impl Editor {
         }
 
         // Recompute extra data in case the prediction above added frames.
-        self.recompute_extra_frame_data_if_needed();
+        self.recompute_extra_camera_frame_data_if_needed();
 
         let mouse_pos = mouse.pos.as_vec2();
 
@@ -681,10 +687,10 @@ impl Editor {
 
                 self.hovered_line_idx = iter::zip(
                     self.branches[self.branch_idx].frames.iter(),
-                    // We take the next frame's extra here because we're mostly concerned with
+                    // We take the next frame's extra_cam here because we're mostly concerned with
                     // camera line *starts*, and those are rendered *before* the frame, rather than
                     // after the frame. So visually we see it one frame index earlier.
-                    self.branches[self.branch_idx].extra.iter().skip(1),
+                    self.branches[self.branch_idx].extra_cam.iter().skip(1),
                 )
                 // Add frame indices.
                 .enumerate()
@@ -697,8 +703,8 @@ impl Editor {
                     }
                 })
                 // Take the last of the change lines.
-                .filter_map(|(frame, next_extra)| {
-                    next_extra
+                .filter_map(|(frame, next_extra_cam)| {
+                    next_extra_cam
                         .camera_line_that_starts_or_ends_here
                         .last()
                         .map(|line_idx| (frame, *line_idx))
@@ -1030,9 +1036,9 @@ impl Editor {
 
                     // This unfortunately means we won't have any predicted frames past this
                     // until the next tick, but oh well.
-                    branch.extra.clear();
+                    branch.extra_cam.clear();
                     self.invalidate(hovered_frame_idx + 1);
-                    self.recompute_extra_frame_data_if_needed();
+                    self.recompute_extra_camera_frame_data_if_needed();
 
                     self.insert_camera_line_adjustment = Some(InsertCameraLineAdjustment {
                         mouse_adjustment: MouseAdjustment::new(0, mouse_pos, dir),
@@ -2326,7 +2332,7 @@ impl Editor {
 
         // Find the input region the user is pointing at.
         let frames = &self.branch().frames;
-        let Some((start, end)) = self.branch().extra[hovered_frame_idx].smoothing_input_region
+        let Some((start, end)) = self.branch().extra_cam[hovered_frame_idx].smoothing_input_region
         else {
             return Ok(());
         };
@@ -2452,7 +2458,7 @@ impl Editor {
         Ok(())
     }
 
-    // You MUST check and recompute `extra` after calling this.
+    // You MUST check and recompute `extra_cam` after calling this.
     pub fn apply_accurate_frame(&mut self, frame: AccurateFrame) -> Option<PlayRequest> {
         if frame.generation != self.generation {
             return None;
@@ -2471,7 +2477,7 @@ impl Editor {
                 if branch.frames.is_empty() {
                     branch.frames.push(frame.frame.clone());
                     branch.first_predicted_frame = 1;
-                    branch.extra.clear();
+                    branch.extra_cam.clear();
                 }
             }
 
@@ -2509,7 +2515,7 @@ impl Editor {
 
         if branch.frames.len() == frame.frame_idx {
             branch.frames.push(frame.frame);
-            branch.extra.clear();
+            branch.extra_cam.clear();
         } else {
             let current_frame = &mut branch.frames[frame.frame_idx];
             if *current_frame != frame.frame {
@@ -2517,7 +2523,7 @@ impl Editor {
 
                 branch.first_predicted_frame =
                     min(branch.first_predicted_frame, frame.frame_idx + 1);
-                branch.extra.clear();
+                branch.extra_cam.clear();
 
                 // Don't truncate the frames here as it makes it more annoying to work on TASes with
                 // loading desync or other inconsistencies.
@@ -2748,9 +2754,12 @@ impl Editor {
     fn draw_current_branch(&self, mut draw: impl FnMut(DrawLine)) {
         let branch = self.branch();
 
-        let smoothing_input_region = self
-            .hovered_frame_idx
-            .and_then(|idx| branch.extra[idx].smoothing_input_region);
+        let smoothing_input_region = if self.in_camera_editor {
+            self.hovered_frame_idx
+                .and_then(|idx| branch.extra_cam[idx].smoothing_input_region)
+        } else {
+            None
+        };
 
         // Draw regular frames.
         //
@@ -2762,10 +2771,8 @@ impl Editor {
             // For second frame in pair: its frame bulk index and whether it's last in its bulk.
             bulk_idx_and_is_last(&branch.branch.script.lines),
         )
-        // Extra data for the second frame in the pair.
-        .zip(branch.extra.iter().skip(1))
         .enumerate();
-        for (prev_idx, (((prev, frame), (bulk_idx, bulk, is_last_in_bulk)), extra)) in iter {
+        for (prev_idx, ((prev, frame), (bulk_idx, bulk, is_last_in_bulk))) in iter {
             let idx = prev_idx + 1;
 
             // Figure out if we had a collision this frame.
@@ -2855,6 +2862,8 @@ impl Editor {
             });
 
             if self.in_camera_editor {
+                let extra_cam = &branch.extra_cam[idx];
+
                 // Draw camera angle line.
                 let camera_pitch = frame.state.prev_frame_input.pitch;
                 let camera_yaw = frame.state.prev_frame_input.yaw;
@@ -2862,7 +2871,7 @@ impl Editor {
 
                 let hue = if in_smoothing_input_region {
                     Vec3::new(1., 0.75, 0.5)
-                } else if extra.in_smoothing_idempotent_region {
+                } else if extra_cam.in_smoothing_idempotent_region {
                     Vec3::new(0., 1., 0.)
                 } else {
                     Vec3::new(0.5, 0.5, 1.)
@@ -2874,7 +2883,7 @@ impl Editor {
                     color: hue * dim_inaccurate * dim_hidden,
                 });
 
-                for &line_idx in &extra.change_line_that_ends_here {
+                for &line_idx in &extra_cam.change_line_that_ends_here {
                     let perp = perpendicular(prev_pos, pos) * 5.;
                     let diff = (pos - prev_pos).normalize_or_zero() * 5.;
 
@@ -2922,7 +2931,7 @@ impl Editor {
                     });
                 }
 
-                for &camera_line_idx in &extra.camera_line_that_starts_here {
+                for &camera_line_idx in &extra_cam.camera_line_that_starts_here {
                     let camera_line = &branch.branch.script.lines[camera_line_idx];
                     let perp = perpendicular(prev_pos, pos) * 5.;
 
