@@ -73,11 +73,12 @@ impl State {
 }
 
 struct RemoteClient {
-    sender: IpcSender<PlayRequest>,
     receiver: IpcReceiver<AccurateFrame>,
+    // The sender is split into a separate Mutex.
 }
 
 static STATE: Mutex<Option<State>> = Mutex::new(None);
+static REMOTE_CLIENT_SENDER: Mutex<Option<IpcSender<PlayRequest>>> = Mutex::new(None);
 
 /// Whether the client connection thread should try connecting to the remote server.
 static SHOULD_CONNECT_TO_SERVER: AtomicBool = AtomicBool::new(false);
@@ -168,10 +169,11 @@ fn server_thread(listener: TcpListener) {
             return;
         };
 
+        let mut sender = REMOTE_CLIENT_SENDER.lock().unwrap();
         *state = Some(State::Server(Some(RemoteClient {
-            sender: request_sender,
             receiver: frames_receiver,
         })));
+        *sender = Some(request_sender);
     }
 }
 
@@ -297,7 +299,10 @@ pub fn update_client_connection_condition(marker: MainThreadMarker) {
         SHOULD_CONNECT_TO_SERVER.store(false, std::sync::atomic::Ordering::SeqCst);
 
         // Disconnect if we were connected.
-        *STATE.lock().unwrap() = None;
+        let mut state = STATE.lock().unwrap();
+        let mut sender = REMOTE_CLIENT_SENDER.lock().unwrap();
+        *state = None;
+        *sender = None;
 
         return;
     }
@@ -395,19 +400,17 @@ pub fn maybe_send_request_to_client(request: PlayRequest) {
     thread::Builder::new()
         .name("HLTAS Studio Send Request to Client Thread".to_owned())
         .spawn(move || {
-            let mut state = STATE.lock().unwrap();
-            let Some(State::Server(Some(RemoteClient { sender, .. }))) = state.as_mut() else {
-                return Ok(());
+            let mut remote_sender = REMOTE_CLIENT_SENDER.lock().unwrap();
+            let Some(sender) = remote_sender.as_mut() else {
+                return;
             };
 
-            match sender.send(request) {
-                Ok(()) => Ok(()),
-                Err(err) => {
-                    // TODO: propagate error, print outside.
-                    error!("error sending request to client: {err:?}");
-                    *state = Some(State::Server(None));
-                    Err(())
-                }
+            if let Err(err) = sender.send(request) {
+                // TODO: propagate error, print outside.
+                error!("error sending request to client: {err:?}");
+                let mut state = STATE.lock().unwrap();
+                *state = Some(State::Server(None));
+                *remote_sender = None;
             }
         })
         .unwrap();
