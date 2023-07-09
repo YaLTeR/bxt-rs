@@ -1099,7 +1099,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
             while let Ok(Some(frame)) = remote::receive_frame_from_client() {
                 if let Some(play_request) = editor.apply_accurate_frame(frame) {
                     info!("sending second play request");
-                    let _ = remote::maybe_send_request_to_client(play_request);
+                    remote::maybe_send_request_to_client(play_request);
                 }
             }
             editor.recompute_extra_frame_data_if_needed();
@@ -1207,7 +1207,7 @@ pub unsafe fn on_tas_playback_frame(
 
             let generation = editor.generation();
             let branch_idx = editor.branch_idx();
-            let _ = remote::maybe_send_request_to_client(PlayRequest {
+            remote::maybe_send_request_to_client(PlayRequest {
                 script: editor.script().clone(),
                 generation,
                 branch_idx,
@@ -1258,7 +1258,7 @@ pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
         State::PlayingToEditor { editor, bridge, .. } => {
             let generation = editor.generation();
             let branch_idx = editor.branch_idx();
-            let _ = remote::maybe_send_request_to_client(PlayRequest {
+            remote::maybe_send_request_to_client(PlayRequest {
                 script: editor.script().clone(),
                 generation,
                 branch_idx,
@@ -1368,7 +1368,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     if let Some(at) = *simulate_at {
         if Instant::now() > at {
             *simulate_at = None;
-            let _ = remote::maybe_send_request_to_client(PlayRequest {
+            remote::maybe_send_request_to_client(PlayRequest {
                 script: editor.script().clone(),
                 generation: *last_generation,
                 branch_idx: *last_branch_idx,

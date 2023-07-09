@@ -389,19 +389,26 @@ pub fn receive_frame_from_client() -> Result<Option<AccurateFrame>, ()> {
 }
 
 #[instrument(skip_all)]
-pub fn maybe_send_request_to_client(request: PlayRequest) -> Result<(), ()> {
-    let mut state = STATE.lock().unwrap();
-    let Some(State::Server(Some(RemoteClient { sender, .. }))) = state.as_mut() else {
-        return Ok(());
-    };
+pub fn maybe_send_request_to_client(request: PlayRequest) {
+    // Spawn a thread to send the request. This way we avoid the deadlock where we try to send a new
+    // request while the client tries to send us new accurate frames.
+    thread::Builder::new()
+        .name("HLTAS Studio Send Request to Client Thread".to_owned())
+        .spawn(move || {
+            let mut state = STATE.lock().unwrap();
+            let Some(State::Server(Some(RemoteClient { sender, .. }))) = state.as_mut() else {
+                return Ok(());
+            };
 
-    match sender.send(request) {
-        Ok(()) => Ok(()),
-        Err(err) => {
-            // TODO: propagate error, print outside.
-            error!("error sending request to client: {err:?}");
-            *state = Some(State::Server(None));
-            Err(())
-        }
-    }
+            match sender.send(request) {
+                Ok(()) => Ok(()),
+                Err(err) => {
+                    // TODO: propagate error, print outside.
+                    error!("error sending request to client: {err:?}");
+                    *state = Some(State::Server(None));
+                    Err(())
+                }
+            }
+        })
+        .unwrap();
 }
