@@ -5,7 +5,7 @@ use glam::Vec3;
 
 use super::Module;
 use crate::ffi::playermove::TraceFlags;
-use crate::hooks::engine::{self};
+use crate::hooks::engine;
 use crate::utils::*;
 
 pub mod tracer;
@@ -23,6 +23,11 @@ impl Module for PlayerMovementTracing {
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         engine::pmove.is_set(marker)
+            && engine::g_svmove.is_set(marker)
+            && engine::sv_areanodes.is_set(marker)
+            && engine::SV_AddLinksToPM.is_set(marker)
+        // SV_AddLinksToPM() with an underscore is required to adjust the distance limit, but not
+        // required to initialize the tracing.
     }
 }
 
@@ -33,24 +38,9 @@ pub unsafe fn maybe_ensure_server_tracing(marker: MainThreadMarker, remove_dista
         return;
     }
 
-    if !engine::g_svmove.is_set(marker) {
-        return;
-    }
-
     *engine::pmove.get(marker) = engine::g_svmove.get(marker);
 
-    if !remove_distance_limit {
-        return;
-    }
-
-    if !engine::sv_areanodes.is_set(marker)
-        || !engine::SV_AddLinksToPM.is_set(marker)
-        || !engine::SV_AddLinksToPM_.is_set(marker)
-    {
-        return;
-    }
-
-    REMOVE_DISTANCE_LIMIT.set(marker, true);
+    REMOVE_DISTANCE_LIMIT.set(marker, remove_distance_limit);
     engine::SV_AddLinksToPM.get(marker)(engine::sv_areanodes.get(marker), &[0., 0., 0.]);
     REMOVE_DISTANCE_LIMIT.set(marker, false);
 }
