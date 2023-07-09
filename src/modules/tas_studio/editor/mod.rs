@@ -2515,10 +2515,12 @@ impl Editor {
             if *current_frame != frame.frame {
                 *current_frame = frame.frame;
 
-                branch.frames.truncate(frame.frame_idx + 1);
                 branch.first_predicted_frame =
                     min(branch.first_predicted_frame, frame.frame_idx + 1);
                 branch.extra.clear();
+
+                // Don't truncate the frames here as it makes it more annoying to work on TASes with
+                // loading desync or other inconsistencies.
             }
         }
 
