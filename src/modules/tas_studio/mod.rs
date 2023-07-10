@@ -1529,6 +1529,8 @@ fn add_hovered_frame_hud_lines(text: &mut Vec<u8>, frame_idx: usize, frame: &Fra
 
     let yaw = frame.state.prev_frame_input.yaw.to_degrees();
     write!(text, "  Yaw: {:.3}\0", yaw).unwrap();
+    let pitch = frame.state.prev_frame_input.pitch.to_degrees();
+    write!(text, "  Pitch: {:.3}\0", pitch).unwrap();
 
     write!(
         text,
