@@ -11,7 +11,7 @@ use bxt_strafe::{Hull, Trace};
 use color_eyre::eyre::{self, ensure};
 use glam::{Vec2, Vec3};
 use hltas::types::{
-    AutoMovement, Change, ChangeTarget, Line, StrafeDir, StrafeSettings,
+    AutoMovement, Change, ChangeTarget, Line, StrafeDir, StrafeSettings, StrafeType,
     VectorialStrafingConstraints,
 };
 use hltas::HLTAS;
@@ -917,16 +917,11 @@ impl Editor {
 
                             self.left_right_count_adjustment =
                                 Some(MouseAdjustment::new(count.get(), mouse_pos, dir));
-                        } else if let Some(yawspeed) = bulk.side_strafe_yawspeed() {
-                            let yawspeed = match *yawspeed {
-                                Some(yawspeed) => yawspeed,
-                                None => 0.,
-                            };
-
+                        } else if let Some(yawspeed) = bulk.constant_yawspeed() {
                             // Forward-back adjustment like frame count.
                             let frame_screen = world_to_screen(frame.state.player.pos);
                             let prev_screen = world_to_screen(prev.state.player.pos);
-    
+
                             let dir = match (frame_screen, prev_screen) {
                                 (Some(frame), Some(prev)) => frame - prev,
                                 // Presumably, previous frame is invisible, so just fall back.
@@ -934,7 +929,7 @@ impl Editor {
                             };
 
                             self.side_strafe_yawspeed_adjustment =
-                                Some(MouseAdjustment::new(yawspeed, mouse_pos, dir))
+                                Some(MouseAdjustment::new(*yawspeed, mouse_pos, dir))
                         }
                     } else if mouse.buttons.is_middle_down() {
                         let (bulk, last_frame_idx) = bulk_and_last_frame_idx.next().unwrap();
@@ -1497,11 +1492,7 @@ impl Editor {
                 .nth(bulk_idx)
                 .unwrap();
 
-        let yawspeed_mut_ref = bulk.side_strafe_yawspeed_mut().unwrap();
-        let yawspeed = match *yawspeed_mut_ref {
-            Some(yawspeed) => yawspeed,
-            _ => 0.,
-        };
+        let yawspeed = bulk.constant_yawspeed_mut().unwrap();
 
         if !mouse.buttons.is_right_down() {
             if !adjustment.changed_once {
@@ -1512,7 +1503,7 @@ impl Editor {
             let op = Operation::SetYawSpeed {
                 bulk_idx,
                 from: adjustment.original_value,
-                to: yawspeed,
+                to: *yawspeed,
             };
             self.side_strafe_yawspeed_adjustment = None;
             return self.store_operation(op);
@@ -1523,14 +1514,9 @@ impl Editor {
         let delta = adjustment.delta(mouse.pos.as_vec2()) * 0.1 * speed;
         let new_yawspeed = adjustment.original_value + delta;
 
-        if yawspeed != new_yawspeed {
+        if *yawspeed != new_yawspeed {
             adjustment.changed_once = true;
-            *yawspeed_mut_ref = Some(new_yawspeed);
-
-            if new_yawspeed == 0. {
-                *yawspeed_mut_ref = None;
-            }
-
+            *yawspeed = new_yawspeed;
             self.invalidate(first_frame_idx);
         }
 
@@ -1833,14 +1819,9 @@ impl Editor {
                     .nth(bulk_idx)
                     .unwrap();
 
-            let yawspeed_mut_ref = bulk.side_strafe_yawspeed_mut().unwrap();
-            let yawspeed = match *yawspeed_mut_ref {
-                Some(yawspeed) => yawspeed,
-                _ => 0.,
-            };
-
-            if yawspeed != original_value {
-                *yawspeed_mut_ref = Some(original_value);
+            let yawspeed = bulk.constant_yawspeed_mut().unwrap();
+            if *yawspeed != original_value {
+                *yawspeed = original_value;
                 self.invalidate(first_frame_idx);
             }
         }
@@ -2463,23 +2444,13 @@ impl Editor {
 
         let mut new_bulk = bulk.clone();
 
-        if let Some(AutoMovement::Strafe(StrafeSettings { type_: _, ref mut dir })) =
-            &mut new_bulk.auto_actions.movement
+        if let Some(AutoMovement::Strafe(StrafeSettings {
+            type_: StrafeType::ConstYawspeed(yawspeed),
+            ..
+        })) = &mut new_bulk.auto_actions.movement
         {
-            let new_yawspeed = if let Some(yawspeed) = new_yawspeed {
-                if yawspeed == 0. {
-                    None
-                } else {
-                    new_yawspeed
-                }
-            } else {
-                new_yawspeed
-            };
-
-            match dir {
-                StrafeDir::Left(_) => *dir = StrafeDir::Left(new_yawspeed),
-                StrafeDir::Right(_) => *dir = StrafeDir::Right(new_yawspeed),
-                _ => (),
+            if let Some(new_yawspeed) = new_yawspeed {
+                *yawspeed = new_yawspeed;
             }
         }
 

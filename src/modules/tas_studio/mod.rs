@@ -971,19 +971,19 @@ fn toggle(marker: MainThreadMarker, what: String) {
             type_: StrafeType::MaxDeccel,
         },
         "s00" => ToggleAutoActionTarget::Strafe {
-            dir: StrafeDir::Left(None),
+            dir: StrafeDir::Left,
             type_: StrafeType::MaxAccel,
         },
         "s01" => ToggleAutoActionTarget::Strafe {
-            dir: StrafeDir::Right(None),
+            dir: StrafeDir::Right,
             type_: StrafeType::MaxAccel,
         },
         "s10" => ToggleAutoActionTarget::Strafe {
-            dir: StrafeDir::Left(None),
+            dir: StrafeDir::Left,
             type_: StrafeType::MaxAngle,
         },
         "s11" => ToggleAutoActionTarget::Strafe {
-            dir: StrafeDir::Right(None),
+            dir: StrafeDir::Right,
             type_: StrafeType::MaxAngle,
         },
         "s06" => ToggleAutoActionTarget::Strafe {
@@ -1671,6 +1671,10 @@ fn add_frame_bulk_hud_lines(text: &mut Vec<u8>, bulk: &FrameBulk) {
                 StrafeType::MaxAngle => text.extend(b"quick turn"),
                 StrafeType::MaxDeccel => text.extend(b"slow down"),
                 StrafeType::ConstSpeed => text.extend(b"constant speed"),
+                StrafeType::ConstYawspeed(yawspeed) => {
+                    text.extend(b"turn rate: ");
+                    text.extend(yawspeed.to_string().bytes());
+                }
             }
             text.extend(b")\0");
         }
@@ -1759,11 +1763,6 @@ fn add_frame_bulk_hud_lines(text: &mut Vec<u8>, bulk: &FrameBulk) {
     }
     if let Some(yaw) = bulk.yaw() {
         write!(text, "Yaw: {yaw:.3}\0").unwrap();
-    }
-    if let Some(yawspeed) = bulk.side_strafe_yawspeed() {
-        if let Some(yawspeed) = yawspeed {
-            write!(text, "Yawspeed: {yawspeed:.3}\0").unwrap();
-        }
     }
     if let Some(AutoMovement::Strafe(StrafeSettings {
         dir: StrafeDir::LeftRight(count) | StrafeDir::RightLeft(count),

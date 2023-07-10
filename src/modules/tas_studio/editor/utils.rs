@@ -1,7 +1,7 @@
 use std::iter;
 use std::num::NonZeroU32;
 
-use hltas::types::{AutoMovement, FrameBulk, Line, StrafeDir, StrafeSettings};
+use hltas::types::{AutoMovement, FrameBulk, Line, StrafeDir, StrafeSettings, StrafeType};
 use hltas::HLTAS;
 use itertools::Itertools;
 
@@ -20,10 +20,10 @@ pub trait FrameBulkExt {
     fn left_right_count_mut(&mut self) -> Option<&mut NonZeroU32>;
 
     /// Returns a reference to the yawspeed stored in the framebulk, if any.
-    fn side_strafe_yawspeed(&self) -> Option<&Option<f32>>;
+    fn constant_yawspeed(&self) -> Option<&f32>;
 
     /// Returns a mutable reference to the yawspeed stored in the framebulk, if any.
-    fn side_strafe_yawspeed_mut(&mut self) -> Option<&mut Option<f32>>;
+    fn constant_yawspeed_mut(&mut self) -> Option<&mut f32>;
 }
 
 impl FrameBulkExt for FrameBulk {
@@ -69,20 +69,20 @@ impl FrameBulkExt for FrameBulk {
         }
     }
 
-    fn side_strafe_yawspeed(&self) -> Option<&Option<f32>> {
+    fn constant_yawspeed(&self) -> Option<&f32> {
         match &self.auto_actions.movement {
             Some(AutoMovement::Strafe(StrafeSettings {
-                dir: StrafeDir::Left(yawspeed) | StrafeDir::Right(yawspeed),
+                type_: StrafeType::ConstYawspeed(yawspeed),
                 ..
             })) => Some(yawspeed),
             _ => None,
         }
     }
 
-    fn side_strafe_yawspeed_mut(&mut self) -> Option<&mut Option<f32>> {
+    fn constant_yawspeed_mut(&mut self) -> Option<&mut f32> {
         match &mut self.auto_actions.movement {
             Some(AutoMovement::Strafe(StrafeSettings {
-                dir: StrafeDir::Left(yawspeed) | StrafeDir::Right(yawspeed),
+                type_: StrafeType::ConstYawspeed(yawspeed),
                 ..
             })) => Some(yawspeed),
             _ => None,
