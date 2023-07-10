@@ -497,6 +497,9 @@ impl<S: Step> Step for ResetFields<S> {
         input.duck = frame_bulk.action_keys.duck;
         input.use_ = frame_bulk.action_keys.use_;
 
+        input.yaw = state.prev_frame_input.yaw;
+        input.pitch = state.prev_frame_input.pitch;
+
         if let Some(AutoMovement::SetYaw(yaw)) = frame_bulk.auto_actions.movement {
             input.yaw = yaw.to_radians();
         }
