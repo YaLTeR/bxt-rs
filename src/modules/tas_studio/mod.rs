@@ -1550,6 +1550,8 @@ fn add_hovered_frame_hud_lines(text: &mut Vec<u8>, frame_idx: usize, frame: &Fra
         frame.state.player.health, frame.state.player.armor,
     )
     .unwrap();
+
+    write!(text, "  Stamina: {:.1}\0", frame.state.player.stamina_time).unwrap();
 }
 
 static PREVENT_UNPAUSE: MainThreadCell<bool> = MainThreadCell::new(false);
