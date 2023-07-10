@@ -69,8 +69,10 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_CONVERT_HLTAS,
             &BXT_TAS_STUDIO_REPLAY,
             &BXT_TAS_STUDIO_SET_STOP_FRAME,
+            &BXT_TAS_STUDIO_SET_YAWSPEED,
             &BXT_TAS_STUDIO_SET_PITCH,
             &BXT_TAS_STUDIO_SET_YAW,
+            &BXT_TAS_STUDIO_UNSET_YAWSPEED,
             &BXT_TAS_STUDIO_UNSET_PITCH,
             &BXT_TAS_STUDIO_UNSET_YAW,
             &BXT_TAS_STUDIO_SPLIT,
@@ -400,6 +402,50 @@ fn unset_yaw(marker: MainThreadMarker) {
     };
 
     if let Err(err) = editor.set_yaw(None) {
+        con_print(marker, &format!("Error unsetting yaw: {err}\n"));
+        *state = State::Idle;
+    }
+}
+
+static BXT_TAS_STUDIO_SET_YAWSPEED: Command = Command::new(
+    b"bxt_tas_studio_set_yawspeed\0",
+    handler!(
+        "bxt_tas_studio_set_yawspeed
+        
+Sets the yawspeed of the selected frame bulk.",
+        set_yawspeed as fn(_, _)
+    ),
+);
+
+fn set_yawspeed(marker: MainThreadMarker, yawspeed: f32) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
+
+    if let Err(err) = editor.set_yawspeed(Some(yawspeed)) {
+        con_print(marker, &format!("Error setting yaw: {err}\n"));
+        *state = State::Idle;
+    }
+}
+
+static BXT_TAS_STUDIO_UNSET_YAWSPEED: Command = Command::new(
+    b"bxt_tas_studio_unset_yawspeed\0",
+    handler!(
+        "bxt_tas_studio_unset_yawspeed
+        
+Unsets the yawspeed of the selected frame bulk.",
+        unset_yawspeed as fn(_)
+    ),
+);
+
+fn unset_yawspeed(marker: MainThreadMarker) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
+
+    if let Err(err) = editor.set_yawspeed(None) {
         con_print(marker, &format!("Error unsetting yaw: {err}\n"));
         *state = State::Idle;
     }
@@ -768,19 +814,19 @@ fn toggle(marker: MainThreadMarker, what: String) {
             type_: StrafeType::MaxDeccel,
         },
         "s00" => ToggleAutoActionTarget::Strafe {
-            dir: StrafeDir::Left,
+            dir: StrafeDir::Left(None),
             type_: StrafeType::MaxAccel,
         },
         "s01" => ToggleAutoActionTarget::Strafe {
-            dir: StrafeDir::Right,
+            dir: StrafeDir::Right(None),
             type_: StrafeType::MaxAccel,
         },
         "s10" => ToggleAutoActionTarget::Strafe {
-            dir: StrafeDir::Left,
+            dir: StrafeDir::Left(None),
             type_: StrafeType::MaxAngle,
         },
         "s11" => ToggleAutoActionTarget::Strafe {
-            dir: StrafeDir::Right,
+            dir: StrafeDir::Right(None),
             type_: StrafeType::MaxAngle,
         },
         "s06" => ToggleAutoActionTarget::Strafe {
@@ -1526,6 +1572,11 @@ fn add_frame_bulk_hud_lines(text: &mut Vec<u8>, bulk: &FrameBulk) {
     }
     if let Some(yaw) = bulk.yaw() {
         write!(text, "Yaw: {yaw:.3}\0").unwrap();
+    }
+    if let Some(yawspeed) = bulk.side_strafe_yawspeed() {
+        if let Some(yawspeed) = yawspeed {
+            write!(text, "Yawspeed: {yawspeed:.3}\0").unwrap();
+        }
     }
     if let Some(AutoMovement::Strafe(StrafeSettings {
         dir: StrafeDir::LeftRight(count) | StrafeDir::RightLeft(count),
