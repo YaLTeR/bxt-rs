@@ -18,6 +18,12 @@ pub trait FrameBulkExt {
 
     /// Returns a mutable reference to the left-right count stored in the frame bulk, if any.
     fn left_right_count_mut(&mut self) -> Option<&mut NonZeroU32>;
+
+    /// Returns a reference to the yawspeed stored in the framebulk, if any.
+    fn side_strafe_yawspeed(&self) -> Option<&Option<f32>>;
+
+    /// Returns a mutable reference to the yawspeed stored in the framebulk, if any.
+    fn side_strafe_yawspeed_mut(&mut self) -> Option<&mut Option<f32>>;
 }
 
 impl FrameBulkExt for FrameBulk {
@@ -59,6 +65,26 @@ impl FrameBulkExt for FrameBulk {
                 dir: StrafeDir::LeftRight(count) | StrafeDir::RightLeft(count),
                 ..
             })) => Some(count),
+            _ => None,
+        }
+    }
+
+    fn side_strafe_yawspeed(&self) -> Option<&Option<f32>> {
+        match &self.auto_actions.movement {
+            Some(AutoMovement::Strafe(StrafeSettings {
+                dir: StrafeDir::Left(yawspeed) | StrafeDir::Right(yawspeed),
+                ..
+            })) => Some(yawspeed),
+            _ => None,
+        }
+    }
+
+    fn side_strafe_yawspeed_mut(&mut self) -> Option<&mut Option<f32>> {
+        match &mut self.auto_actions.movement {
+            Some(AutoMovement::Strafe(StrafeSettings {
+                dir: StrafeDir::Left(yawspeed) | StrafeDir::Right(yawspeed),
+                ..
+            })) => Some(yawspeed),
             _ => None,
         }
     }

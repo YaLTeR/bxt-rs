@@ -116,6 +116,8 @@ pub struct Editor {
     /// Adjusts the left-right count in the same way for all adjacent frame bulks with equal
     /// left-right count.
     adjacent_left_right_count_adjustment: Option<AdjacentLeftRightCountAdjustment>,
+    /// Frame bulk side strafe yawspeed adjustment.
+    side_strafe_yawspeed_adjustment: Option<MouseAdjustment<f32>>,
 
     // ==============================================
     // Camera-editor-specific state.
@@ -382,6 +384,7 @@ impl Editor {
             adjacent_frame_count_adjustment: None,
             adjacent_yaw_adjustment: None,
             adjacent_left_right_count_adjustment: None,
+            side_strafe_yawspeed_adjustment: None,
             in_camera_editor: false,
             auto_smoothing: false,
             show_player_bbox: false,
@@ -687,6 +690,7 @@ impl Editor {
             || self.adjacent_frame_count_adjustment.is_some()
             || self.adjacent_yaw_adjustment.is_some()
             || self.adjacent_left_right_count_adjustment.is_some()
+            || self.side_strafe_yawspeed_adjustment.is_some()
     }
 
     /// Updates the editor state.
@@ -707,6 +711,7 @@ impl Editor {
         self.tick_adjacent_frame_count_adjustment(mouse, keyboard)?;
         self.tick_adjacent_yaw_adjustment(mouse, keyboard)?;
         self.tick_adjacent_left_right_count_adjustment(mouse, keyboard)?;
+        self.tick_side_strafe_yawspeed_adjustment(mouse, keyboard)?;
 
         self.tick_insert_camera_line_adjustment(mouse, keyboard)?;
 
@@ -912,6 +917,24 @@ impl Editor {
 
                             self.left_right_count_adjustment =
                                 Some(MouseAdjustment::new(count.get(), mouse_pos, dir));
+                        } else if let Some(yawspeed) = bulk.side_strafe_yawspeed() {
+                            let yawspeed = match *yawspeed {
+                                Some(yawspeed) => yawspeed,
+                                None => 0.,
+                            };
+
+                            // Forward-back adjustment like frame count.
+                            let frame_screen = world_to_screen(frame.state.player.pos);
+                            let prev_screen = world_to_screen(prev.state.player.pos);
+    
+                            let dir = match (frame_screen, prev_screen) {
+                                (Some(frame), Some(prev)) => frame - prev,
+                                // Presumably, previous frame is invisible, so just fall back.
+                                _ => Vec2::X,
+                            };
+
+                            self.side_strafe_yawspeed_adjustment =
+                                Some(MouseAdjustment::new(yawspeed, mouse_pos, dir))
                         }
                     } else if mouse.buttons.is_middle_down() {
                         let (bulk, last_frame_idx) = bulk_and_last_frame_idx.next().unwrap();
@@ -1459,6 +1482,61 @@ impl Editor {
         Ok(())
     }
 
+    fn tick_side_strafe_yawspeed_adjustment(
+        &mut self,
+        mouse: MouseState,
+        keyboard: KeyboardState,
+    ) -> eyre::Result<()> {
+        let Some(adjustment) = &mut self.side_strafe_yawspeed_adjustment else {
+            return Ok(());
+        };
+
+        let bulk_idx = self.selected_bulk_idx.unwrap();
+        let (bulk, first_frame_idx) =
+            bulk_and_first_frame_idx_mut(&mut self.branches[self.branch_idx].branch.script)
+                .nth(bulk_idx)
+                .unwrap();
+
+        let yawspeed_mut_ref = bulk.side_strafe_yawspeed_mut().unwrap();
+        let yawspeed = match *yawspeed_mut_ref {
+            Some(yawspeed) => yawspeed,
+            _ => 0.,
+        };
+
+        if !mouse.buttons.is_right_down() {
+            if !adjustment.changed_once {
+                self.side_strafe_yawspeed_adjustment = None;
+                return Ok(());
+            }
+
+            let op = Operation::SetYawSpeed {
+                bulk_idx,
+                from: adjustment.original_value,
+                to: yawspeed,
+            };
+            self.side_strafe_yawspeed_adjustment = None;
+            return self.store_operation(op);
+        }
+
+        // delta scalar might need being a lot higher but there's +ALT1 adjustment anyway.
+        let speed = keyboard.adjustment_speed();
+        let delta = adjustment.delta(mouse.pos.as_vec2()) * 0.1 * speed;
+        let new_yawspeed = adjustment.original_value + delta;
+
+        if yawspeed != new_yawspeed {
+            adjustment.changed_once = true;
+            *yawspeed_mut_ref = Some(new_yawspeed);
+
+            if new_yawspeed == 0. {
+                *yawspeed_mut_ref = None;
+            }
+
+            self.invalidate(first_frame_idx);
+        }
+
+        Ok(())
+    }
+
     fn tick_insert_camera_line_adjustment(
         &mut self,
         mouse: MouseState,
@@ -1742,6 +1820,27 @@ impl Editor {
                 *left_right_count = original_value;
 
                 drop(bulks);
+                self.invalidate(first_frame_idx);
+            }
+        }
+
+        if let Some(adjustment) = self.side_strafe_yawspeed_adjustment.take() {
+            let original_value = adjustment.original_value;
+
+            let bulk_idx = self.selected_bulk_idx.unwrap();
+            let (bulk, first_frame_idx) =
+                bulk_and_first_frame_idx_mut(&mut self.branch_mut().branch.script)
+                    .nth(bulk_idx)
+                    .unwrap();
+
+            let yawspeed_mut_ref = bulk.side_strafe_yawspeed_mut().unwrap();
+            let yawspeed = match *yawspeed_mut_ref {
+                Some(yawspeed) => yawspeed,
+                _ => 0.,
+            };
+
+            if yawspeed != original_value {
+                *yawspeed_mut_ref = Some(original_value);
                 self.invalidate(first_frame_idx);
             }
         }
@@ -2334,6 +2433,73 @@ impl Editor {
             from,
             to,
         };
+        self.apply_operation(op)
+    }
+
+    /// Sets yawspeed of the selected frame bulk.
+    pub fn set_yawspeed(&mut self, new_yawspeed: Option<f32>) -> eyre::Result<()> {
+        // Don't toggle during active adjustments for consistency with other operations.
+        if self.is_any_adjustment_active() {
+            return Ok(());
+        }
+
+        if self.in_camera_editor {
+            return Ok(());
+        }
+
+        let Some(bulk_idx) = self.selected_bulk_idx else {
+            return Ok(());
+        };
+        let (line_idx, bulk) = self
+            .branch()
+            .branch
+            .script
+            .lines
+            .iter()
+            .enumerate()
+            .filter_map(|(line_idx, line)| line.frame_bulk().map(|bulk| (line_idx, bulk)))
+            .nth(bulk_idx)
+            .unwrap();
+
+        let mut new_bulk = bulk.clone();
+
+        if let Some(AutoMovement::Strafe(StrafeSettings { type_: _, ref mut dir })) =
+            &mut new_bulk.auto_actions.movement
+        {
+            let new_yawspeed = if let Some(yawspeed) = new_yawspeed {
+                if yawspeed == 0. {
+                    None
+                } else {
+                    new_yawspeed
+                }
+            } else {
+                new_yawspeed
+            };
+
+            match dir {
+                StrafeDir::Left(_) => *dir = StrafeDir::Left(new_yawspeed),
+                StrafeDir::Right(_) => *dir = StrafeDir::Right(new_yawspeed),
+                _ => (),
+            }
+        }
+
+        if new_bulk == *bulk {
+            return Ok(());
+        }
+
+        let mut buffer = Vec::new();
+        hltas::write::gen_frame_bulk(&mut buffer, bulk)
+            .expect("writing to an in-memory buffer should never fail");
+        let from = String::from_utf8(buffer)
+            .expect("FrameBulk serialization should never produce invalid UTF-8");
+
+        let mut buffer = Vec::new();
+        hltas::write::gen_frame_bulk(&mut buffer, &new_bulk)
+            .expect("writing to an in-memory buffer should never fail");
+        let to = String::from_utf8(buffer)
+            .expect("FrameBulk serialization should never produce invalid UTF-8");
+
+        let op = Operation::Replace { line_idx, from, to };
         self.apply_operation(op)
     }
 
