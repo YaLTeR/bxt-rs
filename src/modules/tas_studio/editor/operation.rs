@@ -317,25 +317,13 @@ impl Operation {
                     .expect("invalid bulk index");
 
                 let yawspeed = bulk
-                    .side_strafe_yawspeed_mut()
-                    .expect("frame bulk should have max yawspeed even if empty");
+                    .constant_yawspeed_mut()
+                    .expect("frame bulk should have yawspeed");
 
-                assert_eq!(
-                    from,
-                    match *yawspeed {
-                        Some(yawspeed) => yawspeed,
-                        None => 0.,
-                    },
-                    "wrong current yawspeed value"
-                );
+                assert_eq!(from, *yawspeed, "wrong current yawspeed value");
 
                 if from != to {
-                    *yawspeed = Some(to);
-
-                    if to == 0. {
-                        *yawspeed = None;
-                    }
-
+                    *yawspeed = to;
                     return Some(first_frame_idx);
                 }
             }
@@ -558,25 +546,13 @@ impl Operation {
                     .expect("invalid bulk index");
 
                 let yawspeed = bulk
-                    .side_strafe_yawspeed_mut()
+                    .constant_yawspeed_mut()
                     .expect("frame bulk should have max yawspeed even if empty");
 
-                assert_eq!(
-                    to,
-                    match *yawspeed {
-                        Some(yawspeed) => yawspeed,
-                        None => 0.,
-                    },
-                    "wrong current yawspeed value"
-                );
+                assert_eq!(to, *yawspeed, "wrong current yawspeed value");
 
                 if from != to {
-                    *yawspeed = Some(from);
-
-                    if from == 0. {
-                        *yawspeed = None;
-                    }
-
+                    *yawspeed = from;
                     return Some(first_frame_idx);
                 }
             }
@@ -978,8 +954,8 @@ s06-------|------|------|0.004|15|-|5
         check_op(
             "\
 ----------|------|------|0.004|10|-|6
-s00-------|------|------|0.004|-|-|10
-s01-------|------|------|0.004|70|-|10",
+s50-------|------|------|0.004|0|-|10
+s51-------|------|------|0.004|70|-|10",
             Operation::SetYawSpeed {
                 bulk_idx: 1,
                 from: 0.,
@@ -987,15 +963,15 @@ s01-------|------|------|0.004|70|-|10",
             },
             "\
 ----------|------|------|0.004|10|-|6
-s00-------|------|------|0.004|69|-|10
-s01-------|------|------|0.004|70|-|10",
+s50-------|------|------|0.004|69|-|10
+s51-------|------|------|0.004|70|-|10",
         );
 
         check_op(
             "\
 ----------|------|------|0.004|10|-|6
-s00-------|------|------|0.004|71|-|10
-s01-------|------|------|0.004|70|-|10",
+s50-------|------|------|0.004|71|-|10
+s51-------|------|------|0.004|70|-|10",
             Operation::SetYawSpeed {
                 bulk_idx: 1,
                 from: 71.,
@@ -1003,15 +979,15 @@ s01-------|------|------|0.004|70|-|10",
             },
             "\
 ----------|------|------|0.004|10|-|6
-s00-------|------|------|0.004|-|-|10
-s01-------|------|------|0.004|70|-|10",
+s50-------|------|------|0.004|0|-|10
+s51-------|------|------|0.004|70|-|10",
         );
 
         check_op(
             "\
 ----------|------|------|0.004|10|-|6
-s00-------|------|------|0.004|-|-|10
-s01-------|------|------|0.004|70|-|10",
+s50-------|------|------|0.004|0|-|10
+s51-------|------|------|0.004|70|-|10",
             Operation::SetYawSpeed {
                 bulk_idx: 2,
                 from: 70.,
@@ -1019,8 +995,8 @@ s01-------|------|------|0.004|70|-|10",
             },
             "\
 ----------|------|------|0.004|10|-|6
-s00-------|------|------|0.004|-|-|10
-s01-------|------|------|0.004|69|-|10",
+s50-------|------|------|0.004|0|-|10
+s51-------|------|------|0.004|69|-|10",
         );
     }
 }

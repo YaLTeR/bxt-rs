@@ -350,9 +350,9 @@ impl<S: Step> Step for Strafe<S> {
                 frame_bulk.auto_actions.movement
             {
                 let theta = match type_ {
-                    StrafeType::MaxAccel => match dir {
-                        StrafeDir::Left(_) => max_accel_theta(parameters, &state),
-                        StrafeDir::Right(_) => -max_accel_theta(parameters, &state),
+                    StrafeType::MaxAccel | StrafeType::ConstYawspeed(_) => match dir {
+                        StrafeDir::Left => max_accel_theta(parameters, &state),
+                        StrafeDir::Right => -max_accel_theta(parameters, &state),
                         StrafeDir::Yaw(yaw) => {
                             max_accel_into_yaw_theta(parameters, &state, yaw.to_radians())
                         }
@@ -379,8 +379,8 @@ impl<S: Step> Step for Strafe<S> {
                         _ => 0.,
                     },
                     StrafeType::MaxAngle => match dir {
-                        StrafeDir::Left(_) => max_angle_theta(parameters, &state),
-                        StrafeDir::Right(_) => -max_angle_theta(parameters, &state),
+                        StrafeDir::Left => max_angle_theta(parameters, &state),
+                        StrafeDir::Right => -max_angle_theta(parameters, &state),
                         StrafeDir::Yaw(yaw) => {
                             max_angle_into_yaw_theta(parameters, &state, yaw.to_radians())
                         }
@@ -414,26 +414,16 @@ impl<S: Step> Step for Strafe<S> {
 
                 // Constant yawspeed.
                 // TODO: if yawspeed is too high, prediction will be wrong.
-                match dir {
-                    StrafeDir::Left(yawspeed) | StrafeDir::Right(yawspeed) => {
-                        match yawspeed {
-                            Some(yawspeed) => {
-                                if yawspeed != 0. {
-                                    // Change vel_yaw in-place for convenience.
-                                    let right = matches!(dir, StrafeDir::Right(_));
-                                    let max_yaw_delta =
-                                        (yawspeed * parameters.frame_time).to_radians();
-                                    if right {
-                                        vel_yaw = state.prev_frame_input.yaw - max_yaw_delta;
-                                    } else {
-                                        vel_yaw = state.prev_frame_input.yaw + max_yaw_delta;
-                                    }
-                                }
-                            }
-                            None => (),
-                        }
+                if let StrafeType::ConstYawspeed(yawspeed) = type_ {
+                    // Change vel_yaw in-place for convenience.
+                    let right = matches!(dir, StrafeDir::Right);
+                    let max_yaw_delta = (yawspeed * parameters.frame_time).to_radians();
+
+                    if right {
+                        vel_yaw = state.prev_frame_input.yaw - max_yaw_delta;
+                    } else {
+                        vel_yaw = state.prev_frame_input.yaw + max_yaw_delta;
                     }
-                    _ => (),
                 }
 
                 assert!(

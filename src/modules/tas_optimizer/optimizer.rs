@@ -510,9 +510,9 @@ fn mutate_frame_bulk<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
         dir: if strafe_type == StrafeType::MaxDeccel {
             StrafeDir::Best
         } else if rng.gen::<bool>() {
-            StrafeDir::Left(None)
+            StrafeDir::Left
         } else {
-            StrafeDir::Right(None)
+            StrafeDir::Right
         },
     }));
 
@@ -566,13 +566,13 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
                     };
                 }
             }
-            StrafeDir::Left(_) | StrafeDir::Right(_) => {
+            StrafeDir::Left | StrafeDir::Right => {
                 if rng.gen::<f32>() < 0.05 {
                     // Invert the strafe dir.
-                    *dir = if *dir == StrafeDir::Left(None) {
-                        StrafeDir::Right(None)
+                    *dir = if *dir == StrafeDir::Left {
+                        StrafeDir::Right
                     } else {
-                        StrafeDir::Left(None)
+                        StrafeDir::Left
                     };
                 }
             }
