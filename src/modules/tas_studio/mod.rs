@@ -1345,7 +1345,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     editor.draw(tri);
 }
 
-fn add_frame_bulk_hud_lines(text: &mut Vec<u8>, bulk: &FrameBulk, last_frame: Option<&Frame>) {
+fn add_frame_bulk_hud_lines(text: &mut Vec<u8>, bulk: &FrameBulk) {
     // Add strafing info.
     text.extend(b"Strafing:\0");
     match bulk.auto_actions.movement {
@@ -1459,18 +1459,6 @@ fn add_frame_bulk_hud_lines(text: &mut Vec<u8>, bulk: &FrameBulk, last_frame: Op
         text.extend(b"Commands:\0");
         write!(text, "  {command}\0").unwrap();
     }
-
-    if let Some(last_frame) = last_frame {
-        text.extend(b"Last Frame Info:\0");
-
-        let xy_speed = last_frame.state.player.vel.truncate().length();
-        write!(text, "  XY Speed: {:.1}\0", xy_speed).unwrap();
-        write!(text, "  Z Speed: {:.1}\0", last_frame.state.player.vel.z).unwrap();
-
-        write!(text, "  X Pos: {:.1}\0", last_frame.state.player.pos.x).unwrap();
-        write!(text, "  Y Pos: {:.1}\0", last_frame.state.player.pos.y).unwrap();
-        write!(text, "  Z Pos: {:.1}\0", last_frame.state.player.pos.z).unwrap();
-    }
 }
 
 pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
@@ -1501,13 +1489,11 @@ pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
         Some(selected_bulk_idx) => {
             let script = editor.script();
 
-            let (bulk, first_frame_idx) = bulk_and_first_frame_idx(script)
+            let (bulk, _) = bulk_and_first_frame_idx(script)
                 .nth(selected_bulk_idx)
                 .unwrap();
-            let last_frame_idx = first_frame_idx - 1 + bulk.frame_count.get() as usize;
-            let last_frame = editor.branch().frames.get(last_frame_idx);
 
-            add_frame_bulk_hud_lines(&mut text, bulk, last_frame);
+            add_frame_bulk_hud_lines(&mut text, bulk);
         }
     };
 
@@ -1550,6 +1536,14 @@ fn add_hovered_frame_hud_lines(text: &mut Vec<u8>, frame_idx: usize, frame: &Fra
         frame.state.player.health, frame.state.player.armor,
     )
     .unwrap();
+
+    let xy_speed = frame.state.player.vel.truncate().length();
+    write!(text, "  XY Speed: {:.1}\0", xy_speed).unwrap();
+    write!(text, "  Z Speed: {:.1}\0", frame.state.player.vel.z).unwrap();
+
+    write!(text, "  X Pos: {:.1}\0", frame.state.player.pos.x).unwrap();
+    write!(text, "  Y Pos: {:.1}\0", frame.state.player.pos.y).unwrap();
+    write!(text, "  Z Pos: {:.1}\0", frame.state.player.pos.z).unwrap();
 
     write!(text, "  Stamina: {:.1}\0", frame.state.player.stamina_time).unwrap();
 }
