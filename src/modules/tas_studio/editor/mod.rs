@@ -2431,7 +2431,7 @@ impl Editor {
         let Some(bulk_idx) = self.selected_bulk_idx else {
             return Ok(());
         };
-        let (line_idx, bulk) = self
+        let (_, bulk) = self
             .branch()
             .branch
             .script
@@ -2443,6 +2443,8 @@ impl Editor {
             .unwrap();
 
         let mut new_bulk = bulk.clone();
+        let mut from = 0.;
+        let mut to = 0.;
 
         if let Some(AutoMovement::Strafe(StrafeSettings {
             type_: StrafeType::ConstYawspeed(yawspeed),
@@ -2450,6 +2452,8 @@ impl Editor {
         })) = &mut new_bulk.auto_actions.movement
         {
             if let Some(new_yawspeed) = new_yawspeed {
+                from = *yawspeed;
+                to = new_yawspeed;
                 *yawspeed = new_yawspeed;
             }
         }
@@ -2458,19 +2462,7 @@ impl Editor {
             return Ok(());
         }
 
-        let mut buffer = Vec::new();
-        hltas::write::gen_frame_bulk(&mut buffer, bulk)
-            .expect("writing to an in-memory buffer should never fail");
-        let from = String::from_utf8(buffer)
-            .expect("FrameBulk serialization should never produce invalid UTF-8");
-
-        let mut buffer = Vec::new();
-        hltas::write::gen_frame_bulk(&mut buffer, &new_bulk)
-            .expect("writing to an in-memory buffer should never fail");
-        let to = String::from_utf8(buffer)
-            .expect("FrameBulk serialization should never produce invalid UTF-8");
-
-        let op = Operation::Replace { line_idx, from, to };
+        let op = Operation::SetYawSpeed { bulk_idx, from, to };
         self.apply_operation(op)
     }
 
