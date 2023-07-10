@@ -72,7 +72,6 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_SET_YAWSPEED,
             &BXT_TAS_STUDIO_SET_PITCH,
             &BXT_TAS_STUDIO_SET_YAW,
-            &BXT_TAS_STUDIO_UNSET_YAWSPEED,
             &BXT_TAS_STUDIO_UNSET_PITCH,
             &BXT_TAS_STUDIO_UNSET_YAW,
             &BXT_TAS_STUDIO_SPLIT,
@@ -429,28 +428,6 @@ fn set_yawspeed(marker: MainThreadMarker, yawspeed: f32) {
     }
 }
 
-static BXT_TAS_STUDIO_UNSET_YAWSPEED: Command = Command::new(
-    b"bxt_tas_studio_unset_yawspeed\0",
-    handler!(
-        "bxt_tas_studio_unset_yawspeed
-        
-Unsets the yawspeed of the selected frame bulk.",
-        unset_yawspeed as fn(_)
-    ),
-);
-
-fn unset_yawspeed(marker: MainThreadMarker) {
-    let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else {
-        return;
-    };
-
-    if let Err(err) = editor.set_yawspeed(None) {
-        con_print(marker, &format!("Error unsetting yaw: {err}\n"));
-        *state = State::Idle;
-    }
-}
-
 static PLUS_BXT_TAS_STUDIO_INSERT_CAMERA_LINE: Command = Command::new(
     b"+bxt_tas_studio_insert_camera_line\0",
     handler!(
@@ -768,6 +745,8 @@ Values that you can toggle:
 - s11: quick turn strafing to the right
 - s06: left-right strafing
 - s07: right-left strafing
+- s50: constant turn rate to the left
+- s51: constant turn rate to the right
 - lgagst: makes autojump and ducktap trigger at optimal speed
 - autojump
 - ducktap
@@ -836,6 +815,14 @@ fn toggle(marker: MainThreadMarker, what: String) {
         "s07" => ToggleAutoActionTarget::Strafe {
             dir: StrafeDir::RightLeft(NonZeroU32::new(1).unwrap()),
             type_: StrafeType::MaxAccel,
+        },
+        "s50" => ToggleAutoActionTarget::Strafe {
+            dir: StrafeDir::Left,
+            type_: StrafeType::ConstYawspeed(210.),
+        },
+        "s51" => ToggleAutoActionTarget::Strafe {
+            dir: StrafeDir::Right,
+            type_: StrafeType::ConstYawspeed(210.),
         },
         "lgagst" => ToggleAutoActionTarget::LeaveGroundAtOptimalSpeed,
         "autojump" => ToggleAutoActionTarget::AutoJump,
