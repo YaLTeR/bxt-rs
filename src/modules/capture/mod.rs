@@ -392,6 +392,7 @@ pub unsafe fn capture_frame(marker: MainThreadMarker) {
                 height
             ),
         );
+        drop(state);
         cap_stop(marker);
         return;
     }
