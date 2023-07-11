@@ -469,6 +469,7 @@ impl Editor {
         branch.auto_smoothing.script = None;
         branch.auto_smoothing.frames.clear();
 
+        branch.extra_cam.clear();
         self.recompute_extra_camera_frame_data_if_needed();
 
         self.generation = self.generation.wrapping_add(1);
