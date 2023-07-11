@@ -420,9 +420,9 @@ impl<S: Step> Step for Strafe<S> {
                     let max_yaw_delta = (yawspeed * parameters.frame_time).to_radians();
 
                     if right {
-                        vel_yaw = state.prev_frame_input.yaw - max_yaw_delta;
+                        vel_yaw = input.yaw - max_yaw_delta;
                     } else {
-                        vel_yaw = state.prev_frame_input.yaw + max_yaw_delta;
+                        vel_yaw = input.yaw + max_yaw_delta;
                     }
                 }
 
