@@ -20,8 +20,10 @@ pub struct Vulkan {
     device: ash::Device,
     command_pool: vk::CommandPool,
     command_buffer_acquire: vk::CommandBuffer,
+    fence_acquire: vk::Fence,
     command_buffer_color_conversion: vk::CommandBuffer,
     command_buffer_accumulate: vk::CommandBuffer,
+    fence_accumulate: vk::Fence,
     queue: vk::Queue,
     image_frame: vk::Image,
     image_frame_memory: vk::DeviceMemory,
@@ -122,6 +124,8 @@ impl Drop for Vulkan {
                     self.command_buffer_accumulate,
                 ],
             );
+            self.device.destroy_fence(self.fence_acquire, None);
+            self.device.destroy_fence(self.fence_accumulate, None);
             self.device.destroy_command_pool(self.command_pool, None);
             self.device.destroy_device(None);
         }
@@ -189,6 +193,15 @@ impl Vulkan {
 
     #[instrument(skip_all)]
     pub unsafe fn acquire_image(&self) -> eyre::Result<()> {
+        // Wait for the previous iteration of this command buffer to complete.
+        {
+            let _span = info_span!("wait for fence").entered();
+
+            self.device
+                .wait_for_fences(&[self.fence_acquire], true, u64::MAX)?;
+            self.device.reset_fences(&[self.fence_acquire])?;
+        }
+
         let begin_info = vk::CommandBufferBeginInfo::builder()
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
         self.device
@@ -300,7 +313,7 @@ impl Vulkan {
             .signal_semaphores(&semaphores)
             .command_buffers(&command_buffers);
         self.device
-            .queue_submit(self.queue, &[*submit_info], vk::Fence::null())?;
+            .queue_submit(self.queue, &[*submit_info], self.fence_acquire)?;
 
         Ok(())
     }
@@ -591,6 +604,15 @@ impl Vulkan {
 
     #[instrument(skip(self))]
     pub unsafe fn accumulate(&self, weight: f32) -> eyre::Result<()> {
+        // Wait for the previous iteration of this command buffer to complete.
+        {
+            let _span = info_span!("wait for fence").entered();
+
+            self.device
+                .wait_for_fences(&[self.fence_accumulate], true, u64::MAX)?;
+            self.device.reset_fences(&[self.fence_accumulate])?;
+        }
+
         let begin_info = vk::CommandBufferBeginInfo::builder()
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
         self.device
@@ -710,26 +732,10 @@ impl Vulkan {
         self.device
             .end_command_buffer(self.command_buffer_accumulate)?;
 
-        // XXX: As far as I can tell, waiting for a fence here should not be required (and it makes
-        // the process quite slower). Unfortunately, I'm getting GPU fence timeouts on AMD if I
-        // don't do it, and on NVIDIA it causes glitched frames. Maybe there's a synchronization bug
-        // in the code, but I don't see it, and the validation layers are silent too.
-        let create_info = vk::FenceCreateInfo::default();
-        let fence = self.device.create_fence(&create_info, None)?;
-
         let command_buffers = [self.command_buffer_accumulate];
         let submit_info = vk::SubmitInfo::builder().command_buffers(&command_buffers);
         self.device
-            .queue_submit(self.queue, &[*submit_info], fence)?;
-
-        {
-            let _span = info_span!("wait for fence").entered();
-
-            self.device
-                .wait_for_fences(&[fence], true, u64::max_value())?;
-        }
-
-        self.device.destroy_fence(fence, None);
+            .queue_submit(self.queue, &[*submit_info], self.fence_accumulate)?;
 
         Ok(())
     }
@@ -1395,17 +1401,23 @@ pub fn init(width: u32, height: u32, uuids: &Uuids, is_sampling: bool) -> eyre::
     unsafe { device.end_command_buffer(command_buffer_acquire)? };
 
     let create_info = vk::FenceCreateInfo::default();
-    let fence = unsafe { device.create_fence(&create_info, None)? };
+    let fence_acquire = unsafe { device.create_fence(&create_info, None)? };
 
     let command_buffers = [command_buffer_acquire];
     let semaphores = [semaphore];
     let submit_info = vk::SubmitInfo::builder()
         .command_buffers(&command_buffers)
         .signal_semaphores(&semaphores);
-    unsafe { device.queue_submit(queue, &[*submit_info], fence)? };
+    unsafe { device.queue_submit(queue, &[*submit_info], fence_acquire)? };
 
-    unsafe { device.wait_for_fences(&[fence], true, u64::max_value())? };
-    unsafe { device.destroy_fence(fence, None) };
+    {
+        let _span = info_span!("wait for fence").entered();
+
+        unsafe { device.wait_for_fences(&[fence_acquire], true, u64::max_value())? };
+    }
+
+    let create_info = vk::FenceCreateInfo::builder().flags(vk::FenceCreateFlags::SIGNALED);
+    let fence_accumulate = unsafe { device.create_fence(&create_info, None)? };
 
     Ok(Vulkan {
         width,
@@ -1415,7 +1427,9 @@ pub fn init(width: u32, height: u32, uuids: &Uuids, is_sampling: bool) -> eyre::
         device,
         command_pool,
         command_buffer_acquire,
+        fence_acquire,
         command_buffer_accumulate,
+        fence_accumulate,
         command_buffer_color_conversion,
         queue,
         image_frame,
