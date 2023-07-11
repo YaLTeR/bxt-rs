@@ -36,10 +36,6 @@ pub mod operation;
 pub mod toggle_auto_action;
 pub mod utils;
 
-const SMOOTHING_WINDOW_S: f32 = 0.15;
-const SMOOTHING_SMALL_WINDOW_S: f32 = 0.03;
-const SMOOTHING_SMALL_WINDOW_MUL: f32 = 3.;
-
 pub struct Editor {
     /// Database storing information on disk.
     db: Db,
@@ -130,6 +126,13 @@ pub struct Editor {
 
     /// Adjustment to insert a camera line.
     insert_camera_line_adjustment: Option<InsertCameraLineAdjustment>,
+
+    /// Smoothing window size in seconds.
+    smooth_window_s: f32,
+    /// Smoothing small window size in seconds.
+    smooth_small_window_s: f32,
+    /// Smoothing small window impact multiplier.
+    smooth_small_window_multiplier: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -349,6 +352,9 @@ impl Editor {
             first_shown_frame_idx: 0,
             hovered_line_idx: None,
             insert_camera_line_adjustment: None,
+            smooth_window_s: 0.15,
+            smooth_small_window_s: 0.03,
+            smooth_small_window_multiplier: 3.,
         })
     }
 
@@ -419,6 +425,30 @@ impl Editor {
         self.recompute_extra_camera_frame_data_if_needed();
     }
 
+    pub fn set_smooth_window_s(&mut self, value: f32) {
+        if self.smooth_window_s == value {
+            return;
+        }
+
+        self.smooth_window_s = value;
+        self.branch_mut().extra_cam.clear();
+        self.recompute_extra_camera_frame_data_if_needed();
+    }
+
+    pub fn set_smooth_small_window_s(&mut self, value: f32) {
+        if self.smooth_small_window_s == value {
+            return;
+        }
+
+        self.smooth_small_window_s = value;
+        self.branch_mut().extra_cam.clear();
+        self.recompute_extra_camera_frame_data_if_needed();
+    }
+
+    pub fn set_smooth_small_window_multiplier(&mut self, value: f32) {
+        self.smooth_small_window_multiplier = value;
+    }
+
     pub fn set_auto_smoothing(&mut self, value: bool) {
         self.auto_smoothing = value;
     }
@@ -481,8 +511,9 @@ impl Editor {
 
         // These functions find the first and the last frame of the smoothing input region, given
         // the boundary frames of the non-idempotent region.
+        let window_size = self.smooth_window_s.max(self.smooth_small_window_s);
         let walk_back = move |mut idx: usize| {
-            let mut rem_win_size = SMOOTHING_WINDOW_S / 2. - frames[idx].parameters.frame_time / 2.;
+            let mut rem_win_size = window_size / 2. - frames[idx].parameters.frame_time / 2.;
 
             while idx > 0 && rem_win_size >= 0. {
                 idx -= 1;
@@ -493,7 +524,7 @@ impl Editor {
         };
 
         let walk_forward = move |mut idx: usize| {
-            let mut rem_win_size = SMOOTHING_WINDOW_S / 2. - frames[idx].parameters.frame_time / 2.;
+            let mut rem_win_size = window_size / 2. - frames[idx].parameters.frame_time / 2.;
 
             while idx + 1 < frames.len() && rem_win_size >= 0. {
                 idx += 1;
@@ -517,7 +548,7 @@ impl Editor {
 
             if yaw != prev_yaw {
                 // TODO: check for off-by-ones.
-                if idempotent_duration >= SMOOTHING_WINDOW_S {
+                if idempotent_duration >= window_size {
                     // The region that just ended was idempotent. Mark it as such.
                     for extra_cam in &mut branch.extra_cam[idempotent_started_at..idx] {
                         extra_cam.in_smoothing_idempotent_region = true;
@@ -2298,9 +2329,9 @@ impl Editor {
 
         let frames = &self.branch().frames;
         let smoothed = smoothed_yaws(
-            SMOOTHING_WINDOW_S,
-            SMOOTHING_SMALL_WINDOW_S,
-            SMOOTHING_SMALL_WINDOW_MUL,
+            self.smooth_window_s,
+            self.smooth_small_window_s,
+            self.smooth_small_window_multiplier,
             &frames[..frames.len()],
         );
 
@@ -2343,9 +2374,9 @@ impl Editor {
         }
 
         let mut smoothed = smoothed_yaws(
-            SMOOTHING_WINDOW_S,
-            SMOOTHING_SMALL_WINDOW_S,
-            SMOOTHING_SMALL_WINDOW_MUL,
+            self.smooth_window_s,
+            self.smooth_small_window_s,
+            self.smooth_small_window_multiplier,
             &frames[start..=end],
         );
 
@@ -2555,9 +2586,9 @@ impl Editor {
 
                 // Compute and insert the smoothed TargetYawOverride line.
                 let mut smoothed = smoothed_yaws(
-                    SMOOTHING_WINDOW_S,
-                    SMOOTHING_SMALL_WINDOW_S,
-                    SMOOTHING_SMALL_WINDOW_MUL,
+                    self.smooth_window_s,
+                    self.smooth_small_window_s,
+                    self.smooth_small_window_multiplier,
                     &branch.frames,
                 );
                 // First yaw corresponds to the initial frame, which is not controlled by the TAS.

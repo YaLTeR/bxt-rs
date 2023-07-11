@@ -55,6 +55,9 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_CAMERA_EDITOR,
             &BXT_TAS_STUDIO_AUTO_SMOOTHING,
             &BXT_TAS_STUDIO_SHOW_PLAYER_BBOX,
+            &BXT_TAS_STUDIO_SMOOTH_WINDOW_S,
+            &BXT_TAS_STUDIO_SMOOTH_SMALL_WINDOW_S,
+            &BXT_TAS_STUDIO_SMOOTH_SMALL_WINDOW_MULTIPLIER,
         ];
         CVARS
     }
@@ -164,6 +167,38 @@ static BXT_TAS_STUDIO_SHOW_PLAYER_BBOX: CVar = CVar::new(
     b"0\0",
     "\
 Whether to show the player bbox for the frame under the cursor.",
+);
+
+static BXT_TAS_STUDIO_SMOOTH_WINDOW_S: CVar = CVar::new(
+    b"_bxt_tas_studio_smooth_window_s\0",
+    b"0.15\0",
+    "\
+Smoothing window size in seconds.
+
+Smoothing averages camera angles in a window this big centered around every frame.",
+);
+
+static BXT_TAS_STUDIO_SMOOTH_SMALL_WINDOW_S: CVar = CVar::new(
+    b"_bxt_tas_studio_smooth_small_window_s\0",
+    b"0.03\0",
+    "\
+Smoothing small window size in seconds.
+
+Smoothing averages camera angles in a window centered around every frame. Within this window,\
+there's a smaller window which has a higher contribution to the final smoothed camera angle. This\
+console variable defines the size of the small window.",
+);
+
+static BXT_TAS_STUDIO_SMOOTH_SMALL_WINDOW_MULTIPLIER: CVar = CVar::new(
+    b"_bxt_tas_studio_smooth_small_window_multiplier\0",
+    b"3\0",
+    "\
+Smoothing small window impact multiplier.
+
+Smoothing averages camera angles in a window centered around every frame. Within this window,\
+there's a smaller window which has a higher contribution to the final smoothed camera angle. This\
+console variable defines how much stronger the influence of the camera angles in the smaller window\
+is compared to the big window.",
 );
 
 static BXT_TAS_STUDIO_LOAD: Command = Command::new(
@@ -1296,6 +1331,11 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     editor.set_in_camera_editor(BXT_TAS_STUDIO_CAMERA_EDITOR.as_bool(marker));
     editor.set_auto_smoothing(BXT_TAS_STUDIO_AUTO_SMOOTHING.as_bool(marker));
     editor.set_show_player_bbox(BXT_TAS_STUDIO_SHOW_PLAYER_BBOX.as_bool(marker));
+    editor.set_smooth_window_s(BXT_TAS_STUDIO_SMOOTH_WINDOW_S.as_f32(marker));
+    editor.set_smooth_small_window_s(BXT_TAS_STUDIO_SMOOTH_SMALL_WINDOW_S.as_f32(marker));
+    editor.set_smooth_small_window_multiplier(
+        BXT_TAS_STUDIO_SMOOTH_SMALL_WINDOW_MULTIPLIER.as_f32(marker),
+    );
 
     // SAFETY: if we have access to TriangleApi, it's safe to do player tracing too.
     let tracer = unsafe { Tracer::new(marker, true) }.unwrap();
