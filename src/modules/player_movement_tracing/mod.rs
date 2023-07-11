@@ -39,9 +39,10 @@ pub unsafe fn maybe_ensure_server_tracing(marker: MainThreadMarker, remove_dista
     }
 
     *engine::pmove.get(marker) = engine::g_svmove.get(marker);
+    let origin = &(**engine::pmove.get(marker)).origin;
 
     REMOVE_DISTANCE_LIMIT.set(marker, remove_distance_limit);
-    engine::SV_AddLinksToPM.get(marker)(engine::sv_areanodes.get(marker), &[0., 0., 0.]);
+    engine::SV_AddLinksToPM.get(marker)(engine::sv_areanodes.get(marker), origin);
     REMOVE_DISTANCE_LIMIT.set(marker, false);
 }
 
