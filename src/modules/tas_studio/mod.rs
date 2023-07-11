@@ -511,14 +511,27 @@ Undoes the last change to the script.",
 
 fn undo(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else {
+    let State::Editing {
+        editor,
+        last_generation,
+        last_branch_idx,
+        simulate_at,
+        ..
+    } = &mut *state
+    else {
         return;
     };
 
     if let Err(err) = editor.undo() {
         con_print(marker, &format!("Error undoing: {err}\n"));
         *state = State::Idle;
+        return;
     }
+
+    // Force a bridged file update.
+    *last_generation = editor.generation();
+    *last_branch_idx = editor.branch_idx();
+    *simulate_at = Some(Instant::now() + Duration::from_millis(100));
 }
 
 static BXT_TAS_STUDIO_REDO: Command = Command::new(
@@ -533,14 +546,27 @@ Redoes the last change to the script.",
 
 fn redo(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else {
+    let State::Editing {
+        editor,
+        last_generation,
+        last_branch_idx,
+        simulate_at,
+        ..
+    } = &mut *state
+    else {
         return;
     };
 
     if let Err(err) = editor.redo() {
         con_print(marker, &format!("Error redoing: {err}\n"));
         *state = State::Idle;
+        return;
     }
+
+    // Force a bridged file update.
+    *last_generation = editor.generation();
+    *last_branch_idx = editor.branch_idx();
+    *simulate_at = Some(Instant::now() + Duration::from_millis(100));
 }
 
 static BXT_TAS_STUDIO_BRANCH_CLONE: Command = Command::new(
@@ -939,14 +965,27 @@ Splits the frame bulk at frame under cursor.",
 
 fn split(marker: MainThreadMarker) {
     let mut state = STATE.borrow_mut(marker);
-    let State::Editing { editor, .. } = &mut *state else {
+    let State::Editing {
+        editor,
+        last_generation,
+        last_branch_idx,
+        simulate_at,
+        ..
+    } = &mut *state
+    else {
         return;
     };
 
     if let Err(err) = editor.split() {
         con_print(marker, &format!("Error splitting: {err}\n"));
         *state = State::Idle;
+        return;
     }
+
+    // Force a bridged file update.
+    *last_generation = editor.generation();
+    *last_branch_idx = editor.branch_idx();
+    *simulate_at = Some(Instant::now() + Duration::from_millis(100));
 }
 
 static BXT_TAS_STUDIO_CLOSE: Command = Command::new(
