@@ -81,7 +81,7 @@ pub enum Operation {
         from: u32,
         to: u32,
     },
-    SetYawSpeed {
+    SetYawspeed {
         bulk_idx: usize,
         from: f32,
         to: f32,
@@ -311,7 +311,7 @@ impl Operation {
                     return Some(first_frame_idx);
                 }
             }
-            Operation::SetYawSpeed { bulk_idx, from, to } => {
+            Operation::SetYawspeed { bulk_idx, from, to } => {
                 let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
                     .nth(bulk_idx)
                     .expect("invalid bulk index");
@@ -540,7 +540,7 @@ impl Operation {
                     return Some(first_frame_idx);
                 }
             }
-            Operation::SetYawSpeed { bulk_idx, from, to } => {
+            Operation::SetYawspeed { bulk_idx, from, to } => {
                 let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
                     .nth(bulk_idx)
                     .expect("invalid bulk index");
@@ -956,7 +956,7 @@ s06-------|------|------|0.004|15|-|5
 ----------|------|------|0.004|10|-|6
 s50-------|------|------|0.004|0|-|10
 s51-------|------|------|0.004|70|-|10",
-            Operation::SetYawSpeed {
+            Operation::SetYawspeed {
                 bulk_idx: 1,
                 from: 0.,
                 to: 69.,
@@ -972,7 +972,7 @@ s51-------|------|------|0.004|70|-|10",
 ----------|------|------|0.004|10|-|6
 s50-------|------|------|0.004|71|-|10
 s51-------|------|------|0.004|70|-|10",
-            Operation::SetYawSpeed {
+            Operation::SetYawspeed {
                 bulk_idx: 1,
                 from: 71.,
                 to: 0.,
@@ -988,7 +988,7 @@ s51-------|------|------|0.004|70|-|10",
 ----------|------|------|0.004|10|-|6
 s50-------|------|------|0.004|0|-|10
 s51-------|------|------|0.004|70|-|10",
-            Operation::SetYawSpeed {
+            Operation::SetYawspeed {
                 bulk_idx: 2,
                 from: 70.,
                 to: 69.,
