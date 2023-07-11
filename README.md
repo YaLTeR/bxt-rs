@@ -43,8 +43,6 @@ If the video looks glitched or the game crashes when starting recording (happens
 1. Update your GPU driver.
 1. If the problem still occurs, try `_bxt_cap_force_fallback 1`.
 
-If on Linux on an AMD GPU recording causes black screens and freezes, try running the game with `GALLIUM_THREAD=0` environment variable.
-
 ### Profiling
 
 Start Half-Life with the `BXT_RS_PROFILE` environment variable set to make bxt-rs output a `trace.json` file in the Half-Life folder. This is a Chrome JSON trace file which you can view in [Perfetto](https://ui.perfetto.dev/) or in `chrome://tracing`.
