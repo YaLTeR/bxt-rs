@@ -1500,7 +1500,7 @@ impl Editor {
                 return Ok(());
             }
 
-            let op = Operation::SetYawSpeed {
+            let op = Operation::SetYawspeed {
                 bulk_idx,
                 from: adjustment.original_value,
                 to: *yawspeed,
@@ -2462,7 +2462,7 @@ impl Editor {
             return Ok(());
         }
 
-        let op = Operation::SetYawSpeed { bulk_idx, from, to };
+        let op = Operation::SetYawspeed { bulk_idx, from, to };
         self.apply_operation(op)
     }
 
