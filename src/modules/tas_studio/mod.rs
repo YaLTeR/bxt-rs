@@ -211,7 +211,6 @@ fn convert(marker: MainThreadMarker, path: PathBuf) -> eyre::Result<()> {
     let script = HLTAS::from_str(&script)
         .map_err(|err| eyre!(err.to_string()))
         .context("error parsing the HLTAS")?;
-    // TODO: remove bxt_tas_editor 1 automatically?
     let project_path = path.with_extension("hltasproj");
     let editor =
         Editor::create(&project_path, &script).context("error creating the TAS project")?;
