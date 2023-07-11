@@ -1239,7 +1239,8 @@ pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
             // use wait.
             engine::prepend_command(
                 marker,
-                "_bxt_norefresh 0;setpause;bxt_freecam 1;wait;bxt_freecam 0;wait;bxt_freecam 1\n",
+                "_bxt_norefresh 0;setpause;stop;bxt_timer_stop;bxt_cap_stop;\
+                 bxt_freecam 1;wait;bxt_freecam 0;wait;bxt_freecam 1\n",
             );
 
             if BXT_IS_TAS_EDITOR_ACTIVE.get(marker)() != 0 {
