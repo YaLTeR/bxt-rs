@@ -145,7 +145,7 @@ Switches the TAS editor to the camera editor mode.",
 );
 
 static BXT_TAS_STUDIO_AUTO_SMOOTHING: CVar = CVar::new(
-    b"bxt_tas_studio_auto_smoothing\0",
+    b"_bxt_tas_studio_auto_smoothing\0",
     b"0\0",
     "\
 Enables automatic global smoothing when working on the TAS. Requires a two-game setup.
