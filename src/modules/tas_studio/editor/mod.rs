@@ -595,6 +595,11 @@ impl Editor {
         let script = &branch.branch.script;
         for (line_idx, frame_idx) in line_first_frame_idx(script).enumerate() {
             if frame_idx >= branch.extra_cam.len() {
+                // TODO: If we have target_yaw velocity_lock past the very last frame bulk, it will
+                // have a frame_idx == number of frames. This is because the first frame it affects
+                // is the frame right after all frames in the script, as it should be. However, this
+                // causes us to not render it, even though we could if we instead stored it on the
+                // previuos frame.
                 break;
             }
 
