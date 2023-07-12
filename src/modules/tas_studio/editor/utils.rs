@@ -162,6 +162,7 @@ pub fn line_idx_and_repeat_at_frame(lines: &[Line], frame_idx: usize) -> Option<
         .flat_map(|(line_idx, bulk)| {
             (0..bulk.frame_count.get()).map(move |repeat| (line_idx, repeat))
         })
+        .chain(iter::once((lines.len(), 0)))
         .nth(frame_idx)
 }
 
