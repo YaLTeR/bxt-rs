@@ -1827,6 +1827,13 @@ impl Editor {
             }
         }
 
+        // TODO: Since splitting does not invalidate frames, and we currently don't have an .hltas
+        // invalidation mechnic, manually check for and recompute the camera data here.
+        if let Operation::Split { .. } = op {
+            self.branch_mut().extra_cam.clear();
+            self.recompute_extra_camera_frame_data_if_needed();
+        }
+
         self.store_operation(op)
     }
 
@@ -1862,6 +1869,9 @@ impl Editor {
                 if let Some(frame_idx) = op.undo(&mut self.branch_mut().branch.script) {
                     self.invalidate(frame_idx);
                 }
+
+                self.branch_mut().extra_cam.clear();
+                self.recompute_extra_camera_frame_data_if_needed();
             }
             ActionKind::Hide => {
                 self.branches[branch_idx].branch.is_hidden = false;
@@ -1910,6 +1920,9 @@ impl Editor {
                 if let Some(frame_idx) = op.apply(&mut self.branch_mut().branch.script) {
                     self.invalidate(frame_idx);
                 }
+
+                self.branch_mut().extra_cam.clear();
+                self.recompute_extra_camera_frame_data_if_needed();
             }
             ActionKind::Hide => {
                 self.branches[branch_idx].branch.is_hidden = true;
