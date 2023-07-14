@@ -1511,8 +1511,8 @@ impl Editor {
 
         // delta scalar might need being a lot higher but there's +ALT1 adjustment anyway.
         let speed = keyboard.adjustment_speed();
-        let delta = adjustment.delta(mouse.pos.as_vec2()) * 0.1 * speed;
-        let new_yawspeed = adjustment.original_value + delta;
+        let delta = adjustment.delta(mouse.pos.as_vec2()) * 1. * speed;
+        let new_yawspeed = (adjustment.original_value + delta).max(0.);
 
         if *yawspeed != new_yawspeed {
             adjustment.changed_once = true;

@@ -350,7 +350,7 @@ impl<S: Step> Step for Strafe<S> {
                 frame_bulk.auto_actions.movement
             {
                 let theta = match type_ {
-                    StrafeType::MaxAccel | StrafeType::ConstYawspeed(_) => match dir {
+                    StrafeType::MaxAccel => match dir {
                         StrafeDir::Left => max_accel_theta(parameters, &state),
                         StrafeDir::Right => -max_accel_theta(parameters, &state),
                         StrafeDir::Yaw(yaw) => {
@@ -410,21 +410,7 @@ impl<S: Step> Step for Strafe<S> {
                     _ => 0.,
                 };
 
-                let mut vel_yaw = state.player.vel.y.atan2(state.player.vel.x);
-
-                // Constant yawspeed.
-                // TODO: if yawspeed is too high, prediction will be wrong.
-                if let StrafeType::ConstYawspeed(yawspeed) = type_ {
-                    // Change vel_yaw in-place for convenience.
-                    let right = matches!(dir, StrafeDir::Right);
-                    let max_yaw_delta = (yawspeed * parameters.frame_time).to_radians();
-
-                    if right {
-                        vel_yaw = input.yaw - max_yaw_delta;
-                    } else {
-                        vel_yaw = input.yaw + max_yaw_delta;
-                    }
-                }
+                let vel_yaw = state.player.vel.y.atan2(state.player.vel.x);
 
                 assert!(
                     parameters.max_speed <= Vct::MAX_SPEED_CAP,
@@ -433,9 +419,33 @@ impl<S: Step> Step for Strafe<S> {
                     Vct::MAX_SPEED_CAP
                 );
 
-                // TODO: target_yaw velocity_lock
-                let camera_yaw = angle_mod_rad(vel_yaw);
-                let entry = Vct::get().find_best((vel_yaw + theta) - camera_yaw);
+                let (camera_yaw, entry) = if let StrafeType::ConstYawspeed(yawspeed) = type_ {
+                    let right = matches!(dir, StrafeDir::Right);
+                    let yaw_delta = (yawspeed * parameters.frame_time).to_radians();
+
+                    let accel_angle = match state.place {
+                        Place::Ground => PI / 4.,
+                        _ => PI / 2.,
+                    };
+
+                    let (accel_angle, camera_yaw) = if right {
+                        (-accel_angle, input.yaw - yaw_delta)
+                    } else {
+                        (accel_angle, input.yaw + yaw_delta)
+                    };
+
+                    let camera_yaw = angle_mod_rad(camera_yaw);
+                    let entry = Vct::get().find_best(accel_angle);
+
+                    (camera_yaw, entry)
+                } else {
+                    // TODO: target_yaw velocity_lock
+                    println!("{}", theta);
+                    let camera_yaw = angle_mod_rad(vel_yaw);
+                    let entry = Vct::get().find_best((vel_yaw + theta) - camera_yaw);
+
+                    (camera_yaw, entry)
+                };
 
                 input.yaw = camera_yaw;
                 input.forward = entry.forward as f32;

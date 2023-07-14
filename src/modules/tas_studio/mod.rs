@@ -902,8 +902,8 @@ Values that you can toggle:
 - s11: quick turn strafing to the right
 - s06: left-right strafing
 - s07: right-left strafing
-- s50: constant turn rate to the left
-- s51: constant turn rate to the right
+- s40: constant turn rate to the left
+- s41: constant turn rate to the right
 - lgagst: makes autojump and ducktap trigger at optimal speed
 - autojump
 - ducktap
@@ -973,11 +973,11 @@ fn toggle(marker: MainThreadMarker, what: String) {
             dir: StrafeDir::RightLeft(NonZeroU32::new(1).unwrap()),
             type_: StrafeType::MaxAccel,
         },
-        "s50" => ToggleAutoActionTarget::Strafe {
+        "s40" => ToggleAutoActionTarget::Strafe {
             dir: StrafeDir::Left,
             type_: StrafeType::ConstYawspeed(210.),
         },
-        "s51" => ToggleAutoActionTarget::Strafe {
+        "s41" => ToggleAutoActionTarget::Strafe {
             dir: StrafeDir::Right,
             type_: StrafeType::ConstYawspeed(210.),
         },
