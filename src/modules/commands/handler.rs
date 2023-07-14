@@ -87,6 +87,38 @@ impl<A1: FromStr, A2: FromStr> CommandHandler for fn(MainThreadMarker, A1, A2) {
     }
 }
 
+impl<A1: FromStr, A2: FromStr, A3: FromStr> CommandHandler for fn(MainThreadMarker, A1, A2, A3) {
+    unsafe fn handle(self, marker: MainThreadMarker) -> bool {
+        let mut args = Args::new(marker).skip(1);
+        if args.len() != 3 {
+            return false;
+        }
+
+        let a1 = if let Some(a1) = args.next().and_then(parse_arg) {
+            a1
+        } else {
+            return false;
+        };
+
+        let a2 = if let Some(a2) = args.next().and_then(parse_arg) {
+            a2
+        } else {
+            return false;
+        };
+
+        let a3 = if let Some(a3) = args.next().and_then(parse_arg) {
+            a3
+        } else {
+            return false;
+        };
+
+        drop(args);
+        self(marker, a1, a2, a3);
+
+        true
+    }
+}
+
 /// Wraps a function accepting `FromStr` arguments as a console command handler.
 ///
 /// The arguments are safely extracted and parsed into their respective types, and if the parsing
