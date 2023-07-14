@@ -2046,19 +2046,6 @@ impl Editor {
             return Ok(());
         };
 
-        let total_frames = self
-            .branch()
-            .branch
-            .script
-            .frame_bulks()
-            .map(|bulk| bulk.frame_count.get() as usize)
-            .sum::<usize>();
-
-        // Can't split at the very end of the HLTAS.
-        if frame_idx == total_frames {
-            return Ok(());
-        }
-
         let (_line_idx, repeat) =
             line_idx_and_repeat_at_frame(&self.branch().branch.script.lines, frame_idx)
                 .expect("invalid frame index");
