@@ -3582,8 +3582,8 @@ mod tests {
             HLTAS::from_str("version 1\nframes\n----------|------|------|0.004|10|-|6").unwrap();
         let mut editor = Editor::create_in_memory(&script).unwrap();
 
-        // Undo with no changes should do nothing.
-        editor.undo().unwrap();
+        // Undo with no changes should return an error saying there are no actions to undo.
+        assert!(matches!(editor.undo(), Err(ManualOpError::UserError(_))));
 
         let before_op = editor.branch().branch.script.clone();
         editor
@@ -3610,8 +3610,8 @@ mod tests {
             "redo produced wrong result"
         );
 
-        // Redo with no changes should do nothing.
-        editor.redo().unwrap();
+        // Redo with no changes should return an error saying there are no actions to redo.
+        assert!(matches!(editor.redo(), Err(ManualOpError::UserError(_))));
     }
 
     #[test]
