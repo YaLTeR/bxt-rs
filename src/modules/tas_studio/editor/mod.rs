@@ -917,7 +917,7 @@ impl Editor {
 
                             self.left_right_count_adjustment =
                                 Some(MouseAdjustment::new(count.get(), mouse_pos, dir));
-                        } else if let Some(yawspeed) = bulk.constant_yawspeed() {
+                        } else if let Some(yawspeed) = bulk.yawspeed() {
                             // Forward-back adjustment like frame count.
                             let frame_screen = world_to_screen(frame.state.player.pos);
                             let prev_screen = world_to_screen(prev.state.player.pos);
@@ -1492,7 +1492,7 @@ impl Editor {
                 .nth(bulk_idx)
                 .unwrap();
 
-        let yawspeed = bulk.constant_yawspeed_mut().unwrap();
+        let yawspeed = bulk.yawspeed_mut().unwrap();
 
         if !mouse.buttons.is_right_down() {
             if !adjustment.changed_once {
@@ -1509,7 +1509,6 @@ impl Editor {
             return self.store_operation(op);
         }
 
-        // delta scalar might need being a lot higher but there's +ALT1 adjustment anyway.
         let speed = keyboard.adjustment_speed();
         let delta = adjustment.delta(mouse.pos.as_vec2()) * 1. * speed;
         let new_yawspeed = (adjustment.original_value + delta).max(0.);
@@ -1819,7 +1818,7 @@ impl Editor {
                     .nth(bulk_idx)
                     .unwrap();
 
-            let yawspeed = bulk.constant_yawspeed_mut().unwrap();
+            let yawspeed = bulk.yawspeed_mut().unwrap();
             if *yawspeed != original_value {
                 *yawspeed = original_value;
                 self.invalidate(first_frame_idx);

@@ -20,10 +20,10 @@ pub trait FrameBulkExt {
     fn left_right_count_mut(&mut self) -> Option<&mut NonZeroU32>;
 
     /// Returns a reference to the yawspeed stored in the framebulk, if any.
-    fn constant_yawspeed(&self) -> Option<&f32>;
+    fn yawspeed(&self) -> Option<&f32>;
 
     /// Returns a mutable reference to the yawspeed stored in the framebulk, if any.
-    fn constant_yawspeed_mut(&mut self) -> Option<&mut f32>;
+    fn yawspeed_mut(&mut self) -> Option<&mut f32>;
 }
 
 impl FrameBulkExt for FrameBulk {
@@ -69,7 +69,7 @@ impl FrameBulkExt for FrameBulk {
         }
     }
 
-    fn constant_yawspeed(&self) -> Option<&f32> {
+    fn yawspeed(&self) -> Option<&f32> {
         match &self.auto_actions.movement {
             Some(AutoMovement::Strafe(StrafeSettings {
                 type_: StrafeType::ConstYawspeed(yawspeed),
@@ -79,7 +79,7 @@ impl FrameBulkExt for FrameBulk {
         }
     }
 
-    fn constant_yawspeed_mut(&mut self) -> Option<&mut f32> {
+    fn yawspeed_mut(&mut self) -> Option<&mut f32> {
         match &mut self.auto_actions.movement {
             Some(AutoMovement::Strafe(StrafeSettings {
                 type_: StrafeType::ConstYawspeed(yawspeed),

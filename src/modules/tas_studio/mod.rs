@@ -544,7 +544,7 @@ static BXT_TAS_STUDIO_SET_YAWSPEED: Command = Command::new(
     handler!(
         "bxt_tas_studio_set_yawspeed
         
-Sets the yawspeed of the selected frame bulk.",
+Sets the yawspeed of the selected frame bulk for constant turn rate strafing.",
         set_yawspeed as fn(_, _)
     ),
 );
@@ -555,7 +555,7 @@ fn set_yawspeed(marker: MainThreadMarker, yawspeed: f32) {
         return;
     };
 
-    if let Err(err) = editor.set_yawspeed(Some(yawspeed)) {
+    if let Err(err) = editor.set_yawspeed(Some(yawspeed.max(0.))) {
         con_print(marker, &format!("Error setting yaw: {err}\n"));
         *state = State::Idle;
     }

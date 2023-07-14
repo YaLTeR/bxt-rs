@@ -317,7 +317,7 @@ impl Operation {
                     .expect("invalid bulk index");
 
                 let yawspeed = bulk
-                    .constant_yawspeed_mut()
+                    .yawspeed_mut()
                     .expect("frame bulk should have yawspeed");
 
                 assert_eq!(from, *yawspeed, "wrong current yawspeed value");
@@ -546,8 +546,8 @@ impl Operation {
                     .expect("invalid bulk index");
 
                 let yawspeed = bulk
-                    .constant_yawspeed_mut()
-                    .expect("frame bulk should have max yawspeed even if empty");
+                    .yawspeed_mut()
+                    .expect("frame bulk should have yawspeed");
 
                 assert_eq!(to, *yawspeed, "wrong current yawspeed value");
 
