@@ -1,12 +1,12 @@
 //! Interactive editor for TASes.
 
 use std::ffi::CStr;
-use std::fs::read_to_string;
+use std::fs::{self, read_to_string};
 use std::io::Write;
 use std::iter::zip;
 use std::mem;
 use std::num::NonZeroU32;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use bxt_ipc_types::Frame;
@@ -64,7 +64,9 @@ impl Module for TasStudio {
 
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[
+            &BXT_TAS_STUDIO_CONVERT_HLTAS_FROM_BXT_TAS_NEW,
             &BXT_TAS_STUDIO_SMOOTH_GLOBALLY,
+            &BXT_TAS_STUDIO_NEW,
             &BXT_TAS_STUDIO_LOAD,
             &BXT_TAS_STUDIO_CONVERT_HLTAS,
             &BXT_TAS_STUDIO_REPLAY,
@@ -201,6 +203,82 @@ console variable defines how much stronger the influence of the camera angles in
 is compared to the big window.",
 );
 
+static BXT_TAS_STUDIO_NEW: Command = Command::new(
+    b"bxt_tas_studio_new\0",
+    handler!(
+        "bxt_tas_studio_new <filename> <starting command> <FPS>
+
+Creates a new TAS project ready to use with the TAS studio.
+        
+- filename is the filename of the project that will be created. The .hltasproj extension will be \
+appended automatically.
+- starting command is the command to launch the map or load the save which the TAS will start \
+from, for example \"map c1a0\" or \"load tas-start\".
+- FPS is the initial FPS for the TAS, for example 100 or 250 or 1000.
+
+The TAS will use your current movement settings such as bxt_bhopcap and sv_maxspeed.
+
+Example: bxt_tas_studio_new full_game \"map c1a0\" 100",
+        new as fn(_, _, _, _)
+    ),
+);
+
+fn new(marker: MainThreadMarker, filename: String, command: String, fps: i32) {
+    // TODO: This can be implemented in a higher effort basis without requiring the intermediate
+    // .hltas file.
+    let hltas_filename = format!("{filename}.hltas");
+    if Path::new(&hltas_filename).exists() {
+        con_print(
+            marker,
+            &format!(
+                "Error creating the new TAS: the script named \
+                 {hltas_filename} already exists. Please rename or remove it first."
+            ),
+        );
+        return;
+    }
+
+    let hltasproj_filename = format!("{filename}.hltasproj");
+    if Path::new(&hltasproj_filename).exists() {
+        con_print(
+            marker,
+            &format!(
+                "Error creating the new TAS: the target .hltasproj script \
+                 ({hltasproj_filename}) already exists. Please rename or remove it first."
+            ),
+        );
+        return;
+    }
+
+    let frame_time = match fps {
+        1000 => "0.001",
+        500 => "0.002",
+        250 => "0.004",
+        100 => "0.010000001",
+        _ => {
+            con_print(
+                marker,
+                "You specified FPS = %d, however only FPS = 1000, 500, 250 or 100 are \
+                 currently supported. If you need another FPS value, use one of the supported \
+                 FPS values, and then change the frametime manually in the script",
+            );
+
+            if fps > 0 {
+                con_print(
+                    marker,
+                    &format!(" (you will want something around {})", 1. / fps as f32),
+                );
+            }
+
+            con_print(marker, ".\n");
+            return;
+        }
+    };
+
+    // TODO: new() should be marked as unsafe because this is not always safe.
+    unsafe { bxt::tas_new(marker, filename, command, frame_time.to_owned()) };
+}
+
 static BXT_TAS_STUDIO_LOAD: Command = Command::new(
     b"bxt_tas_studio_load\0",
     handler!(
@@ -253,6 +331,42 @@ fn convert(marker: MainThreadMarker, path: PathBuf) -> eyre::Result<()> {
     let bridge = Bridge::with_project_path(&project_path, editor.script());
     *STATE.borrow_mut(marker) = State::PreparingToPlayToEditor(editor, bridge);
     Ok(())
+}
+
+static BXT_TAS_STUDIO_CONVERT_HLTAS_FROM_BXT_TAS_NEW: Command = Command::new(
+    b"_bxt_tas_studio_convert_hltas_from_bxt_tas_new\0",
+    handler!(
+        "_bxt_tas_studio_convert_hltas_from_bxt_tas_new <tas.hltas>
+
+This is a command used internally by Bunnymod XT. You should use `bxt_tas_studio_convert_hltas` \
+instead.",
+        convert_hltas_from_bxt_tas_new as fn(_, _)
+    ),
+);
+
+fn convert_hltas_from_bxt_tas_new(marker: MainThreadMarker, mut path: String) {
+    if let Err(err) = convert(marker, PathBuf::from(&path)) {
+        con_print(marker, &format!("Error converting the HLTAS: {err}\n"));
+        return;
+    }
+
+    if let Err(err) = fs::remove_file(&path) {
+        con_print(marker, &format!("Error removing .hltas: {err}\n"));
+    }
+
+    path.push_str("proj");
+    if path.contains(' ') {
+        path.insert(0, '"');
+        path.push('"');
+    }
+
+    con_print(
+        marker,
+        &format!(
+            "New TAS has been created successfully. Use this command for launching it:\n \
+             bxt_tas_studio_load {path}\n",
+        ),
+    )
 }
 
 static BXT_TAS_STUDIO_REPLAY: Command = Command::new(

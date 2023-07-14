@@ -1,5 +1,6 @@
 //! Bunnymod XT.
 
+use std::ffi::CString;
 use std::os::raw::{c_char, c_int};
 use std::ptr::NonNull;
 
@@ -19,6 +20,9 @@ pub static BXT_TAS_LOAD_SCRIPT_FROM_STRING: Pointer<unsafe extern "C" fn(*const 
     Pointer::empty(b"bxt_tas_load_script_from_string\0");
 pub static BXT_IS_TAS_EDITOR_ACTIVE: Pointer<unsafe extern "C" fn() -> c_int> =
     Pointer::empty(b"bxt_is_tas_editor_active\0");
+pub static BXT_TAS_NEW: Pointer<
+    unsafe extern "C" fn(*const c_char, *const c_char, *const c_char, c_int),
+> = Pointer::empty(b"bxt_tas_new\0");
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &BXT_ON_TAS_PLAYBACK_FRAME,
@@ -26,6 +30,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &BXT_SIMULATION_IPC_IS_CLIENT_INITIALIZED,
     &BXT_TAS_LOAD_SCRIPT_FROM_STRING,
     &BXT_IS_TAS_EDITOR_ACTIVE,
+    &BXT_TAS_NEW,
 ];
 
 #[cfg(unix)]
@@ -104,6 +109,24 @@ pub fn is_simulation_ipc_client(marker: MainThreadMarker) -> bool {
             // start and always valid.
             unsafe { f() } != 0)
         .unwrap_or(false)
+}
+
+/// # Safety
+///
+/// `bxt_tas_new()` mainly modifies HwDLL member variables, but it also calls `Cbuf_InsertText()`
+/// and tries to get some cvar values, like `sv_maxspeed`. Those operations should therefore be safe
+/// to do when calling this function.
+pub unsafe fn tas_new(
+    marker: MainThreadMarker,
+    filename: String,
+    command: String,
+    frame_time: String,
+) {
+    let filename = CString::new(filename).unwrap();
+    let command = CString::new(command).unwrap();
+    let frame_time = CString::new(frame_time).unwrap();
+
+    BXT_TAS_NEW.get(marker)(filename.as_ptr(), command.as_ptr(), frame_time.as_ptr(), 1);
 }
 
 #[derive(Debug, Clone, Copy)]
