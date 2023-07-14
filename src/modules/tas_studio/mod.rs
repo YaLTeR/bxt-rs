@@ -112,6 +112,7 @@ impl Module for TasStudio {
             && bxt::BXT_IS_TAS_EDITOR_ACTIVE.is_set(marker)
             && bxt::BXT_ON_TAS_PLAYBACK_FRAME.is_set(marker)
             && bxt::BXT_ON_TAS_PLAYBACK_STOPPED.is_set(marker)
+            && bxt::BXT_TAS_NEW.is_set(marker)
             && TriangleDrawing.is_enabled(marker)
             && Commands.is_enabled(marker)
             && PlayerMovementTracing.is_enabled(marker)
