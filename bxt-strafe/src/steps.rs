@@ -440,7 +440,7 @@ impl<S: Step> Step for Strafe<S> {
                     (camera_yaw, entry)
                 } else {
                     // TODO: target_yaw velocity_lock
-                    println!("{}", theta);
+
                     let camera_yaw = angle_mod_rad(vel_yaw);
                     let entry = Vct::get().find_best((vel_yaw + theta) - camera_yaw);
 
