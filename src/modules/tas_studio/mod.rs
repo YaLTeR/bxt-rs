@@ -415,7 +415,10 @@ fn set_stop_frame_to_hovered(marker: MainThreadMarker) {
 
     if let Err(err) = editor.set_stop_frame_to_hovered() {
         con_print(marker, &format!("Error setting stop frame: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error setting stop frame: {err:?}");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -427,7 +430,10 @@ fn set_stop_frame(marker: MainThreadMarker, stop_frame: u32) {
 
     if let Err(err) = editor.set_stop_frame(stop_frame) {
         con_print(marker, &format!("Error setting stop frame: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error setting stop frame: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -449,7 +455,10 @@ fn set_pitch(marker: MainThreadMarker, pitch: f32) {
 
     if let Err(err) = editor.set_pitch(Some(pitch)) {
         con_print(marker, &format!("Error setting pitch: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error setting pitch: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -471,7 +480,10 @@ fn unset_pitch(marker: MainThreadMarker) {
 
     if let Err(err) = editor.set_pitch(None) {
         con_print(marker, &format!("Error unsetting pitch: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error unsetting pitch: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -493,7 +505,10 @@ fn set_yaw(marker: MainThreadMarker, yaw: f32) {
 
     if let Err(err) = editor.set_yaw(Some(yaw)) {
         con_print(marker, &format!("Error setting yaw: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error setting yaw: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -515,7 +530,10 @@ fn unset_yaw(marker: MainThreadMarker) {
 
     if let Err(err) = editor.set_yaw(None) {
         con_print(marker, &format!("Error unsetting yaw: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error unsetting yaw: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -638,7 +656,10 @@ fn undo(marker: MainThreadMarker) {
 
     if let Err(err) = editor.undo() {
         con_print(marker, &format!("Error undoing: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error undoing: {err:?}\n");
+            *state = State::Idle;
+        }
         return;
     }
 
@@ -673,7 +694,10 @@ fn redo(marker: MainThreadMarker) {
 
     if let Err(err) = editor.redo() {
         con_print(marker, &format!("Error redoing: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error redoing: {err:?}\n");
+            *state = State::Idle;
+        }
         return;
     }
 
@@ -701,7 +725,10 @@ fn branch_clone(marker: MainThreadMarker) {
 
     if let Err(err) = editor.branch_clone() {
         con_print(marker, &format!("Error cloning branch: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error cloning branch: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -723,7 +750,10 @@ fn branch_focus(marker: MainThreadMarker, branch_idx: usize) {
 
     if let Err(err) = editor.branch_focus(branch_idx) {
         con_print(marker, &format!("Error focusing branch: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error focusing branch: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -745,7 +775,10 @@ fn branch_focus_next(marker: MainThreadMarker) {
 
     if let Err(err) = editor.branch_focus_next() {
         con_print(marker, &format!("Error focusing branch: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error focusing branch: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -767,7 +800,10 @@ fn branch_hide(marker: MainThreadMarker, branch_idx: usize) {
 
     if let Err(err) = editor.branch_hide(branch_idx) {
         con_print(marker, &format!("Error hiding branch: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error hiding branch: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -792,7 +828,10 @@ fn branch_hide_and_focus_next(marker: MainThreadMarker) {
             marker,
             &format!("Error hiding branch and focusing next: {err}\n"),
         );
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error hiding branch and focusing next: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -814,7 +853,10 @@ fn branch_show(marker: MainThreadMarker, branch_idx: usize) {
 
     if let Err(err) = editor.branch_show(branch_idx) {
         con_print(marker, &format!("Error showing branch: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error showing branch: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -943,7 +985,10 @@ fn toggle(marker: MainThreadMarker, what: String) {
 
             if let Err(err) = editor.toggle_key(key) {
                 con_print(marker, &format!("Error toggling value: {err}\n"));
-                *state = State::Idle;
+                if err.is_internal() {
+                    error!("error toggling value: {err:?}\n");
+                    *state = State::Idle;
+                }
             }
 
             return;
@@ -952,7 +997,10 @@ fn toggle(marker: MainThreadMarker, what: String) {
 
     if let Err(err) = editor.toggle_auto_action(target) {
         con_print(marker, &format!("Error toggling value: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error toggling value: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -975,7 +1023,10 @@ fn hide(marker: MainThreadMarker) {
 
     if let Err(err) = editor.hide_frames_up_to_hovered() {
         con_print(marker, &format!("Error hiding: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error hiding: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -997,7 +1048,10 @@ fn smooth(marker: MainThreadMarker) {
 
     if let Err(err) = editor.apply_smoothing_to_hovered_segment() {
         con_print(marker, &format!("Error applying smoothing: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error applying smoothing: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -1019,7 +1073,10 @@ fn smooth_globally(marker: MainThreadMarker) {
 
     if let Err(err) = editor.apply_global_smoothing() {
         con_print(marker, &format!("Error applying smoothing: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error applying smoothing: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -1041,7 +1098,10 @@ fn delete(marker: MainThreadMarker) {
 
     if let Err(err) = editor.delete_selected() {
         con_print(marker, &format!("Error deleting selected: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error deleting selected: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -1063,7 +1123,10 @@ fn delete_last(marker: MainThreadMarker) {
 
     if let Err(err) = editor.delete_last() {
         con_print(marker, &format!("Error deleting last: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error deleting last: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -1092,7 +1155,10 @@ fn split(marker: MainThreadMarker) {
 
     if let Err(err) = editor.split() {
         con_print(marker, &format!("Error splitting: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error splitting: {err:?}");
+            *state = State::Idle;
+        }
         return;
     }
 
@@ -1170,7 +1236,10 @@ fn optim_apply(marker: MainThreadMarker) {
 
     if let Err(err) = editor.rewrite(new_script) {
         con_print(marker, &format!("Error rewriting the script: {err}\n"));
-        *state = State::Idle;
+        if err.is_internal() {
+            error!("error rewriting the script: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -1476,7 +1545,10 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     if let Some(script) = bridge.new_script() {
         if let Err(err) = editor.rewrite(script) {
             con_print(marker, &format!("Error rewriting the script: {err}\n"));
-            *state = State::Idle;
+            if err.is_internal() {
+                error!("error rewriting the script: {err:?}\n");
+                *state = State::Idle;
+            }
             return;
         }
     }

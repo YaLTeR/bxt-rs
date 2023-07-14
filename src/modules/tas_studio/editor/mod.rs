@@ -16,6 +16,7 @@ use hltas::types::{
 };
 use hltas::HLTAS;
 use itertools::Itertools;
+use thiserror::Error;
 
 use self::db::{Action, ActionKind, Branch, Db};
 use self::operation::{Key, Operation};
@@ -311,6 +312,41 @@ struct AutoSmoothing {
     ///
     /// The result of playing back the smoothed `script`.
     frames: Vec<Frame>,
+}
+
+/// Error of a manually-triggered operation.
+#[derive(Debug, Error)]
+pub enum ManualOpError {
+    #[error("cannot do this during an active adjustment")]
+    CannotDoDuringAdjustment,
+    #[error("you need to be in the camera editor to do this")]
+    CannotDoInMovementEditor,
+    #[error("you need to be in the movement editor to do this")]
+    CannotDoInCameraEditor,
+    #[error("you need to point the cursor at a frame to do this")]
+    NoHoveredFrame,
+    #[error("you need to select a frame bulk to do this")]
+    NoSelectedBulk,
+    #[error("this branch does not exist")]
+    BranchDoesNotExist,
+    /// Other non-fatal user error (i.e. unable to trigger the operation at this time).
+    #[error("{0}")]
+    UserError(String),
+    /// Error of the operation which was triggered.
+    #[error("{0}")]
+    InternalError(#[from] eyre::Report),
+}
+
+type ManualOpResult<T> = Result<T, ManualOpError>;
+
+impl ManualOpError {
+    /// Returns `true` if the manual op error is [`InternalError`].
+    ///
+    /// [`InternalError`]: ManualOpError::InternalError
+    #[must_use]
+    pub fn is_internal(&self) -> bool {
+        matches!(self, Self::InternalError(..))
+    }
 }
 
 impl Editor {
@@ -1838,16 +1874,18 @@ impl Editor {
     }
 
     /// Undoes the last action if any.
-    pub fn undo(&mut self) -> eyre::Result<()> {
+    pub fn undo(&mut self) -> ManualOpResult<()> {
         // Don't undo during active adjustments because:
         // 1. adustments store the orginal value, which will potentially change after an undo,
         // 2. what if undo removes the frame bulk being adjusted?
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         let Some(action) = self.undo_log.pop() else {
-            return Ok(());
+            return Err(ManualOpError::UserError(
+                "there are no actions to undo".to_owned(),
+            ));
         };
         let branch_idx = self
             .branches
@@ -1889,16 +1927,18 @@ impl Editor {
     }
 
     /// Redoes the last action if any.
-    pub fn redo(&mut self) -> eyre::Result<()> {
+    pub fn redo(&mut self) -> ManualOpResult<()> {
         // Don't redo during active adjustments because:
         // 1. adustments store the orginal value, which will potentially change after an undo,
         // 2. what if undo removes the frame bulk being adjusted?
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         let Some(action) = self.redo_log.pop() else {
-            return Ok(());
+            return Err(ManualOpError::UserError(
+                "there are no actions to redo".to_owned(),
+            ));
         };
         let branch_idx = self
             .branches
@@ -1940,15 +1980,15 @@ impl Editor {
     }
 
     /// Deletes the selected line, if any.
-    pub fn delete_selected(&mut self) -> eyre::Result<()> {
+    pub fn delete_selected(&mut self) -> ManualOpResult<()> {
         // Don't delete during active adjustments because they store the frame bulk index.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         if self.in_camera_editor {
             let Some(line_idx) = self.hovered_line_idx else {
-                return Ok(());
+                return Err(ManualOpError::NoHoveredFrame);
             };
 
             let line = &self.branch().branch.script.lines[line_idx];
@@ -1963,11 +2003,12 @@ impl Editor {
                 line_idx,
                 line: buffer,
             };
-            return self.apply_operation(op);
+            self.apply_operation(op)?;
+            return Ok(());
         }
 
         let Some(bulk_idx) = self.selected_bulk_idx else {
-            return Ok(());
+            return Err(ManualOpError::NoSelectedBulk);
         };
 
         let (line_idx, line) = self
@@ -1991,18 +2032,20 @@ impl Editor {
             line_idx,
             line: buffer,
         };
-        self.apply_operation(op)
+        self.apply_operation(op)?;
+
+        Ok(())
     }
 
     /// Deletes the last frame bulk, if any.
-    pub fn delete_last(&mut self) -> eyre::Result<()> {
+    pub fn delete_last(&mut self) -> ManualOpResult<()> {
         // Don't delete during active adjustments because they store the frame bulk index.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         if self.in_camera_editor {
-            return Ok(());
+            return Err(ManualOpError::CannotDoInCameraEditor);
         }
 
         let Some((line_idx, line)) = self
@@ -2015,7 +2058,9 @@ impl Editor {
             .filter(|(_, line)| matches!(line, Line::FrameBulk(_)))
             .last()
         else {
-            return Ok(());
+            return Err(ManualOpError::UserError(
+                "there are no frame bulks to delete".to_owned(),
+            ));
         };
 
         let mut buffer = Vec::new();
@@ -2028,22 +2073,24 @@ impl Editor {
             line_idx,
             line: buffer,
         };
-        self.apply_operation(op)
+        self.apply_operation(op)?;
+
+        Ok(())
     }
 
     /// Splits frame bulk at hovered frame.
-    pub fn split(&mut self) -> eyre::Result<()> {
+    pub fn split(&mut self) -> ManualOpResult<()> {
         // Don't split during active adjustments because they store the frame bulk index.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         if self.in_camera_editor {
-            return Ok(());
+            return Err(ManualOpError::CannotDoInCameraEditor);
         }
 
         let Some(frame_idx) = self.hovered_frame_idx else {
-            return Ok(());
+            return Err(ManualOpError::NoHoveredFrame);
         };
 
         let (_line_idx, repeat) =
@@ -2052,26 +2099,30 @@ impl Editor {
 
         // Can't split because this is already a split point.
         if repeat == 0 {
-            return Ok(());
+            return Err(ManualOpError::UserError(
+                "the script is already split at this point".to_owned(),
+            ));
         }
 
         let op = Operation::Split { frame_idx };
-        self.apply_operation(op)
+        self.apply_operation(op)?;
+
+        Ok(())
     }
 
     /// Toggles a key on the selected frame bulk.
-    pub fn toggle_key(&mut self, key: Key) -> eyre::Result<()> {
+    pub fn toggle_key(&mut self, key: Key) -> ManualOpResult<()> {
         // Don't toggle during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         if self.in_camera_editor {
-            return Ok(());
+            return Err(ManualOpError::CannotDoInCameraEditor);
         }
 
         let Some(bulk_idx) = self.selected_bulk_idx else {
-            return Ok(());
+            return Err(ManualOpError::NoSelectedBulk);
         };
         let bulk = self
             .branch_mut()
@@ -2086,22 +2137,24 @@ impl Editor {
             key,
             to: !*key.value_mut(bulk),
         };
-        self.apply_operation(op)
+        self.apply_operation(op)?;
+
+        Ok(())
     }
 
     /// Toggles an auto-action on the selected frame bulk.
-    pub fn toggle_auto_action(&mut self, target: ToggleAutoActionTarget) -> eyre::Result<()> {
+    pub fn toggle_auto_action(&mut self, target: ToggleAutoActionTarget) -> ManualOpResult<()> {
         // Don't toggle during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         if self.in_camera_editor {
-            return Ok(());
+            return Err(ManualOpError::CannotDoInCameraEditor);
         }
 
         let Some(bulk_idx) = self.selected_bulk_idx else {
-            return Ok(());
+            return Err(ManualOpError::NoSelectedBulk);
         };
         let (line_idx, bulk) = self
             .branch()
@@ -2132,22 +2185,24 @@ impl Editor {
             .expect("FrameBulk serialization should never produce invalid UTF-8");
 
         let op = Operation::Replace { line_idx, from, to };
-        self.apply_operation(op)
+        self.apply_operation(op)?;
+
+        Ok(())
     }
 
     /// Sets pitch of the selected frame bulk.
-    pub fn set_pitch(&mut self, new_pitch: Option<f32>) -> eyre::Result<()> {
+    pub fn set_pitch(&mut self, new_pitch: Option<f32>) -> ManualOpResult<()> {
         // Don't toggle during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         if self.in_camera_editor {
-            return Ok(());
+            return Err(ManualOpError::CannotDoInCameraEditor);
         }
 
         let Some(bulk_idx) = self.selected_bulk_idx else {
-            return Ok(());
+            return Err(ManualOpError::NoSelectedBulk);
         };
         let (line_idx, bulk) = self
             .branch()
@@ -2180,22 +2235,24 @@ impl Editor {
             .expect("FrameBulk serialization should never produce invalid UTF-8");
 
         let op = Operation::Replace { line_idx, from, to };
-        self.apply_operation(op)
+        self.apply_operation(op)?;
+
+        Ok(())
     }
 
     /// Sets yaw of the selected frame bulk.
-    pub fn set_yaw(&mut self, new_yaw: Option<f32>) -> eyre::Result<()> {
+    pub fn set_yaw(&mut self, new_yaw: Option<f32>) -> ManualOpResult<()> {
         // Don't toggle during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         if self.in_camera_editor {
-            return Ok(());
+            return Err(ManualOpError::CannotDoInCameraEditor);
         }
 
         let Some(bulk_idx) = self.selected_bulk_idx else {
-            return Ok(());
+            return Err(ManualOpError::NoSelectedBulk);
         };
         let (line_idx, bulk) = self
             .branch()
@@ -2242,7 +2299,9 @@ impl Editor {
             .expect("FrameBulk serialization should never produce invalid UTF-8");
 
         let op = Operation::Replace { line_idx, from, to };
-        self.apply_operation(op)
+        self.apply_operation(op)?;
+
+        Ok(())
     }
 
     fn replace_multiple(
@@ -2279,10 +2338,10 @@ impl Editor {
     }
 
     /// Rewrites the script with a completely new version.
-    pub fn rewrite(&mut self, new_script: HLTAS) -> eyre::Result<()> {
+    pub fn rewrite(&mut self, new_script: HLTAS) -> ManualOpResult<()> {
         // Don't toggle during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         let script = self.script();
@@ -2292,7 +2351,8 @@ impl Editor {
 
         // Check if we can optimize a full rewrite into a lines replacement.
         if let Some((first_line_idx, count, to)) = replace_multiple_params(script, &new_script) {
-            return self.replace_multiple(first_line_idx, count, to);
+            self.replace_multiple(first_line_idx, count, to)?;
+            return Ok(());
         }
 
         let mut buffer = Vec::new();
@@ -2310,14 +2370,16 @@ impl Editor {
             .expect("HLTAS serialization should never produce invalid UTF-8");
 
         let op = Operation::Rewrite { from, to };
-        self.apply_operation(op)
+        self.apply_operation(op)?;
+
+        Ok(())
     }
 
     /// Applies global smoothing to the entire script.
-    pub fn apply_global_smoothing(&mut self) -> eyre::Result<()> {
+    pub fn apply_global_smoothing(&mut self) -> ManualOpResult<()> {
         // Don't apply during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         let frame_count = self
@@ -2330,7 +2392,11 @@ impl Editor {
 
         // Only smooth when we have all accurate frames.
         if self.branch().first_predicted_frame != frame_count + 1 {
-            return Ok(());
+            return Err(ManualOpError::UserError(
+                "all frames must be accurate (simulated by the \
+                 second game) to apply global smoothing"
+                    .to_owned(),
+            ));
         }
 
         let frames = &self.branch().frames;
@@ -2349,34 +2415,42 @@ impl Editor {
         }
 
         let op = Operation::Insert { line_idx: 0, line };
-        self.apply_operation(op)
+        self.apply_operation(op)?;
+
+        Ok(())
     }
 
     /// Applies smoothing to the segment under cursor.
-    pub fn apply_smoothing_to_hovered_segment(&mut self) -> eyre::Result<()> {
+    pub fn apply_smoothing_to_hovered_segment(&mut self) -> ManualOpResult<()> {
         // Don't apply during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         if !self.in_camera_editor {
-            return Ok(());
+            return Err(ManualOpError::CannotDoInMovementEditor);
         }
 
         let Some(hovered_frame_idx) = self.hovered_frame_idx else {
-            return Ok(());
+            return Err(ManualOpError::NoHoveredFrame);
         };
 
         // Find the input region the user is pointing at.
         let frames = &self.branch().frames;
         let Some((start, end)) = self.branch().extra_cam[hovered_frame_idx].smoothing_input_region
         else {
-            return Ok(());
+            return Err(ManualOpError::UserError(
+                "you need to point the cursor at an orange / blue segment to do this".to_owned(),
+            ));
         };
 
         // Only smooth when we have all accurate frames.
         if self.branch().first_predicted_frame <= end {
-            return Ok(());
+            return Err(ManualOpError::UserError(
+                "all frames in the segment must be accurate (simulated by the \
+                 second game) to apply smoothing"
+                    .to_owned(),
+            ));
         }
 
         let mut smoothed = smoothed_yaws(
@@ -2409,7 +2483,8 @@ impl Editor {
 
             // There's already a frame bulk edge here, no need to split.
             let op = Operation::Insert { line_idx, line };
-            self.apply_operation(op)
+            self.apply_operation(op)?;
+            Ok(())
         } else {
             let target_yaw_override = Line::TargetYawOverride(smoothed);
 
@@ -2441,15 +2516,16 @@ impl Editor {
                 from,
                 to,
             };
-            self.apply_operation(op)
+            self.apply_operation(op)?;
+            Ok(())
         }
     }
 
     /// Hides frames before the hovered frame, or shows all frames if there's no hovered frame.
-    pub fn hide_frames_up_to_hovered(&mut self) -> eyre::Result<()> {
+    pub fn hide_frames_up_to_hovered(&mut self) -> ManualOpResult<()> {
         // Don't apply during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         match self.hovered_frame_idx {
@@ -2628,10 +2704,10 @@ impl Editor {
         None
     }
 
-    pub fn set_stop_frame(&mut self, stop_frame: u32) -> eyre::Result<()> {
+    pub fn set_stop_frame(&mut self, stop_frame: u32) -> ManualOpResult<()> {
         // Don't do this during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         self.branch_mut().branch.stop_frame = stop_frame;
@@ -2640,22 +2716,24 @@ impl Editor {
         Ok(())
     }
 
-    pub fn set_stop_frame_to_hovered(&mut self) -> eyre::Result<()> {
+    pub fn set_stop_frame_to_hovered(&mut self) -> ManualOpResult<()> {
         // Don't do this during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         let Some(frame_idx) = self.hovered_frame_idx else {
-            return Ok(());
+            return Err(ManualOpError::NoHoveredFrame);
         };
-        self.set_stop_frame(frame_idx.try_into().unwrap())
+        self.set_stop_frame(frame_idx.try_into().unwrap())?;
+
+        Ok(())
     }
 
-    pub fn branch_clone(&mut self) -> eyre::Result<()> {
+    pub fn branch_clone(&mut self) -> ManualOpResult<()> {
         // Don't do this during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         let mut new_branch = self.branch().clone();
@@ -2677,18 +2755,20 @@ impl Editor {
         Ok(())
     }
 
-    pub fn branch_focus(&mut self, branch_idx: usize) -> eyre::Result<()> {
+    pub fn branch_focus(&mut self, branch_idx: usize) -> ManualOpResult<()> {
         // Don't do this during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         if self.branch_idx == branch_idx {
-            return Ok(());
+            return Err(ManualOpError::UserError(
+                "this branch is already focused".to_owned(),
+            ));
         }
 
         let Some(branch) = self.branches.get(branch_idx) else {
-            return Ok(());
+            return Err(ManualOpError::BranchDoesNotExist);
         };
 
         self.branch_idx = branch_idx;
@@ -2708,31 +2788,35 @@ impl Editor {
         Ok(())
     }
 
-    pub fn branch_focus_next(&mut self) -> eyre::Result<()> {
+    pub fn branch_focus_next(&mut self) -> ManualOpResult<()> {
         let Some(branch_idx) = (self.branch_idx + 1..self.branches.len())
             .chain(0..self.branch_idx)
             .find(|&idx| !self.branches[idx].branch.is_hidden)
         else {
-            return Ok(());
+            return Err(ManualOpError::UserError(
+                "there are no other visible branches".to_owned(),
+            ));
         };
 
         self.branch_focus(branch_idx)
     }
 
-    pub fn branch_hide(&mut self, branch_idx: usize) -> eyre::Result<()> {
+    pub fn branch_hide(&mut self, branch_idx: usize) -> ManualOpResult<()> {
         // Don't do this during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         // Don't try to hide the current branch on its own: this causes it to hide only when we
         // switch from it subsequently, which is confusing.
         if self.branch_idx == branch_idx {
-            return Ok(());
+            return Err(ManualOpError::UserError(
+                "you cannot hide the currently focused branch".to_owned(),
+            ));
         }
 
         let Some(branch) = self.branches.get_mut(branch_idx) else {
-            return Ok(());
+            return Err(ManualOpError::BranchDoesNotExist);
         };
 
         if branch.branch.is_hidden {
@@ -2750,12 +2834,14 @@ impl Editor {
         Ok(())
     }
 
-    pub fn branch_hide_and_focus_next(&mut self) -> eyre::Result<()> {
+    pub fn branch_hide_and_focus_next(&mut self) -> ManualOpResult<()> {
         let Some(next_branch_idx) = (self.branch_idx + 1..self.branches.len())
             .chain(0..self.branch_idx)
             .find(|&idx| !self.branches[idx].branch.is_hidden)
         else {
-            return Ok(());
+            return Err(ManualOpError::UserError(
+                "there are no other visible branches".to_owned(),
+            ));
         };
 
         let curr_branch_idx = self.branch_idx;
@@ -2763,14 +2849,14 @@ impl Editor {
         self.branch_hide(curr_branch_idx)
     }
 
-    pub fn branch_show(&mut self, branch_idx: usize) -> eyre::Result<()> {
+    pub fn branch_show(&mut self, branch_idx: usize) -> ManualOpResult<()> {
         // Don't do this during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         let Some(branch) = self.branches.get_mut(branch_idx) else {
-            return Ok(());
+            return Err(ManualOpError::BranchDoesNotExist);
         };
 
         if !branch.branch.is_hidden {
