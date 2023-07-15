@@ -918,14 +918,13 @@ impl Editor {
                             self.left_right_count_adjustment =
                                 Some(MouseAdjustment::new(count.get(), mouse_pos, dir));
                         } else if let Some(yawspeed) = bulk.yawspeed() {
-                            // Forward-back adjustment like frame count.
-                            let frame_screen = world_to_screen(frame.state.player.pos);
-                            let prev_screen = world_to_screen(prev.state.player.pos);
-
-                            let dir = match (frame_screen, prev_screen) {
-                                (Some(frame), Some(prev)) => frame - prev,
-                                // Presumably, previous frame is invisible, so just fall back.
-                                _ => Vec2::X,
+                            // Make the adjustment face the expected way.
+                            let dir = match bulk.auto_actions.movement {
+                                Some(AutoMovement::Strafe(StrafeSettings {
+                                    dir: StrafeDir::Right,
+                                    ..
+                                })) => -dir,
+                                _ => dir,
                             };
 
                             self.side_strafe_yawspeed_adjustment =
@@ -2417,19 +2416,22 @@ impl Editor {
     }
 
     /// Sets yawspeed of the selected frame bulk.
-    pub fn set_yawspeed(&mut self, new_yawspeed: Option<f32>) -> eyre::Result<()> {
+    pub fn set_yawspeed(&mut self, new_yawspeed: Option<f32>) -> ManualOpResult<()> {
         // Don't toggle during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
-            return Ok(());
+            return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
         if self.in_camera_editor {
-            return Ok(());
+            return Err(ManualOpError::CannotDoInCameraEditor);
         }
 
         let Some(bulk_idx) = self.selected_bulk_idx else {
-            return Ok(());
+            return Err(ManualOpError::NoSelectedBulk);
         };
+
+        let new_yawspeed = new_yawspeed.map(|x| x.max(0.));
+
         let (_, bulk) = self
             .branch()
             .branch
@@ -2462,7 +2464,9 @@ impl Editor {
         }
 
         let op = Operation::SetYawspeed { bulk_idx, from, to };
-        self.apply_operation(op)
+        self.apply_operation(op)?;
+
+        Ok(())
     }
 
     /// Rewrites the script with a completely new version.

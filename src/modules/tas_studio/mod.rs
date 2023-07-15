@@ -555,9 +555,12 @@ fn set_yawspeed(marker: MainThreadMarker, yawspeed: f32) {
         return;
     };
 
-    if let Err(err) = editor.set_yawspeed(Some(yawspeed.max(0.))) {
-        con_print(marker, &format!("Error setting yaw: {err}\n"));
-        *state = State::Idle;
+    if let Err(err) = editor.set_yawspeed(Some(yawspeed)) {
+        con_print(marker, &format!("Error setting yawspeed: {err}\n"));
+        if err.is_internal() {
+            error!("error setting yawspeed: {err:?}\n");
+            *state = State::Idle;
+        }
     }
 }
 
@@ -1659,8 +1662,7 @@ fn add_frame_bulk_hud_lines(text: &mut Vec<u8>, bulk: &FrameBulk) {
                 StrafeType::MaxDeccel => text.extend(b"slow down"),
                 StrafeType::ConstSpeed => text.extend(b"constant speed"),
                 StrafeType::ConstYawspeed(yawspeed) => {
-                    text.extend(b"turn rate: ");
-                    text.extend(yawspeed.to_string().bytes());
+                    write!(text, "turn rate: {yawspeed:.0}").unwrap();
                 }
             }
             text.extend(b")\0");
