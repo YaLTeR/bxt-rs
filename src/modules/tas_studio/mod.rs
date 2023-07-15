@@ -1830,7 +1830,7 @@ pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
 }
 
 fn add_hovered_frame_hud_lines(text: &mut Vec<u8>, frame_idx: usize, frame: &Frame) {
-    text.extend(b"Frame Under Cursor:\0");
+    text.extend(b"\0Frame Under Cursor:\0");
 
     write!(text, "  Frame #{}\0", frame_idx).unwrap();
 
