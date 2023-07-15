@@ -3021,9 +3021,12 @@ impl Editor {
         };
 
         // Draw regular frames.
-        //
-        // Note: there's no iterator cloning, which means all values are computed once, in one go.
         let mut collided_this_bulk = false;
+
+        // For drawing small camera lines in the movement editor.
+        let mut last_camera_line_origin_vector = None;
+
+        // Note: there's no iterator cloning, which means all values are computed once, in one go.
         let iter = iter::zip(
             // Pairs of frames: (0, 1), (1, 2), (2, 3) and so on.
             branch.frames.iter().tuple_windows(),
@@ -3120,14 +3123,14 @@ impl Editor {
                 color,
             });
 
+            let camera_pitch = frame.state.prev_frame_input.pitch;
+            let camera_yaw = frame.state.prev_frame_input.yaw;
+            let camera_vector = forward(camera_pitch, camera_yaw);
+
             if self.in_camera_editor {
                 let extra_cam = &branch.extra_cam[idx];
 
                 // Draw camera angle line.
-                let camera_pitch = frame.state.prev_frame_input.pitch;
-                let camera_yaw = frame.state.prev_frame_input.yaw;
-                let camera_vector = forward(camera_pitch, camera_yaw);
-
                 let hue = if in_smoothing_input_region {
                     Vec3::new(1., 0.75, 0.5)
                 } else if extra_cam.in_smoothing_idempotent_region {
@@ -3292,6 +3295,22 @@ impl Editor {
                             color: Vec3::new(0.5, 0.5, 1.) * dim,
                         });
                     }
+                }
+
+                // Draw camera angle line if it's different enough from the last one.
+                if last_camera_line_origin_vector
+                    .map(|(origin, angle)| {
+                        pos.distance(origin) > 50. || camera_vector.dot(angle) < 0.98
+                    })
+                    .unwrap_or(true)
+                {
+                    last_camera_line_origin_vector = Some((pos, camera_vector));
+
+                    draw(DrawLine {
+                        start: pos,
+                        end: pos + camera_vector * 5.,
+                        color: Vec3::new(0.3, 0.3, 1.) * dim_inaccurate * dim_hidden,
+                    });
                 }
             }
 
