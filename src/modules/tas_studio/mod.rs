@@ -71,6 +71,7 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_CONVERT_HLTAS,
             &BXT_TAS_STUDIO_REPLAY,
             &BXT_TAS_STUDIO_SET_STOP_FRAME,
+            &BXT_TAS_STUDIO_SET_YAWSPEED,
             &BXT_TAS_STUDIO_SET_PITCH,
             &BXT_TAS_STUDIO_SET_YAW,
             &BXT_TAS_STUDIO_UNSET_PITCH,
@@ -538,6 +539,31 @@ fn unset_yaw(marker: MainThreadMarker) {
     }
 }
 
+static BXT_TAS_STUDIO_SET_YAWSPEED: Command = Command::new(
+    b"bxt_tas_studio_set_yawspeed\0",
+    handler!(
+        "bxt_tas_studio_set_yawspeed
+        
+Sets the yawspeed of the selected frame bulk for constant turn rate strafing.",
+        set_yawspeed as fn(_, _)
+    ),
+);
+
+fn set_yawspeed(marker: MainThreadMarker, yawspeed: f32) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
+
+    if let Err(err) = editor.set_yawspeed(Some(yawspeed)) {
+        con_print(marker, &format!("Error setting yawspeed: {err}\n"));
+        if err.is_internal() {
+            error!("error setting yawspeed: {err:?}\n");
+            *state = State::Idle;
+        }
+    }
+}
+
 static PLUS_BXT_TAS_STUDIO_INSERT_CAMERA_LINE: Command = Command::new(
     b"+bxt_tas_studio_insert_camera_line\0",
     handler!(
@@ -879,6 +905,8 @@ Values that you can toggle:
 - s11: quick turn strafing to the right
 - s06: left-right strafing
 - s07: right-left strafing
+- s40: constant turn rate to the left
+- s41: constant turn rate to the right
 - lgagst: makes autojump and ducktap trigger at optimal speed
 - autojump
 - ducktap
@@ -947,6 +975,14 @@ fn toggle(marker: MainThreadMarker, what: String) {
         "s07" => ToggleAutoActionTarget::Strafe {
             dir: StrafeDir::RightLeft(NonZeroU32::new(1).unwrap()),
             type_: StrafeType::MaxAccel,
+        },
+        "s40" => ToggleAutoActionTarget::Strafe {
+            dir: StrafeDir::Left,
+            type_: StrafeType::ConstYawspeed(210.),
+        },
+        "s41" => ToggleAutoActionTarget::Strafe {
+            dir: StrafeDir::Right,
+            type_: StrafeType::ConstYawspeed(210.),
         },
         "lgagst" => ToggleAutoActionTarget::LeaveGroundAtOptimalSpeed,
         "autojump" => ToggleAutoActionTarget::AutoJump,
@@ -1625,6 +1661,9 @@ fn add_frame_bulk_hud_lines(text: &mut Vec<u8>, bulk: &FrameBulk) {
                 StrafeType::MaxAngle => text.extend(b"quick turn"),
                 StrafeType::MaxDeccel => text.extend(b"slow down"),
                 StrafeType::ConstSpeed => text.extend(b"constant speed"),
+                StrafeType::ConstYawspeed(yawspeed) => {
+                    write!(text, "turn rate: {yawspeed:.0}").unwrap();
+                }
             }
             text.extend(b")\0");
         }

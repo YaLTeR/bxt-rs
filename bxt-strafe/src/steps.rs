@@ -419,9 +419,33 @@ impl<S: Step> Step for Strafe<S> {
                     Vct::MAX_SPEED_CAP
                 );
 
-                // TODO: target_yaw velocity_lock
-                let camera_yaw = angle_mod_rad(vel_yaw);
-                let entry = Vct::get().find_best((vel_yaw + theta) - camera_yaw);
+                let (camera_yaw, entry) = if let StrafeType::ConstYawspeed(yawspeed) = type_ {
+                    let right = matches!(dir, StrafeDir::Right);
+                    let yaw_delta = (yawspeed * parameters.frame_time).to_radians();
+
+                    let accel_angle = match state.place {
+                        Place::Ground => PI / 4.,
+                        _ => PI / 2.,
+                    };
+
+                    let (accel_angle, camera_yaw) = if right {
+                        (-accel_angle, input.yaw - yaw_delta)
+                    } else {
+                        (accel_angle, input.yaw + yaw_delta)
+                    };
+
+                    let camera_yaw = angle_mod_rad(camera_yaw);
+                    let entry = Vct::get().find_best(accel_angle);
+
+                    (camera_yaw, entry)
+                } else {
+                    // TODO: target_yaw velocity_lock
+
+                    let camera_yaw = angle_mod_rad(vel_yaw);
+                    let entry = Vct::get().find_best((vel_yaw + theta) - camera_yaw);
+
+                    (camera_yaw, entry)
+                };
 
                 input.yaw = camera_yaw;
                 input.forward = entry.forward as f32;

@@ -11,7 +11,7 @@ use bxt_strafe::{Hull, Trace};
 use color_eyre::eyre::{self, ensure};
 use glam::{Vec2, Vec3};
 use hltas::types::{
-    AutoMovement, Change, ChangeTarget, Line, StrafeDir, StrafeSettings,
+    AutoMovement, Change, ChangeTarget, Line, StrafeDir, StrafeSettings, StrafeType,
     VectorialStrafingConstraints,
 };
 use hltas::HLTAS;
@@ -116,6 +116,8 @@ pub struct Editor {
     /// Adjusts the left-right count in the same way for all adjacent frame bulks with equal
     /// left-right count.
     adjacent_left_right_count_adjustment: Option<AdjacentLeftRightCountAdjustment>,
+    /// Frame bulk side strafe yawspeed adjustment.
+    side_strafe_yawspeed_adjustment: Option<MouseAdjustment<f32>>,
 
     // ==============================================
     // Camera-editor-specific state.
@@ -382,6 +384,7 @@ impl Editor {
             adjacent_frame_count_adjustment: None,
             adjacent_yaw_adjustment: None,
             adjacent_left_right_count_adjustment: None,
+            side_strafe_yawspeed_adjustment: None,
             in_camera_editor: false,
             auto_smoothing: false,
             show_player_bbox: false,
@@ -687,6 +690,7 @@ impl Editor {
             || self.adjacent_frame_count_adjustment.is_some()
             || self.adjacent_yaw_adjustment.is_some()
             || self.adjacent_left_right_count_adjustment.is_some()
+            || self.side_strafe_yawspeed_adjustment.is_some()
     }
 
     /// Updates the editor state.
@@ -707,6 +711,7 @@ impl Editor {
         self.tick_adjacent_frame_count_adjustment(mouse, keyboard)?;
         self.tick_adjacent_yaw_adjustment(mouse, keyboard)?;
         self.tick_adjacent_left_right_count_adjustment(mouse, keyboard)?;
+        self.tick_side_strafe_yawspeed_adjustment(mouse, keyboard)?;
 
         self.tick_insert_camera_line_adjustment(mouse, keyboard)?;
 
@@ -912,6 +917,18 @@ impl Editor {
 
                             self.left_right_count_adjustment =
                                 Some(MouseAdjustment::new(count.get(), mouse_pos, dir));
+                        } else if let Some(yawspeed) = bulk.yawspeed() {
+                            // Make the adjustment face the expected way.
+                            let dir = match bulk.auto_actions.movement {
+                                Some(AutoMovement::Strafe(StrafeSettings {
+                                    dir: StrafeDir::Right,
+                                    ..
+                                })) => -dir,
+                                _ => dir,
+                            };
+
+                            self.side_strafe_yawspeed_adjustment =
+                                Some(MouseAdjustment::new(*yawspeed, mouse_pos, dir))
                         }
                     } else if mouse.buttons.is_middle_down() {
                         let (bulk, last_frame_idx) = bulk_and_last_frame_idx.next().unwrap();
@@ -1459,6 +1476,51 @@ impl Editor {
         Ok(())
     }
 
+    fn tick_side_strafe_yawspeed_adjustment(
+        &mut self,
+        mouse: MouseState,
+        keyboard: KeyboardState,
+    ) -> eyre::Result<()> {
+        let Some(adjustment) = &mut self.side_strafe_yawspeed_adjustment else {
+            return Ok(());
+        };
+
+        let bulk_idx = self.selected_bulk_idx.unwrap();
+        let (bulk, first_frame_idx) =
+            bulk_and_first_frame_idx_mut(&mut self.branches[self.branch_idx].branch.script)
+                .nth(bulk_idx)
+                .unwrap();
+
+        let yawspeed = bulk.yawspeed_mut().unwrap();
+
+        if !mouse.buttons.is_right_down() {
+            if !adjustment.changed_once {
+                self.side_strafe_yawspeed_adjustment = None;
+                return Ok(());
+            }
+
+            let op = Operation::SetYawspeed {
+                bulk_idx,
+                from: adjustment.original_value,
+                to: *yawspeed,
+            };
+            self.side_strafe_yawspeed_adjustment = None;
+            return self.store_operation(op);
+        }
+
+        let speed = keyboard.adjustment_speed();
+        let delta = adjustment.delta(mouse.pos.as_vec2()) * 1. * speed;
+        let new_yawspeed = (adjustment.original_value + delta).max(0.);
+
+        if *yawspeed != new_yawspeed {
+            adjustment.changed_once = true;
+            *yawspeed = new_yawspeed;
+            self.invalidate(first_frame_idx);
+        }
+
+        Ok(())
+    }
+
     fn tick_insert_camera_line_adjustment(
         &mut self,
         mouse: MouseState,
@@ -1742,6 +1804,22 @@ impl Editor {
                 *left_right_count = original_value;
 
                 drop(bulks);
+                self.invalidate(first_frame_idx);
+            }
+        }
+
+        if let Some(adjustment) = self.side_strafe_yawspeed_adjustment.take() {
+            let original_value = adjustment.original_value;
+
+            let bulk_idx = self.selected_bulk_idx.unwrap();
+            let (bulk, first_frame_idx) =
+                bulk_and_first_frame_idx_mut(&mut self.branch_mut().branch.script)
+                    .nth(bulk_idx)
+                    .unwrap();
+
+            let yawspeed = bulk.yawspeed_mut().unwrap();
+            if *yawspeed != original_value {
+                *yawspeed = original_value;
                 self.invalidate(first_frame_idx);
             }
         }
@@ -2335,6 +2413,60 @@ impl Editor {
             to,
         };
         self.apply_operation(op)
+    }
+
+    /// Sets yawspeed of the selected frame bulk.
+    pub fn set_yawspeed(&mut self, new_yawspeed: Option<f32>) -> ManualOpResult<()> {
+        // Don't toggle during active adjustments for consistency with other operations.
+        if self.is_any_adjustment_active() {
+            return Err(ManualOpError::CannotDoDuringAdjustment);
+        }
+
+        if self.in_camera_editor {
+            return Err(ManualOpError::CannotDoInCameraEditor);
+        }
+
+        let Some(bulk_idx) = self.selected_bulk_idx else {
+            return Err(ManualOpError::NoSelectedBulk);
+        };
+
+        let new_yawspeed = new_yawspeed.map(|x| x.max(0.));
+
+        let (_, bulk) = self
+            .branch()
+            .branch
+            .script
+            .lines
+            .iter()
+            .enumerate()
+            .filter_map(|(line_idx, line)| line.frame_bulk().map(|bulk| (line_idx, bulk)))
+            .nth(bulk_idx)
+            .unwrap();
+
+        let mut new_bulk = bulk.clone();
+        let mut from = 0.;
+        let mut to = 0.;
+
+        if let Some(AutoMovement::Strafe(StrafeSettings {
+            type_: StrafeType::ConstYawspeed(yawspeed),
+            ..
+        })) = &mut new_bulk.auto_actions.movement
+        {
+            if let Some(new_yawspeed) = new_yawspeed {
+                from = *yawspeed;
+                to = new_yawspeed;
+                *yawspeed = new_yawspeed;
+            }
+        }
+
+        if new_bulk == *bulk {
+            return Ok(());
+        }
+
+        let op = Operation::SetYawspeed { bulk_idx, from, to };
+        self.apply_operation(op)?;
+
+        Ok(())
     }
 
     /// Rewrites the script with a completely new version.
