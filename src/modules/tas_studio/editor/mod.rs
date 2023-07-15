@@ -453,6 +453,10 @@ impl Editor {
         self.hovered_frame_idx.map(|idx| &self.branch().frames[idx])
     }
 
+    pub fn undo_log_len(&self) -> usize {
+        self.undo_log.len()
+    }
+
     pub fn set_in_camera_editor(&mut self, value: bool) {
         if self.in_camera_editor == value {
             return;

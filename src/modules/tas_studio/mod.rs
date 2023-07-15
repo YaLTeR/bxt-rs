@@ -1787,6 +1787,8 @@ pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
     let mut text = Vec::with_capacity(1024);
     text.extend(b"TAS Studio Status\0");
 
+    write!(&mut text, "Re-records: {}\0", editor.undo_log_len()).unwrap();
+
     write!(&mut text, "Branch #{}\0", editor.branch_idx()).unwrap();
 
     match editor.selected_bulk_idx() {
