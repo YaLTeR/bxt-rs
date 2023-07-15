@@ -44,7 +44,8 @@ pub mod tas_recording;
 pub mod tas_server_time_fix;
 pub mod tas_studio;
 pub mod triangle_drawing;
-pub mod viewmodel;
+pub mod viewmodel_remove;
+pub mod viewmodel_sway;
 pub mod wallhack;
 
 /// Trait for getting module information.
@@ -105,6 +106,7 @@ pub static MODULES: &[&dyn Module] = &[
     &tas_server_time_fix::TasServerTimeFix,
     &tas_studio::TasStudio,
     &triangle_drawing::TriangleDrawing,
-    &viewmodel::Viewmodel,
+    &viewmodel_remove::ViewmodelRemove,
+    &viewmodel_sway::ViewmodelSway,
     &wallhack::Wallhack,
 ];

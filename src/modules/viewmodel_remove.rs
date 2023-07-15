@@ -5,8 +5,8 @@ use crate::hooks::engine;
 use crate::modules::cvars::CVar;
 use crate::utils::*;
 
-pub struct Viewmodel;
-impl Module for Viewmodel {
+pub struct ViewmodelRemove;
+impl Module for ViewmodelRemove {
     fn name(&self) -> &'static str {
         "bxt_viewmodel_remove"
     }
@@ -32,7 +32,7 @@ static BXT_VIEWMODEL_REMOVE: CVar = CVar::new(
 );
 
 pub fn is_removed(marker: MainThreadMarker) -> bool {
-    if !Viewmodel.is_enabled(marker) {
+    if !ViewmodelRemove.is_enabled(marker) {
         return false;
     }
 

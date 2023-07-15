@@ -121,6 +121,15 @@ pub static CL_PlayDemo_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
     ]),
     my_CL_PlayDemo_f as _,
 );
+// TODO: figure out how to use V_CalcRefdef from cl_funcs instead of this.
+pub static ClientDLL_CalcRefdef: Pointer<unsafe extern "C" fn(*mut ref_params_s)> =
+    Pointer::empty_patterns(
+        b"ClientDLL_CalcRefdef\0",
+        // You are in V_RenderView. The first call taking in one argument inside the first `do{}`
+        // block will be ClientDLL_CalcRefdef().
+        Patterns(&[]),
+        my_ClientDLL_CalcRefdef as _,
+    );
 pub static ClientDLL_Init: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"ClientDLL_Init\0",
     // To find, search for "cl_dlls\\client.dll" (with a backslash).
@@ -144,6 +153,15 @@ pub static ClientDLL_DrawTransparentTriangles: Pointer<unsafe extern "C" fn()> =
         ]),
         null_mut(),
     );
+pub static cl: Pointer<*mut client_state_t> = Pointer::empty(b"cl\0");
+pub static cl_viewent: Pointer<*mut cl_entity_s> = Pointer::empty(
+    // Not a real symbol name.
+    b"cl_viewent\0",
+);
+pub static cl_viewent_viewmodel: Pointer<*mut cl_entity_s_viewmodel> = Pointer::empty(
+    // Not a real symbol name.
+    b"cl_viewent_viewmodel\0",
+);
 pub static cls: Pointer<*mut client_static_s> = Pointer::empty(b"cls\0");
 pub static cls_demos: Pointer<*mut client_static_s_demos> = Pointer::empty(
     // Not a real symbol name.
@@ -785,6 +803,17 @@ pub static V_FadeAlpha: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empt
     ]),
     my_V_FadeAlpha as _,
 );
+pub static V_RenderView: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"V_RenderView\0",
+    // To find, search for "R_RenderView: NULL worldmodel". This is an output error for
+    // R_RenderView(). Then, find a function calling R_RenderView() exactly 3 times. That
+    // function will be V_RenderView().
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 81 EC F4 00 00 00 A1 ?? ?? ?? ?? 56 57),
+    ]),
+    null_mut(),
+);
 pub static VideoMode_IsWindowed: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
     b"VideoMode_IsWindowed\0",
     // To find, first find GL_BeginRendering(). The first check is for the
@@ -845,7 +874,11 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &CL_Move,
     &CL_PlayDemo_f,
     &ClientDLL_Init,
+    &ClientDLL_CalcRefdef,
     &ClientDLL_DrawTransparentTriangles,
+    &cl,
+    &cl_viewent,
+    &cl_viewent_viewmodel,
     &cls,
     &cls_demos,
     &Cmd_AddMallocCommand,
@@ -911,6 +944,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &tri,
     &V_ApplyShake,
     &V_FadeAlpha,
+    &V_RenderView,
     &VideoMode_IsWindowed,
     &VideoMode_GetCurrentVideoMode,
     &window_rect,
@@ -949,7 +983,7 @@ pub struct ClientDllFunctions {
     pub CL_GetCameraOffsets: Option<NonNull<c_void>>,
     pub FindKey: Option<NonNull<c_void>>,
     pub CamThink: Option<NonNull<c_void>>,
-    pub CalcRefdef: Option<NonNull<c_void>>,
+    pub CalcRefdef: Option<unsafe extern "C" fn(*mut ref_params_s)>,
     pub AddEntity: Option<NonNull<c_void>>,
     pub CreateEntities: Option<NonNull<c_void>>,
     pub DrawNormalTriangles: Option<NonNull<c_void>>,
@@ -1026,6 +1060,22 @@ pub struct dma_t {
 }
 
 #[repr(C)]
+pub struct cl_entity_s {
+    pub index: c_int,
+}
+
+#[repr(C)]
+pub struct cl_entity_s_viewmodel {
+    pub origin: [c_float; 3],
+    pub angles: [c_float; 3],
+}
+
+#[repr(C)]
+pub struct client_state_t {
+    pub max_edicts: c_int,
+}
+
+#[repr(C)]
 pub struct client_static_s {
     pub state: c_int,
 }
@@ -1055,6 +1105,22 @@ pub struct SCREENINFO {
     pub iFlags: c_int,
     pub iCharHeight: c_int,
     pub charWidths: [c_short; 256],
+}
+
+#[repr(C)]
+pub struct ref_params_s {
+    pub vieworg: [c_float; 3],
+    pub viewangles: [c_float; 3],
+    pub forward: [c_float; 3],
+    pub right: [c_float; 3],
+    pub up: [c_float; 3],
+    pub frametime: c_float,
+    pub time: c_float,
+    pub intermission: c_int,
+    pub paused: c_int,
+    pub spectator: c_int,
+    pub onground: c_int,
+    pub waterlevel: c_int,
 }
 
 impl SCREENINFO {
@@ -1241,6 +1307,8 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
         pointer.set(marker, ptr);
     }
 
+    cl_viewent.set(marker, cl.offset(marker, 1717500));
+    cl_viewent_viewmodel.set(marker, cl_viewent.offset(marker, 2888));
     cls_demos.set(marker, cls.offset(marker, 15960));
     frametime_remainder.set(marker, CL_Move.by_offset(marker, 452));
     idum.set(marker, ran1.by_offset(marker, 2));
@@ -1629,6 +1697,17 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         _ => (),
     }
 
+    let ptr = &V_RenderView;
+    match ptr.pattern_index(marker) {
+        // 8684
+        Some(0) => {
+            cl_viewent.set(marker, ptr.by_offset(marker, 146));
+            cl_viewent_viewmodel.set(marker, cl_viewent.offset(marker, 2888));
+            ClientDLL_CalcRefdef.set(marker, ptr.by_relative_call(marker, 166));
+        }
+        _ => (),
+    }
+
     let ptr = &ClientDLL_DrawTransparentTriangles;
     match ptr.pattern_index(marker) {
         // 8684
@@ -1857,7 +1936,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if viewmodel::is_removed(marker) {
+            if viewmodel_remove::is_removed(marker) {
                 return;
             }
 
@@ -1870,7 +1949,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if viewmodel::is_removed(marker) {
+            if viewmodel_remove::is_removed(marker) {
                 return;
             }
 
@@ -2047,6 +2126,8 @@ pub mod exported {
                 capture::on_cl_disconnect(marker);
             }
 
+            viewmodel_sway::on_cl_disconnnect(marker);
+
             CL_Disconnect.get(marker)();
         })
     }
@@ -2115,6 +2196,17 @@ pub mod exported {
             hud::update_screen_info(marker, *info);
 
             rv
+        })
+    }
+
+    #[export_name = "ClientDLL_CalcRefdef"]
+    pub unsafe extern "C" fn my_ClientDLL_CalcRefdef(rp: *mut ref_params_s) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            ClientDLL_CalcRefdef.get(marker)(rp);
+
+            viewmodel_sway::add_viewmodel_sway(marker, &*rp);
         })
     }
 
