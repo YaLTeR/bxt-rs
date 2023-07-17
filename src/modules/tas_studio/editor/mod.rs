@@ -695,6 +695,7 @@ impl Editor {
             || self.adjacent_yaw_adjustment.is_some()
             || self.adjacent_left_right_count_adjustment.is_some()
             || self.side_strafe_yawspeed_adjustment.is_some()
+            || self.insert_camera_line_adjustment.is_some()
     }
 
     /// Updates the editor state.
