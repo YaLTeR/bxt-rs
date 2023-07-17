@@ -83,11 +83,11 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_HIDE,
             &BXT_TAS_STUDIO_SMOOTH,
             &BXT_TAS_STUDIO_BRANCH_CLONE,
-            &BXT_TAS_STUDIO_BRANCH_FOCUS,
+            &BXT_TAS_STUDIO_BRANCH_FOCUS_ID,
             &BXT_TAS_STUDIO_BRANCH_FOCUS_NEXT,
-            &BXT_TAS_STUDIO_BRANCH_HIDE,
+            &BXT_TAS_STUDIO_BRANCH_HIDE_ID,
             &BXT_TAS_STUDIO_BRANCH_HIDE_AND_FOCUS_NEXT,
-            &BXT_TAS_STUDIO_BRANCH_SHOW,
+            &BXT_TAS_STUDIO_BRANCH_SHOW_ID,
             &BXT_TAS_STUDIO_UNDO,
             &BXT_TAS_STUDIO_REDO,
             &BXT_TAS_STUDIO_CLOSE,
@@ -759,17 +759,17 @@ fn branch_clone(marker: MainThreadMarker) {
     }
 }
 
-static BXT_TAS_STUDIO_BRANCH_FOCUS: Command = Command::new(
-    b"bxt_tas_studio_branch_focus\0",
+static BXT_TAS_STUDIO_BRANCH_FOCUS_ID: Command = Command::new(
+    b"bxt_tas_studio_branch_focus_id\0",
     handler!(
-        "bxt_tas_studio_branch_focus <index>
+        "bxt_tas_studio_branch_focus_id <index>
 
 Focuses branch with the given index.",
-        branch_focus as fn(_, _)
+        branch_focus_id as fn(_, _)
     ),
 );
 
-fn branch_focus(marker: MainThreadMarker, branch_idx: usize) {
+fn branch_focus_id(marker: MainThreadMarker, branch_idx: usize) {
     let mut state = STATE.borrow_mut(marker);
     let State::Editing { editor, .. } = &mut *state else {
         return;
@@ -809,17 +809,17 @@ fn branch_focus_next(marker: MainThreadMarker) {
     }
 }
 
-static BXT_TAS_STUDIO_BRANCH_HIDE: Command = Command::new(
-    b"bxt_tas_studio_branch_hide\0",
+static BXT_TAS_STUDIO_BRANCH_HIDE_ID: Command = Command::new(
+    b"bxt_tas_studio_branch_hide_id\0",
     handler!(
-        "bxt_tas_studio_branch_hide <index>
+        "bxt_tas_studio_branch_hide_id <index>
 
 Hides the branch with the given index.",
-        branch_hide as fn(_, _)
+        branch_hide_id as fn(_, _)
     ),
 );
 
-fn branch_hide(marker: MainThreadMarker, branch_idx: usize) {
+fn branch_hide_id(marker: MainThreadMarker, branch_idx: usize) {
     let mut state = STATE.borrow_mut(marker);
     let State::Editing { editor, .. } = &mut *state else {
         return;
@@ -862,17 +862,17 @@ fn branch_hide_and_focus_next(marker: MainThreadMarker) {
     }
 }
 
-static BXT_TAS_STUDIO_BRANCH_SHOW: Command = Command::new(
-    b"bxt_tas_studio_branch_show\0",
+static BXT_TAS_STUDIO_BRANCH_SHOW_ID: Command = Command::new(
+    b"bxt_tas_studio_branch_show_id\0",
     handler!(
-        "bxt_tas_studio_branch_show <index>
+        "bxt_tas_studio_branch_show_id <index>
 
 Shows the branch with the given index.",
-        branch_show as fn(_, _)
+        branch_show_id as fn(_, _)
     ),
 );
 
-fn branch_show(marker: MainThreadMarker, branch_idx: usize) {
+fn branch_show_id(marker: MainThreadMarker, branch_idx: usize) {
     let mut state = STATE.borrow_mut(marker);
     let State::Editing { editor, .. } = &mut *state else {
         return;
