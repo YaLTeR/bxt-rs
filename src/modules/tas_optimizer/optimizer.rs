@@ -546,20 +546,8 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
         if let StrafeType::ConstYawspeed(ref mut yawspeed) = *type_ {
             // Constant yawspeed should always pair with side strafe
             // so there is no need to reassign dir.
-            // These numbers might be subjected to changes.
-            let scalar = if *yawspeed < 8. {
-                1.
-            } else if *yawspeed < 50. {
-                0.5
-            } else {
-                0.1
-            };
-
-            let range = (*yawspeed * scalar).max(5.);
-            let delta = rng.gen_range(-range..range);
-
-            // .abs() to wrap the way round when yawspeed is very low.
-            *yawspeed = (*yawspeed + delta).abs();
+            // Yawspeed is not allowed to be negative.
+            *yawspeed = (*yawspeed + rng.gen_range(-1f32..1f32)).abs();
         };
 
         // Mutate strafe direction.
