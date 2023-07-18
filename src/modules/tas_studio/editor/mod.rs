@@ -3433,6 +3433,14 @@ impl Editor {
     }
 
     fn draw_other_branches(&self, mut draw: impl FnMut(DrawLine)) {
+        let total_time = self
+            .branch()
+            .frames
+            .iter()
+            .skip(1)
+            .map(|f| f.parameters.frame_time)
+            .sum::<f32>();
+
         for (idx, branch) in self.branches.iter().enumerate() {
             if idx == self.branch_idx {
                 continue;
@@ -3443,13 +3451,9 @@ impl Editor {
                 continue;
             }
 
+            let mut time = 0.;
             for (prev_idx, (prev, frame)) in branch.frames.iter().tuple_windows().enumerate() {
                 let idx = prev_idx + 1;
-                if idx >= self.branch().frames.len() {
-                    // Draw other branches up to the length of the current branch.
-                    // TODO: this should use time, not frame number.
-                    break;
-                }
 
                 // How many frames until the visible part, clamped in a way to allow for smooth
                 // dimming.
@@ -3471,6 +3475,14 @@ impl Editor {
                     end: pos,
                     color: Vec3::ONE * 0.5 * dim,
                 });
+
+                time += frame.parameters.frame_time;
+                let next_frame = branch.frames.get(idx + 1).unwrap_or(frame);
+                let next_time = time + next_frame.parameters.frame_time;
+                if (time - total_time).abs() < (next_time - total_time).abs() {
+                    // Draw other branches up to the length of the current branch.
+                    break;
+                }
             }
         }
     }
