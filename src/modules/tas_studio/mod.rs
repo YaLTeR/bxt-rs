@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use bxt_ipc_types::Frame;
-use bxt_strafe::TraceResult;
+use bxt_strafe::{Parameters, TraceResult};
 use color_eyre::eyre::{self, eyre, Context};
 use glam::{IVec2, IVec4, Vec2, Vec3};
 use hltas::types::{
@@ -1289,6 +1289,7 @@ enum State {
         branch_idx: usize,
         is_smoothed: bool,
         frames_played: usize,
+        next_frame_params: Option<Parameters>,
     },
     /// Preparing to play a HLTAS, will open the editor afterwards.
     PreparingToPlayToEditor(Editor, Bridge),
@@ -1297,6 +1298,7 @@ enum State {
         editor: Editor,
         frames_played: usize,
         bridge: Bridge,
+        next_frame_params: Option<Parameters>,
     },
     /// Editing a HLTAS.
     Editing {
@@ -1345,6 +1347,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
                 editor,
                 frames_played: 0,
                 bridge,
+                next_frame_params: None,
             };
 
             // TODO: stop server on close?
@@ -1386,6 +1389,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
                     branch_idx,
                     is_smoothed,
                     frames_played: 0,
+                    next_frame_params: None,
                 };
             }
         }
@@ -1409,11 +1413,24 @@ pub unsafe fn on_tas_playback_frame(
     let mut stop = false;
     let mut state = STATE.borrow_mut(marker);
 
-    if let State::Playing { frames_played, .. } | State::PlayingToEditor { frames_played, .. } =
-        &mut *state
+    if let State::Playing {
+        frames_played,
+        next_frame_params,
+        ..
+    }
+    | State::PlayingToEditor {
+        frames_played,
+        next_frame_params,
+        ..
+    } = &mut *state
     {
         let player = player_data(marker).unwrap();
-        let params = parameters(marker);
+        let new_next_frame_params = parameters(marker);
+
+        // For the initial frame we don't have params, so just use the current ones.
+        let params = next_frame_params.take().unwrap_or(new_next_frame_params);
+        *next_frame_params = Some(new_next_frame_params);
+
         let tracer = Tracer::new(marker, false).unwrap();
 
         // TODO: prev_frame_input, which is not set here, is important.
