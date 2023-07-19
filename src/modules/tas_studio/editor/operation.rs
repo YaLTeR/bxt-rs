@@ -1073,8 +1073,8 @@ s41-------|------|------|0.004|70|-|10",
             Operation::SetAdjacentYawspeed {
                 first_bulk_idx: 1,
                 bulk_count: 1,
-                from: 0,
-                to: 69,
+                from: 0.,
+                to: 69.,
             },
             "\
 ----------|------|------|0.004|10|-|6
@@ -1091,8 +1091,8 @@ s41-------|------|------|0.004|70|-|10
             Operation::SetAdjacentYawspeed {
                 first_bulk_idx: 1,
                 bulk_count: 2,
-                from: 70,
-                to: 69,
+                from: 70.,
+                to: 69.,
             },
             "\
 ----------|------|------|0.004|10|-|6
