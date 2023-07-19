@@ -1591,8 +1591,9 @@ impl Editor {
             return Ok(());
         };
 
-        let mut bulks = bulk_and_first_frame_idx_mut(&mut self.branches[self.branch_idx].branch.script)
-            .skip(*first_bulk_idx);
+        let mut bulks =
+            bulk_and_first_frame_idx_mut(&mut self.branches[self.branch_idx].branch.script)
+                .skip(*first_bulk_idx);
         let (bulk, first_frame_idx) = bulks.next().unwrap();
 
         let yawspeed = bulk.yawspeed_mut().unwrap();
