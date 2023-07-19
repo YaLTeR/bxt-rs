@@ -92,6 +92,16 @@ pub enum Operation {
         from: f32,
         to: f32,
     },
+    SetFrameTime {
+        bulk_idx: usize,
+        from: String,
+        to: String,
+    },
+    SetCommands {
+        bulk_idx: usize,
+        from: Option<String>,
+        to: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -361,6 +371,36 @@ impl Operation {
                 *yawspeed = to;
                 return Some(first_frame_idx);
             }
+            Operation::SetFrameTime {
+                bulk_idx,
+                ref from,
+                ref to,
+            } => {
+                let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
+                    .nth(bulk_idx)
+                    .expect("invalid bulk index");
+                assert_eq!(&bulk.frame_time, from, "wrong current frame time");
+
+                if from != to {
+                    bulk.frame_time = to.to_string();
+                    return Some(first_frame_idx);
+                }
+            }
+            Operation::SetCommands {
+                bulk_idx,
+                ref from,
+                ref to,
+            } => {
+                let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
+                    .nth(bulk_idx)
+                    .expect("invalid bulk index");
+                assert_eq!(&bulk.console_command, from, "wrong current commands");
+
+                if from != to {
+                    bulk.console_command = to.clone();
+                    return Some(first_frame_idx);
+                }
+            }
         }
 
         None
@@ -618,6 +658,36 @@ impl Operation {
 
                 *yawspeed = from;
                 return Some(first_frame_idx);
+            }
+            Operation::SetFrameTime {
+                bulk_idx,
+                ref from,
+                ref to,
+            } => {
+                let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
+                    .nth(bulk_idx)
+                    .expect("invalid bulk index");
+                assert_eq!(&bulk.frame_time, to, "wrong current frame time");
+
+                if from != to {
+                    bulk.frame_time = from.to_string();
+                    return Some(first_frame_idx);
+                }
+            }
+            Operation::SetCommands {
+                bulk_idx,
+                ref from,
+                ref to,
+            } => {
+                let (bulk, first_frame_idx) = bulk_and_first_frame_idx_mut(hltas)
+                    .nth(bulk_idx)
+                    .expect("invalid bulk index");
+                assert_eq!(&bulk.console_command, to, "wrong current commands");
+
+                if from != to {
+                    bulk.console_command = from.clone();
+                    return Some(first_frame_idx);
+                }
             }
         }
 
@@ -1098,6 +1168,54 @@ s41-------|------|------|0.004|70|-|10
 ----------|------|------|0.004|10|-|6
 s41-------|------|------|0.004|69|-|10
 s41-------|------|------|0.004|69|-|10
+----------|------|------|0.004|70|-|6",
+        );
+    }
+
+    #[test]
+    fn op_set_frame_time() {
+        check_op(
+            "\
+----------|------|------|0.004|10|-|6
+s41-------|------|------|0.004|70|-|10
+s41-------|------|------|0.004|70|-|10
+----------|------|------|0.004|70|-|6",
+            Operation::SetFrameTime {
+                bulk_idx: 1,
+                from: String::from("0.004"),
+                to: String::from("0.0069"),
+            },
+            "\
+----------|------|------|0.004|10|-|6
+s41-------|------|------|0.0069|70|-|10
+s41-------|------|------|0.004|70|-|10
+----------|------|------|0.004|70|-|6",
+        );
+    }
+
+    #[test]
+    fn op_set_commands() {
+        check_op(
+            "\
+----------|------|------|0.004|70|-|6",
+            Operation::SetCommands {
+                bulk_idx: 0,
+                from: None,
+                to: Some("quit".to_string()),
+            },
+            "\
+----------|------|------|0.004|70|-|6|quit",
+        );
+
+        check_op(
+            "\
+----------|------|------|0.004|70|-|6|",
+            Operation::SetCommands {
+                bulk_idx: 0,
+                from: Some("".to_string()),
+                to: None,
+            },
+            "\
 ----------|------|------|0.004|70|-|6",
         );
     }

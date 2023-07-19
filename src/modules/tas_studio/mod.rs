@@ -74,6 +74,8 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_SET_YAWSPEED,
             &BXT_TAS_STUDIO_SET_PITCH,
             &BXT_TAS_STUDIO_SET_YAW,
+            &BXT_TAS_STUDIO_SET_FRAME_TIME,
+            &BXT_TAS_STUDIO_SET_COMMANDS,
             &BXT_TAS_STUDIO_UNSET_PITCH,
             &BXT_TAS_STUDIO_UNSET_YAW,
             &BXT_TAS_STUDIO_SPLIT,
@@ -559,6 +561,56 @@ fn set_yawspeed(marker: MainThreadMarker, yawspeed: f32) {
         con_print(marker, &format!("Error setting yawspeed: {err}\n"));
         if err.is_internal() {
             error!("error setting yawspeed: {err:?}\n");
+            *state = State::Idle;
+        }
+    }
+}
+
+static BXT_TAS_STUDIO_SET_FRAME_TIME: Command = Command::new(
+    b"bxt_tas_studio_set_frametime\0",
+    handler!(
+        "bxt_tas_studio_set_frametime
+        
+Sets the frame time of the selected frame bulk.",
+        set_frametime as fn(_, _)
+    ),
+);
+
+fn set_frametime(marker: MainThreadMarker, frametime: String) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
+
+    if let Err(err) = editor.set_frametime(frametime) {
+        con_print(marker, &format!("Error setting frame time: {err}\n"));
+        if err.is_internal() {
+            error!("error setting frame time: {err:?}\n");
+            *state = State::Idle;
+        }
+    }
+}
+
+static BXT_TAS_STUDIO_SET_COMMANDS: Command = Command::new(
+    b"bxt_tas_studio_set_commands\0",
+    handler!(
+        "bxt_tas_studio_set_commands
+        
+Sets the commands of the selected frame bulk.",
+        set_commands as fn(_, _)
+    ),
+);
+
+fn set_commands(marker: MainThreadMarker, commands: String) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
+
+    if let Err(err) = editor.set_commands(Some(commands)) {
+        con_print(marker, &format!("Error setting commands: {err}\n"));
+        if err.is_internal() {
+            error!("error setting commands: {err:?}\n");
             *state = State::Idle;
         }
     }
