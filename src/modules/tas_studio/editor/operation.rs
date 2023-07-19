@@ -86,6 +86,12 @@ pub enum Operation {
         from: f32,
         to: f32,
     },
+    SetAdjacentYawspeed {
+        first_bulk_idx: usize,
+        bulk_count: usize,
+        from: f32,
+        to: f32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -319,13 +325,41 @@ impl Operation {
                 let yawspeed = bulk
                     .yawspeed_mut()
                     .expect("frame bulk should have yawspeed");
-
                 assert_eq!(from, *yawspeed, "wrong current yawspeed value");
 
                 if from != to {
                     *yawspeed = to;
                     return Some(first_frame_idx);
                 }
+            }
+            Operation::SetAdjacentYawspeed {
+                first_bulk_idx,
+                bulk_count,
+                from,
+                to,
+            } => {
+                let mut bulks = bulk_and_first_frame_idx_mut(hltas).skip(first_bulk_idx);
+                let (bulk, first_frame_idx) = bulks.next().expect("invalid bulk index");
+
+                let yawspeed = bulk
+                    .yawspeed_mut()
+                    .expect("frame bulk should have yawspeed");
+                assert_eq!(from, *yawspeed, "wrong current yawspeed value");
+
+                if from != to {
+                    for _ in 1..bulk_count {
+                        let bulk = bulks.next().expect("invalid bulk index").0;
+                        let next_yawspeed = bulk
+                            .yawspeed_mut()
+                            .expect("frame bulk should have yawspeed");
+                        assert_eq!(from, *next_yawspeed, "wrong current yawspeed value");
+
+                        *next_yawspeed = to;
+                    }
+                }
+
+                *yawspeed = to;
+                return Some(first_frame_idx);
             }
         }
 
@@ -555,6 +589,35 @@ impl Operation {
                     *yawspeed = from;
                     return Some(first_frame_idx);
                 }
+            }
+            Operation::SetAdjacentYawspeed {
+                first_bulk_idx,
+                bulk_count,
+                from,
+                to,
+            } => {
+                let mut bulks = bulk_and_first_frame_idx_mut(hltas).skip(first_bulk_idx);
+                let (bulk, first_frame_idx) = bulks.next().expect("invalid bulk index");
+
+                let yawspeed = bulk
+                    .yawspeed_mut()
+                    .expect("frame bulk should have yawspeed");
+                assert_eq!(to, *yawspeed, "wrong current yawspeed value");
+
+                if from != to {
+                    for _ in 1..bulk_count {
+                        let bulk = bulks.next().expect("invalid bulk index").0;
+                        let next_yawspeed = bulk
+                            .yawspeed_mut()
+                            .expect("frame bulk should have yawspeed");
+                        assert_eq!(to, *next_yawspeed, "wrong current yawspeed value");
+
+                        *next_yawspeed = from;
+                    }
+                }
+
+                *yawspeed = from;
+                return Some(first_frame_idx);
             }
         }
 
@@ -997,6 +1060,45 @@ s41-------|------|------|0.004|70|-|10",
 ----------|------|------|0.004|10|-|6
 s40-------|------|------|0.004|0|-|10
 s41-------|------|------|0.004|69|-|10",
+        );
+    }
+
+    #[test]
+    fn op_set_adjacent_yawspeed() {
+        check_op(
+            "\
+----------|------|------|0.004|10|-|6
+s40-------|------|------|0.004|0|-|10
+s41-------|------|------|0.004|70|-|10",
+            Operation::SetAdjacentYawspeed {
+                first_bulk_idx: 1,
+                bulk_count: 1,
+                from: 0,
+                to: 69,
+            },
+            "\
+----------|------|------|0.004|10|-|6
+s40-------|------|------|0.004|69|-|10
+s41-------|------|------|0.004|70|-|10",
+        );
+
+        check_op(
+            "\
+----------|------|------|0.004|10|-|6
+s41-------|------|------|0.004|70|-|10
+s41-------|------|------|0.004|70|-|10
+----------|------|------|0.004|70|-|6",
+            Operation::SetAdjacentYawspeed {
+                first_bulk_idx: 1,
+                bulk_count: 2,
+                from: 70,
+                to: 69,
+            },
+            "\
+----------|------|------|0.004|10|-|6
+s41-------|------|------|0.004|69|-|10
+s41-------|------|------|0.004|69|-|10
+----------|------|------|0.004|70|-|6",
         );
     }
 }
