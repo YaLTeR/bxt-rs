@@ -497,34 +497,6 @@ fn mutate_frame<R: Rng>(rng: &mut R, hltas: &mut HLTAS, frame: usize) {
 }
 
 fn mutate_frame_bulk<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
-    let p = rng.gen::<f32>();
-    let strafe_type = if p < 0.01 {
-        StrafeType::MaxDeccel
-    } else if p < 0.1 {
-        StrafeType::MaxAngle
-    } else {
-        StrafeType::MaxAccel
-    };
-    frame_bulk.auto_actions.movement = Some(AutoMovement::Strafe(StrafeSettings {
-        type_: strafe_type,
-        dir: if strafe_type == StrafeType::MaxDeccel {
-            StrafeDir::Best
-        } else if rng.gen::<bool>() {
-            StrafeDir::Left
-        } else {
-            StrafeDir::Right
-        },
-    }));
-
-    mutate_action_keys(rng, frame_bulk);
-    mutate_auto_actions(rng, frame_bulk);
-}
-
-fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
-    let count = hltas.frame_bulks().count();
-    let index = rng.gen_range(0..count);
-    let frame_bulk = hltas.frame_bulks_mut().nth(index).unwrap();
-
     if let Some(AutoMovement::Strafe(StrafeSettings { type_, dir, .. })) =
         frame_bulk.auto_actions.movement.as_mut()
     {
@@ -594,6 +566,14 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
 
     mutate_action_keys(rng, frame_bulk);
     mutate_auto_actions(rng, frame_bulk);
+}
+
+fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
+    let count = hltas.frame_bulks().count();
+    let index = rng.gen_range(0..count);
+    let frame_bulk = hltas.frame_bulks_mut().nth(index).unwrap();
+
+    mutate_frame_bulk(rng, frame_bulk);
 
     // Mutate frame count.
     if index + 1 < count {
