@@ -862,9 +862,10 @@ impl Editor {
 
             // Only update the selected bulk and start the adjustments if the mouse has just been
             // pressed.
-            if mouse_became_down {
+            if mouse_became_down && !self.in_camera_editor {
                 // Since all mouse buttons that start adjustments have been down last frame, there
-                // cannot be any active adjustments now.
+                // cannot be any active adjustments now. All movement editor adjustments are
+                // triggered by the mouse only.
                 assert!(!self.is_any_adjustment_active());
 
                 // Make the hovered bulk the selected bulk (or clear the selected bulk if not
@@ -1131,7 +1132,12 @@ impl Editor {
         if self.in_camera_editor {
             if let Some(hovered_frame_idx) = self.hovered_frame_idx {
                 if keyboard.insert_camera_line && !self.prev_keyboard_state.insert_camera_line {
+                    // Keyboard was released last frame so the adjustment cannot be active.
                     assert!(self.insert_camera_line_adjustment.is_none());
+
+                    // There are no other adjustments in the camera editor at the moment; and anyhow
+                    // when more are added, this condition should still be upheld.
+                    assert!(!self.is_any_adjustment_active());
 
                     let branch = self.branch_mut();
 
