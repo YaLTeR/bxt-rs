@@ -98,6 +98,7 @@ static OBJECTIVE: MainThreadRefCell<Objective> = MainThreadRefCell::new(Objectiv
 static OPTIM_STATS_LAST_PRINTED_AT: MainThreadCell<Option<Instant>> = MainThreadCell::new(None);
 static OPTIM_STATS_ITERATIONS: MainThreadCell<usize> = MainThreadCell::new(0);
 static OPTIM_STATS_ITERATIONS_INVALID: MainThreadCell<usize> = MainThreadCell::new(0);
+static OPTIM_STATS_ITERATIONS_TOTAL: MainThreadCell<usize> = MainThreadCell::new(0);
 
 static BXT_TAS_OPTIM_FRAMES: CVar = CVar::new(
     b"bxt_tas_optim_frames\0",
@@ -656,6 +657,7 @@ fn optim_start(marker: MainThreadMarker) {
     OPTIM_STATS_LAST_PRINTED_AT.set(marker, Some(Instant::now()));
     OPTIM_STATS_ITERATIONS.set(marker, 0);
     OPTIM_STATS_ITERATIONS_INVALID.set(marker, 0);
+    OPTIM_STATS_ITERATIONS_TOTAL.set(marker, 0);
 }
 
 static BXT_TAS_OPTIM_STOP: Command = Command::new(
@@ -857,7 +859,11 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                     for result in optimizer {
                         match result {
                             AttemptResult::Better { value } => {
-                                con_print(marker, &format!("Found new best value: {value}\n"));
+                                let iterations = OPTIM_STATS_ITERATIONS.get(marker);
+                                con_print(
+                                    marker,
+                                    &format!("[it #{iterations}] Found new best value: {value}\n"),
+                                );
                             }
                             AttemptResult::Invalid => {
                                 OPTIM_STATS_ITERATIONS_INVALID
@@ -867,6 +873,8 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                         }
 
                         OPTIM_STATS_ITERATIONS.set(marker, OPTIM_STATS_ITERATIONS.get(marker) + 1);
+                        OPTIM_STATS_ITERATIONS_TOTAL
+                            .set(marker, OPTIM_STATS_ITERATIONS_TOTAL.get(marker) + 1);
 
                         if start.elapsed() > Duration::from_millis(40) {
                             break;
