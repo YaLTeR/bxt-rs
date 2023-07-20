@@ -569,7 +569,7 @@ fn set_yawspeed(marker: MainThreadMarker, yawspeed: f32) {
 static BXT_TAS_STUDIO_SET_FRAME_TIME: Command = Command::new(
     b"bxt_tas_studio_set_frame_time\0",
     handler!(
-        "bxt_tas_studio_set_frame_time
+        "bxt_tas_studio_set_frame_time <frame time>
         
 Sets the frame time of the selected frame bulk.",
         set_frame_time as fn(_, _)
@@ -594,9 +594,9 @@ fn set_frame_time(marker: MainThreadMarker, frame_time: String) {
 static BXT_TAS_STUDIO_SET_COMMANDS: Command = Command::new(
     b"bxt_tas_studio_set_commands\0",
     handler!(
-        "bxt_tas_studio_set_commands
+        "bxt_tas_studio_set_commands <console commands>
         
-Sets the commands of the selected frame bulk.",
+Sets the console commands of the selected frame bulk.",
         set_commands as fn(_, _)
     ),
 );
@@ -607,7 +607,13 @@ fn set_commands(marker: MainThreadMarker, commands: String) {
         return;
     };
 
-    if let Err(err) = editor.set_commands(Some(commands)) {
+    let commands = if commands.is_empty() {
+        None
+    } else {
+        Some(commands)
+    };
+
+    if let Err(err) = editor.set_commands(commands) {
         con_print(marker, &format!("Error setting commands: {err}\n"));
         if err.is_internal() {
             error!("error setting commands: {err:?}\n");
