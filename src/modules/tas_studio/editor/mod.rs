@@ -1192,6 +1192,10 @@ impl Editor {
                     self.invalidate(hovered_frame_idx + 1);
                     self.recompute_extra_camera_frame_data_if_needed();
 
+                    // Reset the selected bulk index as dragging the insert camera line adjustment
+                    // around will split and rejoin frame bulks and generally mess with the index.
+                    self.selected_bulk_idx = None;
+
                     self.insert_camera_line_adjustment = Some(InsertCameraLineAdjustment {
                         mouse_adjustment: MouseAdjustment::new(0, mouse_pos, dir),
                         starting_frame_idx: hovered_frame_idx,
