@@ -58,6 +58,7 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_SMOOTH_WINDOW_S,
             &BXT_TAS_STUDIO_SMOOTH_SMALL_WINDOW_S,
             &BXT_TAS_STUDIO_SMOOTH_SMALL_WINDOW_MULTIPLIER,
+            &BXT_TAS_STUDIO_LINE_WIDTH,
         ];
         CVARS
     }
@@ -205,6 +206,13 @@ Smoothing averages camera angles in a window centered around every frame. Within
 there's a smaller window which has a higher contribution to the final smoothed camera angle. This\
 console variable defines how much stronger the influence of the camera angles in the smaller window\
 is compared to the big window.",
+);
+
+static BXT_TAS_STUDIO_LINE_WIDTH: CVar = CVar::new(
+    b"bxt_tas_studio_line_width\0",
+    b"1\0",
+    "\
+The line width used for TAS editor drawing, in pixels.",
 );
 
 static BXT_TAS_STUDIO_NEW: Command = Command::new(
@@ -1719,7 +1727,21 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
         }
     }
 
+    let gl = crate::gl::GL.borrow(marker);
+    if let Some(gl) = gl.as_ref() {
+        let width = BXT_TAS_STUDIO_LINE_WIDTH.as_f32(marker).max(0.);
+        unsafe {
+            gl.LineWidth(width);
+        }
+    }
+
     editor.draw(tri);
+
+    if let Some(gl) = gl.as_ref() {
+        unsafe {
+            gl.LineWidth(1.);
+        }
+    }
 }
 
 fn add_frame_bulk_hud_lines(text: &mut Vec<u8>, bulk: &FrameBulk) {
