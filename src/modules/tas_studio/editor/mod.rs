@@ -2613,6 +2613,86 @@ impl Editor {
         Ok(())
     }
 
+    /// Sets frame time of the selected bulk.
+    pub fn set_frame_time(&mut self, new_frame_time: String) -> ManualOpResult<()> {
+        // Don't toggle during active adjustments for consistency with other operations.
+        if self.is_any_adjustment_active() {
+            return Err(ManualOpError::CannotDoDuringAdjustment);
+        }
+
+        if self.in_camera_editor {
+            return Err(ManualOpError::CannotDoInCameraEditor);
+        }
+
+        let Some(bulk_idx) = self.selected_bulk_idx else {
+            return Err(ManualOpError::NoSelectedBulk);
+        };
+
+        let (_, bulk) = self
+            .branch()
+            .branch
+            .script
+            .lines
+            .iter()
+            .enumerate()
+            .filter_map(|(line_idx, line)| line.frame_bulk().map(|bulk| (line_idx, bulk)))
+            .nth(bulk_idx)
+            .unwrap();
+
+        if bulk.frame_time == new_frame_time {
+            return Ok(());
+        }
+
+        let op = Operation::SetFrameTime {
+            bulk_idx,
+            from: bulk.frame_time.clone(),
+            to: new_frame_time,
+        };
+        self.apply_operation(op)?;
+
+        Ok(())
+    }
+
+    /// Sets commands of the selected bulk.
+    pub fn set_commands(&mut self, new_command: Option<String>) -> ManualOpResult<()> {
+        // Don't toggle during active adjustments for consistency with other operations.
+        if self.is_any_adjustment_active() {
+            return Err(ManualOpError::CannotDoDuringAdjustment);
+        }
+
+        if self.in_camera_editor {
+            return Err(ManualOpError::CannotDoInCameraEditor);
+        }
+
+        let Some(bulk_idx) = self.selected_bulk_idx else {
+            return Err(ManualOpError::NoSelectedBulk);
+        };
+
+        let (_, bulk) = self
+            .branch()
+            .branch
+            .script
+            .lines
+            .iter()
+            .enumerate()
+            .filter_map(|(line_idx, line)| line.frame_bulk().map(|bulk| (line_idx, bulk)))
+            .nth(bulk_idx)
+            .unwrap();
+
+        if bulk.console_command == new_command {
+            return Ok(());
+        }
+
+        let op = Operation::SetCommands {
+            bulk_idx,
+            from: bulk.console_command.clone(),
+            to: new_command,
+        };
+        self.apply_operation(op)?;
+
+        Ok(())
+    }
+
     /// Rewrites the script with a completely new version.
     pub fn rewrite(&mut self, new_script: HLTAS) -> ManualOpResult<()> {
         // Don't toggle during active adjustments for consistency with other operations.
