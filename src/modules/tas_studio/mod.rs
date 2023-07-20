@@ -567,22 +567,22 @@ fn set_yawspeed(marker: MainThreadMarker, yawspeed: f32) {
 }
 
 static BXT_TAS_STUDIO_SET_FRAME_TIME: Command = Command::new(
-    b"bxt_tas_studio_set_frametime\0",
+    b"bxt_tas_studio_set_frame_time\0",
     handler!(
-        "bxt_tas_studio_set_frametime
+        "bxt_tas_studio_set_frame_time
         
 Sets the frame time of the selected frame bulk.",
-        set_frametime as fn(_, _)
+        set_frame_time as fn(_, _)
     ),
 );
 
-fn set_frametime(marker: MainThreadMarker, frametime: String) {
+fn set_frame_time(marker: MainThreadMarker, frame_time: String) {
     let mut state = STATE.borrow_mut(marker);
     let State::Editing { editor, .. } = &mut *state else {
         return;
     };
 
-    if let Err(err) = editor.set_frametime(frametime) {
+    if let Err(err) = editor.set_frame_time(frame_time) {
         con_print(marker, &format!("Error setting frame time: {err}\n"));
         if err.is_internal() {
             error!("error setting frame time: {err:?}\n");

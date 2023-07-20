@@ -2614,7 +2614,7 @@ impl Editor {
     }
 
     /// Sets frame time of the selected bulk.
-    pub fn set_frametime(&mut self, new_frame_time: String) -> ManualOpResult<()> {
+    pub fn set_frame_time(&mut self, new_frame_time: String) -> ManualOpResult<()> {
         // Don't toggle during active adjustments for consistency with other operations.
         if self.is_any_adjustment_active() {
             return Err(ManualOpError::CannotDoDuringAdjustment);
