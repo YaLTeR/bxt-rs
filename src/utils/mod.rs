@@ -8,6 +8,7 @@ use std::process::abort;
 use std::sync::Once;
 
 use git_version::git_version;
+use tracing::metadata::LevelFilter;
 use tracing_subscriber::prelude::*;
 
 pub mod marker;
@@ -96,7 +97,14 @@ fn setup_logging_hooks() {
         tracing_subscriber::layer::Identity::new().boxed()
     };
 
+    let filter = if env::var_os("BXT_RS_VERBOSE").is_some() {
+        LevelFilter::TRACE
+    } else {
+        LevelFilter::DEBUG
+    };
+
     tracing_subscriber::registry()
+        .with(filter)
         .with(file_layer)
         .with(profiling_layer)
         // Term layer must be last, otherwise the log file will have some ANSI codes:
