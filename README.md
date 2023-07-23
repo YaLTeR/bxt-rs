@@ -1,8 +1,9 @@
 # bxt-rs
 
-A few speedrunning and TAS-related tools for Half-Life and mods. Current features include:
+Video recording, speedrunning and TAS tools for Half-Life and mods. Current features include:
 
 - Video recording ([video tutorial](https://youtu.be/ZMjhCXA82tU)).
+- Interactive editor for TASes—remade and improved version of the BXT TAS editor.
 - Brute-force optimizer for TASes ([video tutorial](https://youtu.be/ECuRruY3XLw)).
 - `bxt_hud_scale` to upscale the HUD for high-resolution video recording.
 - Commands to play many demos at once (`bxt_play_run`).
@@ -47,6 +48,13 @@ If the video looks glitched or the game crashes when starting recording (happens
 
 Start Half-Life with the `BXT_RS_PROFILE` environment variable set to make bxt-rs output a `trace.json` file in the Half-Life folder. This is a Chrome JSON trace file which you can view in [Perfetto](https://ui.perfetto.dev/) or in `chrome://tracing`.
 
+### Debugging
+
+There are environment variables that may assist you in debugging:
+
+- `BXT_RS_VULKAN_DEBUG` will enable the Vulkan validation layers. You need to have 32-bit validation layers installed, otherwise Vulkan will fail to initialize.
+- `BXT_RS_VERBOSE` will log more verbose and spammy messages.
+
 ## Building
 
 You can uncomment the right line in `.cargo/config` to avoid writing `--target` every time.
@@ -56,6 +64,8 @@ You can uncomment the right line in `.cargo/config` to avoid writing `--target` 
 1. Install 32-bit libc for linking. On Ubuntu that's `libc6-dev-i386`, on Fedora you'll need `glibc-devel.i686`.
 1. Install stable Rust (for example, via [rustup](https://rustup.rs/)) with the `i686-unknown-linux-gnu` target.
 1. `cargo build --target=i686-unknown-linux-gnu`
+
+You may need to set `CC=cc` environment variable on Fedora and some other distros, otherwise you'll get build errors for SQLite. You can uncomment the corresponding line in `.cargo/config` to set it automatically if you need this.
 
 ### Windows
 
