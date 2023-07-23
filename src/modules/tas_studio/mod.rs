@@ -1590,6 +1590,15 @@ pub unsafe fn on_tas_playback_frame(
 }
 
 pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
+    if !TasStudio.is_enabled(marker) {
+        // This can be called by BXT during unhooking if the player manually closes or restarts the
+        // game during a TAS playback. When that happens, our pointers are already reset, so running
+        // the code below panics. However, in this case the logical thing to do is to reset the
+        // state to Idle anyway, so let's do it.
+        *STATE.borrow_mut(marker) = State::Idle;
+        return;
+    }
+
     let mut state = STATE.borrow_mut(marker);
 
     *state = match mem::take(&mut *state) {
