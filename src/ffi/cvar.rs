@@ -7,6 +7,7 @@ use std::ptr::null;
 use bitflags::bitflags;
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct Flags: i32 {
         const FCVAR_ARCHIVE = 1;
         const FCVAR_USERINFO = 2;

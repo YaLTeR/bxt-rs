@@ -1,6 +1,7 @@
 use bitflags::bitflags;
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct Buttons: u16 {
         const IN_ATTACK = 1;
         const IN_JUMP = 1 << 1;

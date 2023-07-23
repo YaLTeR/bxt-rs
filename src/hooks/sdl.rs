@@ -159,7 +159,7 @@ pub fn reset_pointers(marker: MainThreadMarker) {
 
 bitflags! {
     /// Mouse buttons that can be pressed.
-    #[derive(Default)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
     pub struct MouseButtons: u32 {
         /// Half-Life's `mouse1`.
         const Left = 1 << 0;

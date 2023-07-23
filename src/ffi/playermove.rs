@@ -13,6 +13,7 @@ use crate::ffi::pmtrace::pmtrace_s;
 use crate::ffi::usercmd::usercmd_s;
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct TraceFlags: c_int {
         const PM_NORMAL = 0;
         const PM_STUDIO_IGNORE = 1;
