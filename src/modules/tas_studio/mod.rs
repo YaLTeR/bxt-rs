@@ -1574,7 +1574,10 @@ pub unsafe fn on_tas_playback_frame(
                 let _ = editor.apply_accurate_frame(accurate_frame);
                 editor.recompute_extra_camera_frame_data_if_needed();
 
-                if *frames_played == editor.stop_frame() as usize + 1 {
+                // If stop_frame is 0, play the whole TAS, as that results in more intuitive
+                // behavior, and works around a Windows issue where the mouse doesn't work properly
+                // if you go into TAS editor first thing after launching the game.
+                if editor.stop_frame() != 0 && *frames_played == editor.stop_frame() as usize + 1 {
                     stop = true;
                 }
             }
