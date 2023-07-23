@@ -357,7 +357,7 @@ pub fn receive_request_from_server() -> Result<Option<PlayRequest>, ()> {
 pub fn send_frame_to_server(frame: AccurateFrame) -> Result<(), ()> {
     let mut state = STATE.lock().unwrap();
     let Some(State::Client { sender, .. }) = state.as_mut() else {
-        return Ok(());
+        return Err(());
     };
 
     match sender.send(frame) {
