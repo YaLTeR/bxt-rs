@@ -35,7 +35,7 @@ fn write_first_version(path: &Path, script: &HLTAS) -> eyre::Result<()> {
             stem.push("-backup.hltas");
             let backup_name = path.with_file_name(stem);
 
-            debug!(
+            trace!(
                 "{} already exists, renaming it to {}",
                 path.to_string_lossy(),
                 backup_name.to_string_lossy(),
@@ -164,7 +164,7 @@ impl Bridge {
             return None;
         }
 
-        info!("reading updated bridged .hltas");
+        trace!("reading updated bridged .hltas");
 
         let _span = info_span!("bridge reading script").entered();
 

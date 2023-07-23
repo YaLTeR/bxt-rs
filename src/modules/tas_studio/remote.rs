@@ -125,7 +125,7 @@ fn server_thread(listener: TcpListener) {
 
         let mut state = STATE.lock().unwrap();
         if let Some(State::Server(Some(_))) = *state {
-            info!("continuing because already have a client");
+            trace!("continuing because already have a client");
             continue;
         }
 
@@ -139,7 +139,7 @@ fn server_thread(listener: TcpListener) {
 
         let (server, name) = IpcOneShotServer::new().unwrap();
 
-        info!("Accepted remote client connection, replying with name: {name}");
+        debug!("Accepted remote client connection, replying with name: {name}");
 
         if let Err(err) = stream.write_all(name.as_bytes()) {
             error!("Error sending IPC server name to the remote client: {err:?}");
@@ -245,9 +245,10 @@ fn client_connection_thread() {
 
         let (receiver, sender) = match connect_to_server(stream) {
             Ok(x) => x,
-            Err(_err) => {
-                // The server will refuse connections if it doesn't need one. Don't spam the log.
-                // error!("error connecting to server: {err:?}");
+            Err(err) => {
+                // The server will refuse connections if it doesn't need one. Use trace!() and no
+                // backtrace (no :?) to not spam the log.
+                trace!("error connecting to server: {err}");
                 continue;
             }
         };
@@ -259,7 +260,9 @@ fn client_connection_thread() {
 fn connect_to_server(
     mut stream: TcpStream,
 ) -> eyre::Result<(IpcReceiver<PlayRequest>, IpcSender<AccurateFrame>)> {
-    debug!("reading IPC name from server");
+    // The first messages are trace!() because they will spam every second if we're trying to
+    // connect to a server which already has a game connected.
+    trace!("reading IPC name from server");
 
     let mut name = String::new();
     stream
@@ -267,7 +270,7 @@ fn connect_to_server(
         .context("error reading IPC name from server")?;
     drop(stream);
 
-    debug!("connecting to server IPC");
+    trace!("connecting to server IPC");
     let tx = IpcSender::connect(name).context("error connecting to the server IPC")?;
 
     let (hltas_sender, request_receiver) =
@@ -280,11 +283,11 @@ fn connect_to_server(
     let (workaround_sender, workaround_receiver) =
         ipc_channel::ipc::channel().context("error creating workaround IPC channel")?;
 
-    debug!("sending senders to server");
+    trace!("sending senders to server");
     tx.send((hltas_sender, workaround_sender))
         .context("error sending IPC channels to server")?;
 
-    debug!("receiving sender from server");
+    trace!("receiving sender from server");
     let response_sender = workaround_receiver
         .recv()
         .context("error receiving frames sender from server")?;

@@ -34,7 +34,7 @@ impl Watcher {
                         thread::sleep(Duration::from_millis(500));
 
                         if should_stop.load(Ordering::SeqCst) {
-                            debug!("Exiting watcher thread for {}", path.to_string_lossy());
+                            trace!("Exiting watcher thread for {}", path.to_string_lossy());
                             break;
                         }
 
@@ -42,7 +42,7 @@ impl Watcher {
                             if last_mtime != Some(mtime) {
                                 has_changed.store(true, Ordering::SeqCst);
                                 last_mtime = Some(mtime);
-                                debug!("file changed: {}", path.to_string_lossy());
+                                trace!("file changed: {}", path.to_string_lossy());
                             }
                         }
                     }
