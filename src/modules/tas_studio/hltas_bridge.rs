@@ -206,6 +206,12 @@ impl Drop for Bridge {
             *request = Some(Request::Stop);
             cvar.notify_one();
         }
-        self.write_thread_handle.take().unwrap().join().unwrap();
+
+        // For whatever reason, on Windows, when quitting the game with the TAS editor open, the
+        // join() panics.
+        let handle = self.write_thread_handle.take().unwrap();
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            handle.join().unwrap();
+        }));
     }
 }
