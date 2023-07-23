@@ -225,11 +225,13 @@ fn client_connection_thread() {
             continue;
         }
 
-        let mut state = STATE.lock().unwrap();
+        let state = STATE.lock().unwrap();
         if state.is_some() {
             // Already connected or server, keep looping.
             continue;
         }
+        // Windows TcpStream::connect() blocks.
+        drop(state);
 
         let stream = match TcpStream::connect(("127.0.0.1", *PORT)) {
             Ok(x) => x,
@@ -253,6 +255,11 @@ fn client_connection_thread() {
             }
         };
 
+        let mut state = STATE.lock().unwrap();
+        if state.is_some() {
+            // Already connected or a server.
+            continue;
+        }
         *state = Some(State::Client { sender, receiver });
     }
 }
