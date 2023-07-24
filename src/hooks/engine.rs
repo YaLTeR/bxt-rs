@@ -11,6 +11,7 @@ use std::str::FromStr;
 
 use bxt_macros::pattern;
 use bxt_patterns::Patterns;
+use rayon::prelude::*;
 
 use crate::ffi::com_model::{mleaf_s, model_s};
 use crate::ffi::command::cmd_function_s;
@@ -1334,8 +1335,12 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
 
     // Find all pattern-based pointers.
     {
-        let memory = slice::from_raw_parts(base.cast(), size);
-        for pointer in POINTERS {
+        let memory: &[u8] = slice::from_raw_parts(base.cast(), size);
+        POINTERS.par_iter().for_each(|pointer| {
+            // SAFETY: This is not the main thread, but the accesses here are all disjoint and
+            // synchronized to the main thread.
+            let marker = unsafe { MainThreadMarker::new() };
+            let base: *mut c_void = memory.as_ptr().cast_mut().cast();
             if let Some((offset, index)) = pointer.patterns().find(memory) {
                 pointer.set_with_index(
                     marker,
@@ -1343,7 +1348,7 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
                     Some(index),
                 );
             }
-        }
+        });
     }
 
     // Find all offset-based pointers.
