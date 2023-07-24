@@ -3,7 +3,7 @@
 Video recording, speedrunning and TAS tools for Half-Life and mods. Current features include:
 
 - Video recording ([video tutorial](https://youtu.be/ZMjhCXA82tU)).
-- Interactive editor for TASes—remade and improved version of the BXT TAS editor.
+- Interactive editor for TASes—remade and improved version of the BXT TAS editor ([video tutorial](https://youtu.be/zi3pw9iS1sk)).
 - Brute-force optimizer for TASes ([video tutorial](https://youtu.be/ECuRruY3XLw)).
 - `bxt_hud_scale` to upscale the HUD for high-resolution video recording.
 - Commands to play many demos at once (`bxt_play_run`).
