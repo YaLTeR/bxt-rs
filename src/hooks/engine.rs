@@ -11,7 +11,6 @@ use std::str::FromStr;
 
 use bxt_macros::pattern;
 use bxt_patterns::Patterns;
-use rayon::prelude::*;
 
 use crate::ffi::com_model::{mleaf_s, model_s};
 use crate::ffi::command::cmd_function_s;
@@ -1332,6 +1331,8 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
 #[instrument(skip(marker))]
 pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: usize) {
     use std::slice;
+
+    use rayon::prelude::*;
 
     // Find all pattern-based pointers.
     {
