@@ -160,6 +160,7 @@ impl Optimizer {
         frames: usize,
         random_frames_to_change: usize,
         change_single_frames: bool,
+        change_pitch: bool,
         objective: &'a Objective,
     ) -> Option<impl Iterator<Item = AttemptResult> + 'a> {
         self.simulate_all(tracer);
@@ -185,10 +186,10 @@ impl Optimizer {
                 let frame = if change_single_frames {
                     // Pick a random frame and mutate it.
                     let frame = between.sample(&mut rng);
-                    mutate_frame(&mut rng, &mut hltas, frame);
+                    mutate_frame(change_pitch, &mut rng, &mut hltas, frame);
                     frame
                 } else {
-                    mutate_single_frame_bulk(&mut hltas, &mut rng)
+                    mutate_single_frame_bulk(change_pitch, &mut hltas, &mut rng)
                 };
 
                 stale_frame = stale_frame.min(frame);
@@ -287,6 +288,7 @@ impl Optimizer {
         frames: usize,
         random_frames_to_change: usize,
         change_single_frames: bool,
+        change_pitch: bool,
         objective: &Objective,
         mut on_improvement: impl FnMut(&str),
     ) {
@@ -338,9 +340,9 @@ impl Optimizer {
                 if change_single_frames {
                     let frame = between.sample(&mut rng);
                     let frame_bulk = self.hltas.split_single_at_frame(frame).unwrap();
-                    mutate_frame_bulk(&mut rng, frame_bulk);
+                    mutate_frame_bulk(change_pitch, &mut rng, frame_bulk);
                 } else {
-                    mutate_single_frame_bulk(&mut self.hltas, &mut rng);
+                    mutate_single_frame_bulk(change_pitch, &mut self.hltas, &mut rng);
                 }
             }
 
@@ -479,7 +481,7 @@ impl Optimizer {
     }
 }
 
-fn mutate_frame<R: Rng>(rng: &mut R, hltas: &mut HLTAS, frame: usize) {
+fn mutate_frame<R: Rng>(change_pitch: bool, rng: &mut R, hltas: &mut HLTAS, frame: usize) {
     if frame > 0 {
         let l = hltas.line_and_repeat_at_frame(frame).unwrap().0;
         let frame_bulk = hltas.split_at_frame(frame).unwrap();
@@ -493,10 +495,10 @@ fn mutate_frame<R: Rng>(rng: &mut R, hltas: &mut HLTAS, frame: usize) {
     // Split it into its own frame bulk.
     let frame_bulk = hltas.split_single_at_frame(frame).unwrap();
 
-    mutate_frame_bulk(rng, frame_bulk);
+    mutate_frame_bulk(change_pitch, rng, frame_bulk);
 }
 
-fn mutate_frame_bulk<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
+fn mutate_frame_bulk<R: Rng>(change_pitch: bool, rng: &mut R, frame_bulk: &mut FrameBulk) {
     let p = rng.gen::<f32>();
     let strafe_type = if p < 0.01 {
         StrafeType::MaxDeccel
@@ -518,9 +520,13 @@ fn mutate_frame_bulk<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
 
     mutate_action_keys(rng, frame_bulk);
     mutate_auto_actions(rng, frame_bulk);
+
+    if change_pitch {
+        mutate_pitch(rng, frame_bulk);
+    }
 }
 
-fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
+fn mutate_single_frame_bulk<R: Rng>(change_pitch: bool, hltas: &mut HLTAS, rng: &mut R) -> usize {
     let count = hltas.frame_bulks().count();
     let index = rng.gen_range(0..count);
     let frame_bulk = hltas.frame_bulks_mut().nth(index).unwrap();
@@ -594,6 +600,10 @@ fn mutate_single_frame_bulk<R: Rng>(hltas: &mut HLTAS, rng: &mut R) -> usize {
 
     mutate_action_keys(rng, frame_bulk);
     mutate_auto_actions(rng, frame_bulk);
+
+    if change_pitch {
+        mutate_pitch(rng, frame_bulk);
+    }
 
     // Mutate frame count.
     if index + 1 < count {
@@ -692,6 +702,16 @@ fn mutate_auto_actions<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
                 times: Times::UnlimitedWithinFrameBulk,
                 type_: LeaveGroundActionType::Jump,
             })
+        };
+    }
+}
+
+fn mutate_pitch<R: Rng>(rng: &mut R, frame_bulk: &mut FrameBulk) {
+    if let Some(pitch) = frame_bulk.pitch.as_mut() {
+        if rng.gen::<f32>() < 0.05 {
+            *pitch = rng.gen_range(-89f32..89f32)
+        } else {
+            *pitch += rng.gen_range(-1f32..1f32)
         };
     }
 }

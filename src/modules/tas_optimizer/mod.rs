@@ -66,6 +66,7 @@ impl Module for TasOptimizer {
         static CVARS: &[&CVar] = &[
             &BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE,
             &BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES,
+            &BXT_TAS_OPTIM_CHANGE_PITCH,
             &BXT_TAS_OPTIM_FRAMES,
             &BXT_TAS_OPTIM_SIMULATION_ACCURACY,
             &BXT_TAS_OPTIM_MULTIPLE_GAMES,
@@ -123,6 +124,13 @@ optimizer mutate individual frames.
 
 Generally `0` gives better results and produces a script ready to be copy-pasted. `1` can be \
 useful for fine-tuning, e.g. if you're very close but barely not making the jump.",
+);
+
+static BXT_TAS_OPTIM_CHANGE_PITCH: CVar = CVar::new(
+    b"bxt_tas_optim_change_pitch\0",
+    b"0\0",
+    "\
+When set to `1`, the optimizer will mutate the pitch angle on the frame bulks where it is set.",
 );
 
 static BXT_TAS_OPTIM_SIMULATION_ACCURACY: CVar = CVar::new(
@@ -831,6 +839,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                     BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
+                    BXT_TAS_OPTIM_CHANGE_PITCH.as_bool(marker),
                     &OBJECTIVE.borrow(marker),
                     |value| {
                         con_print(marker, &format!("Found new best value: {value}\n"));
@@ -852,6 +861,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
                     BXT_TAS_OPTIM_FRAMES.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_RANDOM_FRAMES_TO_CHANGE.as_u64(marker) as usize,
                     BXT_TAS_OPTIM_CHANGE_SINGLE_FRAMES.as_bool(marker),
+                    BXT_TAS_OPTIM_CHANGE_PITCH.as_bool(marker),
                     &OBJECTIVE.borrow(marker),
                 ) {
                     let start = Instant::now();
