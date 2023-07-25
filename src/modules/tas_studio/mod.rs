@@ -2025,7 +2025,7 @@ pub fn is_main_instance(marker: MainThreadMarker) -> bool {
 pub unsafe fn with_m_rawinput_one<T>(marker: MainThreadMarker, f: impl FnOnce() -> T) -> T {
     // TODO: make good.
     unsafe fn find_cvar(marker: MainThreadMarker, name: &str) -> Option<*mut cvar_s> {
-        let mut ptr = *engine::cvar_vars.get(marker);
+        let mut ptr = *engine::cvar_vars.get_opt(marker)?;
         while !ptr.is_null() {
             match std::ffi::CStr::from_ptr((*ptr).name).to_str() {
                 Ok(x) if x == name => {
