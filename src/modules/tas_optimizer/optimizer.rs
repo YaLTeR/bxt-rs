@@ -10,6 +10,7 @@ use hltas::types::*;
 use hltas::HLTAS;
 use rand::distributions::Uniform;
 use rand::prelude::Distribution;
+use rand::seq::SliceRandom;
 use rand::Rng;
 use tap::{Conv, Pipe, Tap, TryConv};
 
@@ -606,47 +607,53 @@ fn mutate_single_frame_bulk<R: Rng>(change_pitch: bool, hltas: &mut HLTAS, rng: 
     }
 
     // Mutate frame count.
-    if index + 1 < count {
-        let frame_time = frame_bulk.frame_time.clone();
+    let frame_time = frame_bulk.frame_time.clone();
+    let same_frame_time_bulks: Vec<usize> = hltas
+        .frame_bulks()
+        .enumerate()
+        .filter(|&(i, bulk)| i != index && bulk.frame_time == frame_time)
+        .map(|(i, _)| i)
+        .collect();
 
-        let next_frame_bulk = hltas.frame_bulks_mut().nth(index + 1).unwrap();
+    if !same_frame_time_bulks.is_empty() {
+        // Frame bulks closer to the current one get weighted more.
+        let other_index = *same_frame_time_bulks
+            .choose_weighted(rng, |i| i.abs_diff(index))
+            .unwrap();
 
-        // Can only move the boundary between frame bulks if the frame times match.
-        if frame_time == next_frame_bulk.frame_time {
-            // Can't go below frame count of 1 on the next frame bulk.
-            let max_frame_count_difference = (next_frame_bulk.frame_count.get() - 1)
-                .conv::<i64>()
-                .min(10);
+        let other_frame_bulk = hltas.frame_bulks_mut().nth(other_index).unwrap();
 
-            // Can't go above frame count of u32::MAX on the next frame bulk.
-            let min_frame_count_difference =
-                (next_frame_bulk.frame_count.get().conv::<i64>() - u32::MAX.conv::<i64>()).max(-10);
+        // Can't go below frame count of 1 on the next frame bulk.
+        let max_frame_count_difference = (other_frame_bulk.frame_count.get() - 1)
+            .conv::<i64>()
+            .min(10);
 
-            let frame_count_difference_range =
-                min_frame_count_difference..max_frame_count_difference;
+        // Can't go above frame count of u32::MAX on the next frame bulk.
+        let min_frame_count_difference =
+            (other_frame_bulk.frame_count.get().conv::<i64>() - u32::MAX.conv::<i64>()).max(-10);
 
-            let frame_bulk = hltas.frame_bulks_mut().nth(index).unwrap();
-            let difference = frame_bulk.frame_count.pipe_ref_mut(|count| {
-                let orig_count = count.get();
+        let frame_count_difference_range = min_frame_count_difference..max_frame_count_difference;
 
-                *count = NonZeroU32::new(
-                    (count.get().conv::<i64>() + rng.gen_range(frame_count_difference_range))
-                        .clamp(1, u32::MAX.into())
-                        .try_conv()
-                        .unwrap(),
-                )
-                .unwrap();
+        let frame_bulk = hltas.frame_bulks_mut().nth(index).unwrap();
+        let difference = frame_bulk.frame_count.pipe_ref_mut(|count| {
+            let orig_count = count.get();
 
-                orig_count.conv::<i64>() - count.get().conv::<i64>()
-            });
+            *count = NonZeroU32::new(
+                (count.get().conv::<i64>() + rng.gen_range(frame_count_difference_range))
+                    .clamp(1, u32::MAX.into())
+                    .try_conv()
+                    .unwrap(),
+            )
+            .unwrap();
 
-            let next_frame_bulk = hltas.frame_bulks_mut().nth(index + 1).unwrap();
-            next_frame_bulk.frame_count.pipe_ref_mut(|count| {
-                *count =
-                    NonZeroU32::new((count.get().conv::<i64>() + difference).try_conv().unwrap())
-                        .unwrap()
-            });
-        }
+            orig_count.conv::<i64>() - count.get().conv::<i64>()
+        });
+
+        let other_frame_bulk = hltas.frame_bulks_mut().nth(other_index).unwrap();
+        other_frame_bulk.frame_count.pipe_ref_mut(|count| {
+            *count = NonZeroU32::new((count.get().conv::<i64>() + difference).try_conv().unwrap())
+                .unwrap()
+        });
     }
 
     let frame = hltas
