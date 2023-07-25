@@ -312,7 +312,7 @@ fn load(marker: MainThreadMarker, path: PathBuf) {
     };
 
     let bridge = Bridge::with_project_path(&path, editor.script());
-    *STATE.borrow_mut(marker) = State::PreparingToPlayToEditor(editor, bridge);
+    *STATE.borrow_mut(marker) = State::PreparingToPlayToEditor(editor, bridge, false);
 }
 
 static BXT_TAS_STUDIO_CONVERT_HLTAS: Command = Command::new(
@@ -342,7 +342,7 @@ fn convert(marker: MainThreadMarker, path: PathBuf) -> eyre::Result<()> {
         Editor::create(&project_path, &script).context("error creating the TAS project")?;
 
     let bridge = Bridge::with_project_path(&project_path, editor.script());
-    *STATE.borrow_mut(marker) = State::PreparingToPlayToEditor(editor, bridge);
+    *STATE.borrow_mut(marker) = State::PreparingToPlayToEditor(editor, bridge, false);
     Ok(())
 }
 
@@ -399,10 +399,10 @@ fn replay(marker: MainThreadMarker) {
             mut editor, bridge, ..
         } => {
             editor.cancel_ongoing_adjustments();
-            State::PreparingToPlayToEditor(editor, bridge)
+            State::PreparingToPlayToEditor(editor, bridge, true)
         }
         State::PlayingToEditor { editor, bridge, .. } => {
-            State::PreparingToPlayToEditor(editor, bridge)
+            State::PreparingToPlayToEditor(editor, bridge, true)
         }
         other => other,
     };
@@ -1359,13 +1359,14 @@ enum State {
         next_frame_params: Option<Parameters>,
     },
     /// Preparing to play a HLTAS, will open the editor afterwards.
-    PreparingToPlayToEditor(Editor, Bridge),
+    PreparingToPlayToEditor(Editor, Bridge, bool),
     /// Playing a HLTAS, will open the editor afterwards.
     PlayingToEditor {
         editor: Editor,
         frames_played: usize,
         bridge: Bridge,
         next_frame_params: Option<Parameters>,
+        is_replay: bool,
     },
     /// Editing a HLTAS.
     Editing {
@@ -1399,7 +1400,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
     // bxt_on_tas_playback_stopped, which also borrows STATE.
     let prev_state = mem::take(&mut *STATE.borrow_mut(marker));
     match prev_state {
-        State::PreparingToPlayToEditor(editor, bridge) => {
+        State::PreparingToPlayToEditor(editor, bridge, is_replay) => {
             engine::prepend_command(marker, "bxt_tas_write_log 1\n");
 
             // This might be too late for the client to process (especially with stop_frame 0), but
@@ -1419,6 +1420,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
                 frames_played: 0,
                 bridge,
                 next_frame_params: None,
+                is_replay,
             };
 
             // TODO: stop server on close?
@@ -1473,7 +1475,7 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
             }
             editor.recompute_extra_camera_frame_data_if_needed();
         }
-        State::PreparingToPlayToEditor(_, _) => unreachable!(),
+        State::PreparingToPlayToEditor(_, _, _) => unreachable!(),
     }
 }
 
@@ -1574,10 +1576,16 @@ pub unsafe fn on_tas_playback_frame(
             State::PlayingToEditor {
                 editor,
                 frames_played,
+                is_replay,
                 ..
             } => {
                 let _ = editor.apply_accurate_frame(accurate_frame);
                 editor.recompute_extra_camera_frame_data_if_needed();
+
+                // If we've just loaded the TAS (i.e. it's not a replay), then stop right away.
+                if !*is_replay {
+                    stop = true;
+                }
 
                 // If stop_frame is 0, play the whole TAS, as that results in more intuitive
                 // behavior.
