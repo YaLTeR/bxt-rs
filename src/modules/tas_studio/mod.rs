@@ -1924,7 +1924,7 @@ pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
     const PADDING: i32 = 8;
     let width = draw.string(
         IVec2::new(0, -info.iCharHeight * 2),
-        b"Left-Right Frame Count: 888\0",
+        b"  Duration: 0.001 s (1000 FPS)\0",
     );
     draw.fill(
         IVec2::new(0, 2 * info.iCharHeight),
@@ -1942,7 +1942,10 @@ fn add_hovered_frame_hud_lines(text: &mut Vec<u8>, frame_idx: usize, frame: &Fra
     text.extend(b"\0Frame Under Cursor:\0");
 
     write!(text, "  Frame #{}\0", frame_idx).unwrap();
-    write!(text, "  Duration: {:.3} s\0", frame.parameters.frame_time).unwrap();
+
+    let frame_time = frame.parameters.frame_time;
+    let fps = (1. / frame_time).round();
+    write!(text, "  Duration: {frame_time:.3} s ({fps} FPS)\0").unwrap();
 
     let yaw = frame.state.prev_frame_input.yaw.to_degrees();
     write!(text, "  Yaw: {:.3}\0", yaw).unwrap();
