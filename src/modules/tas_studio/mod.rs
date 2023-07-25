@@ -210,7 +210,7 @@ is compared to the big window.",
 
 static BXT_TAS_STUDIO_LINE_WIDTH: CVar = CVar::new(
     b"bxt_tas_studio_line_width\0",
-    b"1\0",
+    b"2\0",
     "\
 The line width used for TAS editor drawing, in pixels.",
 );
