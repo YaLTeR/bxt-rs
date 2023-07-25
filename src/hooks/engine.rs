@@ -965,7 +965,7 @@ pub struct DllFunctions {
 #[repr(C)]
 pub struct ClientDllFunctions {
     pub InitFunc: Option<NonNull<c_void>>,
-    pub HudInitFunc: Option<NonNull<c_void>>,
+    pub HudInitFunc: Option<unsafe extern "C" fn()>,
     pub HudVidInitFunc: Option<unsafe extern "C" fn()>,
     pub HudRedrawFunc: Option<unsafe extern "C" fn(c_float, c_int)>,
     pub HudUpdateClientDataFunc: Option<unsafe extern "C" fn(*mut c_void, c_float) -> c_int>,

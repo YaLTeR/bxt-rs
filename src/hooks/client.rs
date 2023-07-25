@@ -10,6 +10,7 @@ use crate::ffi::usercmd::usercmd_s;
 use crate::modules::{hud, hud_scale, tas_studio, triangle_drawing};
 use crate::utils::{abort_on_panic, MainThreadMarker, Pointer, PointerTrait};
 
+pub static HudInitFunc: Pointer<unsafe extern "C" fn()> = Pointer::empty(b"HudInitFunc\0");
 pub static HudVidInitFunc: Pointer<unsafe extern "C" fn()> = Pointer::empty(b"HudVidInitFunc\0");
 pub static HudRedrawFunc: Pointer<unsafe extern "C" fn(c_float, c_int)> =
     Pointer::empty(b"HudRedrawFunc\0");
@@ -62,6 +63,12 @@ pub unsafe fn hook_client_interface(marker: MainThreadMarker) {
         return;
     }
     let functions = functions.unwrap().as_mut().unwrap();
+
+    if let Some(ptr) = &mut functions.HudInitFunc {
+        HudInitFunc.set(marker, Some(NonNull::new_unchecked(*ptr as _)));
+    }
+    functions.HudInitFunc = Some(my_HudInitFunc);
+    HudInitFunc.log(marker);
 
     if let Some(ptr) = &mut functions.HudVidInitFunc {
         HudVidInitFunc.set(marker, Some(NonNull::new_unchecked(*ptr as _)));
@@ -123,6 +130,8 @@ unsafe fn reset_client_interface(marker: MainThreadMarker) {
     // The fact that reset_client_interface() is called from the shutdown hook guarantees that the
     // pointers were hooked by bxt-rs first. Therefore we don't need to worry that we're replacing
     // them with bogus null pointers as in the server dll hooks.
+    functions.HudInitFunc = HudInitFunc.get_opt(marker);
+    HudInitFunc.reset(marker);
     functions.HudVidInitFunc = HudVidInitFunc.get_opt(marker);
     HudVidInitFunc.reset(marker);
     functions.HudRedrawFunc = HudRedrawFunc.get_opt(marker);
@@ -150,6 +159,25 @@ pub unsafe extern "C" fn my_Shutdown() {
         };
 
         reset_client_interface(marker);
+    })
+}
+
+pub unsafe extern "C" fn my_HudInitFunc() {
+    abort_on_panic(move || {
+        let marker = MainThreadMarker::new();
+
+        // HACK: when this is called, m_rawinput has just been registered, and has a default value
+        // of 0 because no cfg files had a chance to load. Therefore the client will think that raw
+        // input is disabled. To make matters worse, the next time the client will read the value of
+        // the cvar is oen second later according to the server time--which doesn't run when the
+        // game is paused, so exactly when loading TAS studio right after loading the game. Since
+        // the TAS studio only supports m_rawinput 1, we make the client think that it is 1 here
+        // right away, thus working around the problem.
+        tas_studio::with_m_rawinput_one(marker, || {
+            if let Some(f) = HudInitFunc.get_opt(marker) {
+                f();
+            }
+        })
     })
 }
 
