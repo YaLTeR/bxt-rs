@@ -29,7 +29,6 @@ impl Module for ViewmodelSway {
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         CVars.is_enabled(marker)
-            && engine::ClientDLL_CalcRefdef.is_set(marker)
             && engine::cl_viewent.is_set(marker)
             && engine::cl_viewent_viewmodel.is_set(marker)
     }

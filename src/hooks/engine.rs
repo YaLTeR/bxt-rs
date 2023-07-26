@@ -121,15 +121,6 @@ pub static CL_PlayDemo_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
     ]),
     my_CL_PlayDemo_f as _,
 );
-// TODO: figure out how to use V_CalcRefdef from cl_funcs instead of this.
-pub static ClientDLL_CalcRefdef: Pointer<unsafe extern "C" fn(*mut ref_params_s)> =
-    Pointer::empty_patterns(
-        b"ClientDLL_CalcRefdef\0",
-        // You are in V_RenderView. The first call taking in one argument inside the first `do{}`
-        // block will be ClientDLL_CalcRefdef().
-        Patterns(&[]),
-        my_ClientDLL_CalcRefdef as _,
-    );
 pub static ClientDLL_Init: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"ClientDLL_Init\0",
     // To find, search for "cl_dlls\\client.dll" (with a backslash).
@@ -874,7 +865,6 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &CL_Move,
     &CL_PlayDemo_f,
     &ClientDLL_Init,
-    &ClientDLL_CalcRefdef,
     &ClientDLL_DrawTransparentTriangles,
     &cl,
     &cl_viewent,
@@ -1709,7 +1699,6 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(0) => {
             cl_viewent.set(marker, ptr.by_offset(marker, 146));
             cl_viewent_viewmodel.set(marker, cl_viewent.offset(marker, 2888));
-            ClientDLL_CalcRefdef.set(marker, ptr.by_relative_call(marker, 166));
         }
         _ => (),
     }
@@ -2202,17 +2191,6 @@ pub mod exported {
             hud::update_screen_info(marker, *info);
 
             rv
-        })
-    }
-
-    #[export_name = "ClientDLL_CalcRefdef"]
-    pub unsafe extern "C" fn my_ClientDLL_CalcRefdef(rp: *mut ref_params_s) {
-        abort_on_panic(move || {
-            let marker = MainThreadMarker::new();
-
-            ClientDLL_CalcRefdef.get(marker)(rp);
-
-            viewmodel_sway::add_viewmodel_sway(marker, &*rp);
         })
     }
 

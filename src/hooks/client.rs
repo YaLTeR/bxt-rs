@@ -5,9 +5,9 @@
 use std::os::raw::*;
 use std::ptr::NonNull;
 
-use super::engine;
+use super::engine::{self, ref_params_s};
 use crate::ffi::usercmd::usercmd_s;
-use crate::modules::{hud, hud_scale, tas_studio, triangle_drawing};
+use crate::modules::{hud, hud_scale, tas_studio, triangle_drawing, viewmodel_sway};
 use crate::utils::{abort_on_panic, MainThreadMarker, Pointer, PointerTrait};
 
 pub static HudInitFunc: Pointer<unsafe extern "C" fn()> = Pointer::empty(b"HudInitFunc\0");
@@ -16,6 +16,8 @@ pub static HudRedrawFunc: Pointer<unsafe extern "C" fn(c_float, c_int)> =
     Pointer::empty(b"HudRedrawFunc\0");
 pub static HudUpdateClientDataFunc: Pointer<unsafe extern "C" fn(*mut c_void, c_float) -> c_int> =
     Pointer::empty(b"HudUpdateClientDataFunc\0");
+pub static CalcRefdef: Pointer<unsafe extern "C" fn(*mut ref_params_s)> =
+    Pointer::empty(b"CalcRefdef\0");
 pub static IN_ActivateMouse: Pointer<unsafe extern "C" fn()> =
     Pointer::empty(b"IN_ActivateMouse\0");
 pub static IN_DeactivateMouse: Pointer<unsafe extern "C" fn()> =
@@ -88,6 +90,12 @@ pub unsafe fn hook_client_interface(marker: MainThreadMarker) {
     functions.HudUpdateClientDataFunc = Some(my_HudUpdateClientDataFunc);
     HudUpdateClientDataFunc.log(marker);
 
+    if let Some(ptr) = &mut functions.CalcRefdef {
+        CalcRefdef.set(marker, Some(NonNull::new_unchecked(*ptr as _)));
+    }
+    functions.CalcRefdef = Some(my_CalcRefdef);
+    CalcRefdef.log(marker);
+
     if let Some(ptr) = &mut functions.IN_ActivateMouse {
         IN_ActivateMouse.set(marker, Some(NonNull::new_unchecked(*ptr as _)));
     }
@@ -138,6 +146,8 @@ unsafe fn reset_client_interface(marker: MainThreadMarker) {
     HudRedrawFunc.reset(marker);
     functions.HudUpdateClientDataFunc = HudUpdateClientDataFunc.get_opt(marker);
     HudUpdateClientDataFunc.reset(marker);
+    functions.CalcRefdef = CalcRefdef.get_opt(marker);
+    CalcRefdef.reset(marker);
     functions.IN_ActivateMouse = IN_ActivateMouse.get_opt(marker);
     IN_ActivateMouse.reset(marker);
     functions.IN_DeactivateMouse = IN_DeactivateMouse.get_opt(marker);
@@ -233,6 +243,16 @@ pub unsafe extern "C" fn my_HudRedrawFunc(time: c_float, intermission: c_int) {
 
             hud::draw_hud(marker);
         });
+    })
+}
+
+pub unsafe extern "C" fn my_CalcRefdef(rp: *mut ref_params_s) {
+    abort_on_panic(move || {
+        let marker = MainThreadMarker::new();
+
+        CalcRefdef.get(marker)(rp);
+
+        viewmodel_sway::add_viewmodel_sway(marker, &*rp);
     })
 }
 
