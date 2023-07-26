@@ -637,7 +637,7 @@ static PLUS_BXT_TAS_STUDIO_INSERT_CAMERA_LINE: Command = Command::new(
     handler!(
         "+bxt_tas_studio_insert_camera_line [key]
 
-Hold to look around in the TAS editor.",
+Hold to insert camera lines in the camera editor mode.",
         plus_insert_camera_line as fn(_),
         plus_insert_camera_line_key as fn(_, _)
     ),
@@ -660,7 +660,7 @@ static MINUS_BXT_TAS_STUDIO_INSERT_CAMERA_LINE: Command = Command::new(
     handler!(
         "-bxt_tas_studio_insert_camera_line [key]
 
-Hold to look around in the TAS editor.",
+Hold to insert camera lines in the camera editor mode.",
         minus_insert_camera_line as fn(_),
         minus_insert_camera_line_key as fn(_, _)
     ),
