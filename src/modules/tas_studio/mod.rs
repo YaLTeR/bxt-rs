@@ -2060,6 +2060,11 @@ pub unsafe fn with_m_rawinput_one<T>(marker: MainThreadMarker, f: impl FnOnce() 
     rv
 }
 
+pub unsafe fn should_unpause_calcrefdef(marker: MainThreadMarker) -> bool {
+    let state = STATE.borrow(marker);
+    matches!(*state, State::Editing { .. })
+}
+
 pub unsafe fn maybe_enable_freecam(marker: MainThreadMarker) {
     if ENABLE_FREECAM_ON_CALCREFDEF.get(marker) {
         ENABLE_FREECAM_ON_CALCREFDEF.set(marker, false);

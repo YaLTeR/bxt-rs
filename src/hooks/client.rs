@@ -250,7 +250,16 @@ pub unsafe extern "C" fn my_CalcRefdef(rp: *mut ref_params_s) {
     abort_on_panic(move || {
         let marker = MainThreadMarker::new();
 
+        let paused = (*rp).paused;
+        if tas_studio::should_unpause_calcrefdef(marker) {
+            (*rp).paused = 0;
+        }
+
         CalcRefdef.get(marker)(rp);
+
+        if tas_studio::should_unpause_calcrefdef(marker) {
+            (*rp).paused = paused;
+        }
 
         viewmodel_sway::add_viewmodel_sway(marker, &*rp);
 
