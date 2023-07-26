@@ -253,6 +253,8 @@ pub unsafe extern "C" fn my_CalcRefdef(rp: *mut ref_params_s) {
         CalcRefdef.get(marker)(rp);
 
         viewmodel_sway::add_viewmodel_sway(marker, &*rp);
+
+        tas_studio::maybe_enable_freecam(marker);
     })
 }
 

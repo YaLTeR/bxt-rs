@@ -138,6 +138,7 @@ mod hltas_bridge;
 mod watcher;
 use hltas_bridge::Bridge;
 
+static ENABLE_FREECAM_ON_CALCREFDEF: MainThreadCell<bool> = MainThreadCell::new(false);
 static LAST_BUTTONS: MainThreadCell<Buttons> = MainThreadCell::new(Buttons::empty());
 static INSERT_CAMERA_LINE_DOWN: MainThreadCell<bool> = MainThreadCell::new(false);
 
@@ -1634,15 +1635,15 @@ pub unsafe fn on_tas_playback_stopped(marker: MainThreadMarker) {
 
             sdl::set_relative_mouse_mode(marker, false);
             client::activate_mouse(marker, false);
-            // TODO: figure out how to make freecam less weird.
-            //
+
             // When we show_ui we stop, and when we stop we don't insert any commands, so we can
             // use wait.
             engine::prepend_command(
                 marker,
-                "_bxt_norefresh 0;setpause;stop;bxt_timer_stop;bxt_cap_stop;\
-                 bxt_freecam 1;wait;bxt_freecam 0;wait;bxt_freecam 1\n",
+                "_bxt_norefresh 0;setpause;stop;bxt_timer_stop;bxt_cap_stop\n",
             );
+
+            ENABLE_FREECAM_ON_CALCREFDEF.set(marker, true);
 
             if BXT_IS_TAS_EDITOR_ACTIVE.get(marker)() != 0 {
                 // If the TAS editor got enabled, print a warning message and disable it, but keep
@@ -2057,4 +2058,11 @@ pub unsafe fn with_m_rawinput_one<T>(marker: MainThreadMarker, f: impl FnOnce() 
     }
 
     rv
+}
+
+pub unsafe fn maybe_enable_freecam(marker: MainThreadMarker) {
+    if ENABLE_FREECAM_ON_CALCREFDEF.get(marker) {
+        ENABLE_FREECAM_ON_CALCREFDEF.set(marker, false);
+        engine::prepend_command(marker, "bxt_freecam 1\n");
+    }
 }
