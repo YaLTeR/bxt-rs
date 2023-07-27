@@ -80,6 +80,8 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_SET_COMMANDS,
             &BXT_TAS_STUDIO_UNSET_PITCH,
             &BXT_TAS_STUDIO_UNSET_YAW,
+            &BXT_TAS_STUDIO_SELECT_NEXT,
+            &BXT_TAS_STUDIO_SELECT_PREV,
             &BXT_TAS_STUDIO_SPLIT,
             &BXT_TAS_STUDIO_DELETE,
             &BXT_TAS_STUDIO_DELETE_LAST,
@@ -627,6 +629,56 @@ fn set_commands(marker: MainThreadMarker, commands: String) {
         con_print(marker, &format!("Error setting commands: {err}\n"));
         if err.is_internal() {
             error!("error setting commands: {err:?}\n");
+            *state = State::Idle;
+        }
+    }
+}
+
+static BXT_TAS_STUDIO_SELECT_NEXT: Command = Command::new(
+    b"bxt_tas_studio_select_next\0",
+    handler!(
+        "bxt_tas_studio_select_next
+
+Selects the next frame bulk.",
+        select_next as fn(_)
+    ),
+);
+
+fn select_next(marker: MainThreadMarker) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
+
+    if let Err(err) = editor.select_next() {
+        con_print(marker, &format!("Error selecting frame bulk: {err}\n"));
+        if err.is_internal() {
+            error!("error selecting frame bulk: {err:?}\n");
+            *state = State::Idle;
+        }
+    }
+}
+
+static BXT_TAS_STUDIO_SELECT_PREV: Command = Command::new(
+    b"bxt_tas_studio_select_prev\0",
+    handler!(
+        "bxt_tas_studio_select_prev
+
+Selects the previous frame bulk.",
+        select_prev as fn(_)
+    ),
+);
+
+fn select_prev(marker: MainThreadMarker) {
+    let mut state = STATE.borrow_mut(marker);
+    let State::Editing { editor, .. } = &mut *state else {
+        return;
+    };
+
+    if let Err(err) = editor.select_prev() {
+        con_print(marker, &format!("Error selecting frame bulk: {err}\n"));
+        if err.is_internal() {
+            error!("error selecting frame bulk: {err:?}\n");
             *state = State::Idle;
         }
     }

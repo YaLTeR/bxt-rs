@@ -2211,6 +2211,48 @@ impl Editor {
         Ok(())
     }
 
+    /// Selects the given frame bulk.
+    pub fn select_bulk(&mut self, bulk_idx: usize) -> ManualOpResult<()> {
+        if self.is_any_adjustment_active() {
+            return Err(ManualOpError::CannotDoDuringAdjustment);
+        }
+
+        if self.in_camera_editor {
+            return Err(ManualOpError::CannotDoInCameraEditor);
+        }
+
+        let bulk_count = self.script().frame_bulks().count();
+
+        if bulk_idx >= bulk_count {
+            return Err(ManualOpError::UserError(
+                "there's no frame bulk with this index".to_owned(),
+            ));
+        }
+
+        self.selected_bulk_idx = Some(bulk_idx);
+        Ok(())
+    }
+
+    /// Selects the next frame bulk.
+    pub fn select_next(&mut self) -> ManualOpResult<()> {
+        let bulk_idx = if let Some(bulk_idx) = self.selected_bulk_idx {
+            (bulk_idx + 1).min(self.script().frame_bulks().count().saturating_sub(1))
+        } else {
+            0
+        };
+        self.select_bulk(bulk_idx)
+    }
+
+    /// Selects the previous frame bulk.
+    pub fn select_prev(&mut self) -> ManualOpResult<()> {
+        let bulk_idx = if let Some(bulk_idx) = self.selected_bulk_idx {
+            bulk_idx.saturating_sub(1)
+        } else {
+            self.script().frame_bulks().count().saturating_sub(1)
+        };
+        self.select_bulk(bulk_idx)
+    }
+
     /// Deletes the selected line, if any.
     pub fn delete_selected(&mut self) -> ManualOpResult<()> {
         // Don't delete during active adjustments because they store the frame bulk index.
