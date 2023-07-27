@@ -531,6 +531,7 @@ fn mutate_single_frame_bulk<R: Rng>(change_pitch: bool, hltas: &mut HLTAS, rng: 
     let count = hltas.frame_bulks().count();
     let index = rng.gen_range(0..count);
     let frame_bulk = hltas.frame_bulks_mut().nth(index).unwrap();
+    let mut mutated_index = index;
 
     if let Some(AutoMovement::Strafe(StrafeSettings { type_, dir, .. })) =
         frame_bulk.auto_actions.movement.as_mut()
@@ -649,16 +650,21 @@ fn mutate_single_frame_bulk<R: Rng>(change_pitch: bool, hltas: &mut HLTAS, rng: 
             orig_count.conv::<i64>() - count.get().conv::<i64>()
         });
 
-        let other_frame_bulk = hltas.frame_bulks_mut().nth(other_index).unwrap();
-        other_frame_bulk.frame_count.pipe_ref_mut(|count| {
-            *count = NonZeroU32::new((count.get().conv::<i64>() + difference).try_conv().unwrap())
-                .unwrap()
-        });
+        if difference != 0 {
+            mutated_index = mutated_index.min(other_index);
+
+            let other_frame_bulk = hltas.frame_bulks_mut().nth(other_index).unwrap();
+            other_frame_bulk.frame_count.pipe_ref_mut(|count| {
+                *count =
+                    NonZeroU32::new((count.get().conv::<i64>() + difference).try_conv().unwrap())
+                        .unwrap()
+            });
+        }
     }
 
     let frame = hltas
         .frame_bulks_mut()
-        .take(index)
+        .take(mutated_index)
         .map(|frame_bulk| frame_bulk.frame_count.get().try_conv::<usize>().unwrap())
         .sum();
 
