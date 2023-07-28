@@ -25,9 +25,22 @@ This wiki page is generated automatically with `src/bin/gen-wiki.rs`. Do not edi
 
         println!("\n{}", module.description());
 
-        // Print console commands.
+        // Preprocess and print console commands.
         let mut sorted_commands = module.commands().to_vec();
-        sorted_commands.sort_unstable_by_key(|c| c.name());
+
+        // Remove -commands as their description is generally duplicated with the corresponding
+        // +command.
+        sorted_commands.retain(|c| !c.name().starts_with(b"-"));
+        // Sort by name, ignoring + at the front.
+        sorted_commands.sort_unstable_by_key(|c| {
+            let name = c.name();
+            if name.starts_with(b"+") {
+                &name[1..]
+            } else {
+                name
+            }
+        });
+        // Sort _commands below.
         sorted_commands.sort_by_key(|c| c.name()[0] == b'_');
 
         if !sorted_commands.is_empty() {
