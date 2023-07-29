@@ -1521,7 +1521,9 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
         }
         State::PlayingToEditor { editor, .. } | State::Editing { editor, .. } => {
             while let Ok(Some(frame)) = remote::receive_frame_from_client() {
-                if let Some(play_request) = editor.apply_accurate_frame(frame) {
+                // Don't truncate the frames here as it makes it more annoying to work on TASes with
+                // loading desync or other inconsistencies.
+                if let Some(play_request) = editor.apply_accurate_frame(frame, false) {
                     info!("sending second play request");
                     remote::maybe_send_request_to_client(play_request);
                 }
@@ -1632,7 +1634,7 @@ pub unsafe fn on_tas_playback_frame(
                 is_replay,
                 ..
             } => {
-                let _ = editor.apply_accurate_frame(accurate_frame);
+                let _ = editor.apply_accurate_frame(accurate_frame, true);
                 editor.recompute_extra_camera_frame_data_if_needed();
 
                 // If we've just loaded the TAS (i.e. it's not a replay), then stop right away.

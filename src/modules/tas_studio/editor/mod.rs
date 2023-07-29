@@ -2980,7 +2980,11 @@ impl Editor {
     }
 
     // You MUST check and recompute `extra_cam` after calling this.
-    pub fn apply_accurate_frame(&mut self, frame: AccurateFrame) -> Option<PlayRequest> {
+    pub fn apply_accurate_frame(
+        &mut self,
+        frame: AccurateFrame,
+        truncate_on_mismatch: bool,
+    ) -> Option<PlayRequest> {
         if frame.generation != self.generation {
             return None;
         }
@@ -3046,8 +3050,9 @@ impl Editor {
                     min(branch.first_predicted_frame, frame.frame_idx + 1);
                 branch.extra_cam.clear();
 
-                // Don't truncate the frames here as it makes it more annoying to work on TASes with
-                // loading desync or other inconsistencies.
+                if truncate_on_mismatch {
+                    branch.frames.truncate(frame.frame_idx + 1);
+                }
             }
         }
 
