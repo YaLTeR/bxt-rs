@@ -2026,9 +2026,12 @@ fn add_hovered_frame_hud_lines(text: &mut Vec<u8>, frame_idx: usize, frame: &Fra
     )
     .unwrap();
 
-    let xy_speed = frame.state.player.vel.truncate().length();
+    let vel = frame.state.player.vel;
+    write!(text, "  X Speed: {:.1}\0", vel.x).unwrap();
+    write!(text, "  Y Speed: {:.1}\0", vel.y).unwrap();
+    write!(text, "  Z Speed: {:.1}\0", vel.z).unwrap();
+    let xy_speed = vel.truncate().length();
     write!(text, "  XY Speed: {:.1}\0", xy_speed).unwrap();
-    write!(text, "  Z Speed: {:.1}\0", frame.state.player.vel.z).unwrap();
 
     write!(text, "  X Pos: {:.1}\0", frame.state.player.pos.x).unwrap();
     write!(text, "  Y Pos: {:.1}\0", frame.state.player.pos.y).unwrap();
