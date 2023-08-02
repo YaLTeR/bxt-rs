@@ -640,6 +640,8 @@ pub static S_PaintChannels: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empt
     ]),
     my_S_PaintChannels as _,
 );
+pub static S_PrecacheSound: Pointer<unsafe extern "C" fn(*const c_char) -> *mut c_void> =
+    Pointer::empty_patterns(b"S_PrecacheSound\0", Patterns(&[]), null_mut());
 pub static S_TransferStereo16: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
     b"S_TransferStereo16\0",
     // To find, find S_PaintChannels(), go into the last call before the while () condition in the
@@ -742,6 +744,9 @@ pub static SV_RunCmd: Pointer<unsafe extern "C" fn(*mut usercmd_s, c_int)> =
         ]),
         null_mut(),
     );
+pub static SV_StartSound: Pointer<
+    unsafe extern "C" fn(c_int, *mut edict_s, c_int, *const c_char, c_int, c_float, c_int, c_int),
+> = Pointer::empty_patterns(b"SV_StartSound\0", Patterns(&[]), null_mut());
 pub static Sys_VID_FlipScreen: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"_Z18Sys_VID_FlipScreenv\0",
     // To find, search for "Sys_InitLauncherInterface()". Go into function right after the one that
@@ -931,6 +936,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &R_LoadSkys,
     &R_PreDrawViewModel,
     &S_PaintChannels,
+    &S_PrecacheSound,
     &S_TransferStereo16,
     &SCR_DrawLoading,
     &scr_fov_value,
@@ -943,6 +949,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &SV_ExecuteClientMessage,
     &SV_Frame,
     &SV_RunCmd,
+    &SV_StartSound,
     &Sys_VID_FlipScreen,
     &Sys_VID_FlipScreen_old,
     &tri,

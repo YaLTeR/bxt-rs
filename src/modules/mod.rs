@@ -26,6 +26,7 @@ pub mod capture_video_per_demo;
 pub mod comment_overflow_fix;
 pub mod demo_playback;
 pub mod disable_loading_text;
+pub mod emit_sound;
 pub mod fade_remove;
 pub mod force_fov;
 pub mod help;
@@ -89,6 +90,7 @@ pub static MODULES: &[&dyn Module] = &[
     &cvars::CVars,
     &demo_playback::DemoPlayback,
     &disable_loading_text::DisableLoadingText,
+    &emit_sound::EmitSound,
     &fade_remove::FadeRemove,
     &force_fov::ForceFov,
     &help::Help,
