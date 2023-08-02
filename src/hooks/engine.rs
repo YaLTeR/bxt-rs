@@ -641,12 +641,41 @@ pub static S_PaintChannels: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empt
     my_S_PaintChannels as _,
 );
 pub static S_PrecacheSound: Pointer<unsafe extern "C" fn(*const c_char) -> *mut sfx_s> =
-    Pointer::empty_patterns(b"S_PrecacheSound\0", Patterns(&[]), null_mut());
+    Pointer::empty_patterns(
+        b"S_PrecacheSound\0",
+        // To find, search for "Cannot continue without sound". You are in CL_PrecacheResources().
+        // The string will be inside a condition block. That condition block is also inside
+        // another condition block. There are 3 calls inside the outer conditon block. The
+        // second call with one argument will be S_PrecacheSound().
+        Patterns(&[
+            // 8684
+            pattern!(55 8B EC A1 ?? ?? ?? ?? 56 85 C0 74 ?? D9 05),
+        ]),
+        null_mut(),
+    );
 pub static S_StartDynamicSound: Pointer<
     unsafe extern "C" fn(c_int, c_int, *mut sfx_s, *const c_float, c_float, c_float, c_int, c_int),
-> = Pointer::empty_patterns(b"S_StartDynamicSound\0", Patterns(&[]), null_mut());
-pub static S_StopSound: Pointer<unsafe extern "C" fn(c_int, c_int)> =
-    Pointer::empty_patterns(b"S_StopSound\0", Patterns(&[]), null_mut());
+> = Pointer::empty_patterns(
+    b"S_StartDynamicSound\0",
+    // To find, search for "S_StartDynamicSound: ".
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 83 EC 48 A1 ?? ?? ?? ?? 53),
+    ]),
+    null_mut(),
+);
+pub static S_StopSound: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer::empty_patterns(
+    b"S_StopSound\0",
+    // To find, search for "Voice - compress: ". You are in Voice_Idle(). Look an else block with
+    // exactly 1 line of 1 call inside with `1` as an argument. That will be Voice_EndChannel().
+    // Inside Voice_EndChannel(), there will be an if block with eaxctly 1 line of 1 call with 1
+    // argument. That will be VoiceSE_EndChannel() and it is a wrapper for S_StopSound() call.
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC A1 ?? ?? ?? ?? 57 BF 04 00 00 00),
+    ]),
+    null_mut(),
+);
 pub static S_TransferStereo16: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
     b"S_TransferStereo16\0",
     // To find, find S_PaintChannels(), go into the last call before the while () condition in the

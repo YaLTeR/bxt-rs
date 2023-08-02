@@ -18,7 +18,7 @@ impl Module for EmitSound {
     }
 
     fn description(&self) -> &'static str {
-        "Exposing SV_StartSound to allow usage of other sound channels."
+        "Exposing some sound functions."
     }
 
     fn commands(&self) -> &'static [&'static Command] {
@@ -75,7 +75,7 @@ static BXT_EMIT_SOUND: Command = Command::new(
     handler!(
         "bxt_emit_sound <sound> <channel> [volume] [from] [to] [attenuation] [flag] [pitch]
 
-Plays sound file directly from SV_StartSound along with custom arguments.",
+Plays sound file directly from S_StartDynamicSound.",
         emit_sound as fn(_, _, _),
         emit_sound_full as fn(_, _)
     ),
