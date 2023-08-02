@@ -22,24 +22,29 @@ impl Module for EmitSound {
     }
 
     fn commands(&self) -> &'static [&'static Command] {
-        static COMMANDS: &[&Command] = &[&BXT_EMIT_SOUND];
+        static COMMANDS: &[&Command] = &[&BXT_EMIT_SOUND_STOP_SOUND_EXCEPT, &BXT_EMIT_SOUND];
         COMMANDS
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        engine::SV_StartSound.is_set(marker) && engine::S_PrecacheSound.is_set(marker)
+        engine::S_StartDynamicSound.is_set(marker)
+            && engine::S_StopSound.is_set(marker)
+            && engine::S_PrecacheSound.is_set(marker)
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Default)]
 struct SoundInfo {
     sound: String,
     channel: i32,
-    volume: i32,
-    entity_index: u32,
-    recipent: i32,
+    /// Volume is [0..1]
+    volume: f32,
+    from: i32,
+    to: i32,
+    /// "NORM" is 0.8
     attenuation: f32,
     flag: i32,
+    /// 100 is no shift.
     pitch: i32,
 }
 
@@ -54,9 +59,9 @@ impl FromStr for SoundInfo {
         let mut iter = s.split_ascii_whitespace();
         rv.sound = iter.next().unwrap_or_default().to_string();
         rv.channel = (f32::from_str(iter.next().unwrap_or_default())?).round() as i32;
-        rv.volume = (f32::from_str(iter.next().unwrap_or_default())?).round() as i32;
-        rv.entity_index = (f32::from_str(iter.next().unwrap_or_default())?).round() as u32;
-        rv.recipent = (f32::from_str(iter.next().unwrap_or_default())?).round() as i32;
+        rv.volume = f32::from_str(iter.next().unwrap_or_default())?;
+        rv.from = (f32::from_str(iter.next().unwrap_or_default())?).round() as i32;
+        rv.to = (f32::from_str(iter.next().unwrap_or_default())?).round() as i32;
         rv.attenuation = f32::from_str(iter.next().unwrap_or_default())?;
         rv.flag = (f32::from_str(iter.next().unwrap_or_default())?).round() as i32;
         rv.pitch = (f32::from_str(iter.next().unwrap_or_default())?).round() as i32;
@@ -68,59 +73,86 @@ impl FromStr for SoundInfo {
 static BXT_EMIT_SOUND: Command = Command::new(
     b"bxt_emit_sound\0",
     handler!(
-        "bxt_emit_sound <sound> <channel> [volume] [entity index] [recipent] [attenuation] [flag] [pitch]
+        "bxt_emit_sound <sound> <channel> [volume] [from] [to] [attenuation] [flag] [pitch]
+
 Plays sound file directly from SV_StartSound along with custom arguments.",
-        play_sound as fn(_, _, _),
-        play_sound_with_volume as fn(_, _, _, _),
-        play_sound_full as fn(_, _)
+        emit_sound as fn(_, _, _),
+        emit_sound_full as fn(_, _)
     ),
 );
 
-fn play_sound(marker: MainThreadMarker, sound: String, channel: i32) {
-    play_sound_with_volume(marker, sound, channel, 255);
-}
-
-fn play_sound_with_volume(marker: MainThreadMarker, sound: String, channel: i32, volume: i32) {
-    play_sound_full(
+fn emit_sound(marker: MainThreadMarker, sound: String, channel: i32) {
+    emit_sound_full(
         marker,
         SoundInfo {
             sound,
             channel,
-            volume,
-            entity_index: 0,
-            recipent: 0,
+            volume: 1.,
+            from: 0,
+            to: 0,
             attenuation: 0.8,
             flag: 0,
             pitch: 100,
         },
-    );
+    )
 }
 
-fn play_sound_full(marker: MainThreadMarker, info: SoundInfo) {
+fn emit_sound_full(marker: MainThreadMarker, info: SoundInfo) {
     if let Some(player) = unsafe { engine::player_edict(marker) } {
-        // Player is usually index 0, from there just goes up.
-        // bxt_emit_sound "common/bodysplat.wav 0 255 0 0 0.8 0 100"
-        let mut entity =
-            unsafe { NonNull::new(player.as_ptr().add(info.entity_index as usize)).unwrap() };
+        // TODO: mimic S_StartDynamicSound fully so sounds played from player will follow.
+        let to = unsafe { NonNull::new(player.as_ptr().add(info.to as usize)).unwrap() };
+        let origin = unsafe { to.as_ref() }.v.origin;
 
-        let entity = unsafe { entity.as_mut() };
         let binding = CString::new(info.sound).unwrap();
         let sound = binding.as_ptr();
+        let precache_result = unsafe { engine::S_PrecacheSound.get(marker)(sound) };
 
         unsafe {
-            // Need to precache so it can play.
-            engine::S_PrecacheSound.get(marker)(sound);
-
-            engine::SV_StartSound.get(marker)(
-                info.recipent,
-                entity,
+            engine::S_StartDynamicSound.get(marker)(
+                info.from,
                 info.channel,
-                sound,
+                precache_result,
+                origin.as_ptr(),
                 info.volume,
                 info.attenuation,
                 info.flag,
                 info.pitch,
-            );
+            )
         };
+    }
+}
+
+static BXT_EMIT_SOUND_STOP_SOUND_EXCEPT: Command = Command::new(
+    b"bxt_emit_sound_stop_sound_except\0",
+    handler!(
+        "bxt_emit_sound_stop_sound_except <list of channels seperated by space>.
+        
+Stops emitting sounds from every channel except for given list of channels.",
+        stop_sound as fn(_, _)
+    ),
+);
+
+fn stop_sound(marker: MainThreadMarker, channels: String) {
+    let mut list: Vec<i32> = Vec::new();
+    // There should be only 8 usable channels from SV_StartSounds.
+    // But SND_PickDynamicChannel says something very weird otherwise.
+    let mut list0: Vec<i32> = vec![0, 1, 2, 3, 4, 5, 6, 7];
+    let iter = channels.split_ascii_whitespace();
+
+    for channel in iter {
+        if let Ok(allow) = channel.parse::<i32>() {
+            list.push(allow);
+        }
+    }
+
+    // Eh.
+    list.sort();
+
+    for channel in list.iter().rev() {
+        list0.remove(*channel as usize);
+    }
+
+    for channel in list0 {
+        unsafe { engine::S_StopSound.get(marker)(0, channel) };
     }
 }
