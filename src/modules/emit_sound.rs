@@ -149,7 +149,9 @@ fn stop_sound(marker: MainThreadMarker, channels: String) {
     list.sort();
 
     for channel in list.iter().rev() {
-        list0.remove(*channel as usize);
+        let channel = (*channel).clamp(0i32, 7i32);
+
+        list0.remove(channel as usize);
     }
 
     for channel in list0 {
