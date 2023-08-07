@@ -21,6 +21,7 @@ use commands::Command;
 pub mod cvars;
 use cvars::CVar;
 
+pub mod campath;
 pub mod capture;
 pub mod capture_skip_non_gameplay;
 pub mod capture_video_per_demo;
@@ -84,6 +85,7 @@ pub trait Module: Sync {
 
 /// All modules.
 pub static MODULES: &[&dyn Module] = &[
+    &campath::Campath,
     &capture::Capture,
     &capture_skip_non_gameplay::CaptureSkipNonGameplay,
     &capture_video_per_demo::CaptureVideoPerDemo,

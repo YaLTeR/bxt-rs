@@ -121,6 +121,15 @@ pub static CL_PlayDemo_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
     ]),
     my_CL_PlayDemo_f as _,
 );
+pub static CL_ViewDemo_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"CL_ViewDemo_f\0",
+    // To find, search for "viewdemo not available".
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 81 EC 04 01 00 00 A1 ?? ?? ?? ?? 56 BE 01 00 00 00 57 3B C6 0F 85),
+    ]),
+    my_CL_ViewDemo_f as _,
+);
 pub static ClientDLL_Init: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"ClientDLL_Init\0",
     // To find, search for "cl_dlls\\client.dll" (with a backslash).
@@ -519,6 +528,15 @@ pub static ran1_iv: Pointer<*mut [c_int; 32]> = Pointer::empty(
     b"ran1::iv\0",
 );
 pub static realtime: Pointer<*mut f64> = Pointer::empty(b"realtime\0");
+pub static r_refdef: Pointer<*mut c_void> = Pointer::empty(b"r_refdef\0");
+pub static r_refdef_vieworg: Pointer<*mut [c_float; 3]> = Pointer::empty(
+    // Not a real symbol name.
+    b"r_refdef_vieworg\0",
+);
+pub static r_refdef_viewangles: Pointer<*mut [c_float; 3]> = Pointer::empty(
+    // Not a real symbol name.
+    b"r_refdef_viewangles\0",
+);
 pub static R_DrawSequentialPoly: Pointer<
     unsafe extern "C" fn(*mut c_void, *mut c_int) -> *mut c_void,
 > = Pointer::empty_patterns(
@@ -606,6 +624,15 @@ pub static R_PreDrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_
         pattern!(D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? 56 C7 05),
     ]),
     my_R_PreDrawViewModel as _,
+);
+pub static R_RenderView: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"R_RenderView\0",
+    // To find, search for "R_RenderView: NULL worldmodel".
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 83 EC 14 D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? DF E0 F6 C4 44 0F 8A ?? ?? ?? ?? A1 ?? ?? ?? ?? 85 C0 74),
+    ]),
+    my_R_RenderView as _,
 );
 pub static R_SetFrustum: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"R_SetFrustum\0",
@@ -822,7 +849,7 @@ pub static V_RenderView: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
         // 8684
         pattern!(55 8B EC 81 EC F4 00 00 00 A1 ?? ?? ?? ?? 56 57),
     ]),
-    null_mut(),
+    my_V_RenderView as _,
 );
 pub static VideoMode_IsWindowed: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
     b"VideoMode_IsWindowed\0",
@@ -883,6 +910,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &CL_GameDir_f,
     &CL_Move,
     &CL_PlayDemo_f,
+    &CL_ViewDemo_f,
     &ClientDLL_Init,
     &ClientDLL_DrawTransparentTriangles,
     &cl,
@@ -932,6 +960,10 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &ran1_iy,
     &ran1_iv,
     &realtime,
+    &r_refdef,
+    &r_refdef_vieworg,
+    &r_refdef_viewangles,
+    &R_RenderView,
     &R_SetFrustum,
     &ReleaseEntityDlls,
     &R_Clear,
@@ -1360,6 +1392,8 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
     idum.set(marker, ran1.by_offset(marker, 2));
     ran1_iy.set(marker, ran1.by_offset(marker, 13));
     ran1_iv.set(marker, ran1.by_offset(marker, 116));
+    r_refdef_vieworg.set(marker, r_refdef.offset(marker, 112));
+    r_refdef_viewangles.set(marker, r_refdef_vieworg.offset(marker, 12));
     client_s_edict_offset.set(marker, Some(19076));
 
     for pointer in POINTERS {
@@ -1629,6 +1663,25 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 8684
         Some(0) => {
             cl_stats.set(marker, ptr.by_offset(marker, 129));
+        }
+        _ => (),
+    }
+
+    let ptr = &R_RenderView;
+    match ptr.pattern_index(marker) {
+        // 8684
+        Some(0) => {
+            r_refdef_vieworg.set(
+                marker,
+                ptr.by_offset(marker, 129)
+                    .and_then(|ptr| NonNull::new(ptr.as_ptr().sub(28))),
+            );
+
+            r_refdef_viewangles.set(
+                marker,
+                ptr.by_offset(marker, 129)
+                    .and_then(|ptr| NonNull::new(ptr.as_ptr().sub(16))),
+            );
         }
         _ => (),
     }
@@ -2077,6 +2130,28 @@ pub mod exported {
         })
     }
 
+    #[export_name = "V_RenderView"]
+    pub unsafe extern "C" fn my_V_RenderView() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            campath::capture_motion(marker);
+
+            V_RenderView.get(marker)()
+        })
+    }
+
+    #[export_name = "CL_ViewDemo_f"]
+    pub unsafe extern "C" fn my_CL_ViewDemo_f() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            campath::load(marker);
+
+            CL_ViewDemo_f.get(marker)();
+        })
+    }
+
     #[export_name = "SCR_DrawLoading"]
     pub unsafe extern "C" fn my_SCR_DrawLoading() {
         abort_on_panic(move || {
@@ -2199,9 +2274,7 @@ pub mod exported {
             };
 
             if rv != 0 {
-                if capture_skip_non_gameplay::should_record_current_frame(marker) {
-                    capture::time_passed(marker);
-                }
+                capture::time_passed(marker);
 
                 tas_optimizer::update_client_connection_condition(marker);
                 tas_optimizer::maybe_receive_messages_from_remote_server(marker);
@@ -2225,6 +2298,7 @@ pub mod exported {
                 capture::on_cl_disconnect(marker);
             }
 
+            campath::on_cl_disconnect(marker);
             viewmodel_sway::on_cl_disconnnect(marker);
 
             CL_Disconnect.get(marker)();
@@ -2265,6 +2339,17 @@ pub mod exported {
             Host_NextDemo.get(marker)();
 
             demo_playback::set_next_demo(marker);
+        })
+    }
+
+    #[export_name = "R_RenderView"]
+    pub unsafe extern "C" fn my_R_RenderView() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            campath::override_view(marker);
+
+            R_RenderView.get(marker)();
         })
     }
 
@@ -2341,7 +2426,10 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             capture_video_per_demo::on_before_cl_playdemo_f(marker);
+            campath::load(marker);
+
             CL_PlayDemo_f.get(marker)();
+
             capture_video_per_demo::on_after_cl_playdemo_f(marker);
         })
     }
