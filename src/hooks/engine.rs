@@ -282,6 +282,7 @@ pub static GL_BeginRendering: Pointer<
     null_mut(),
 );
 pub static gEntityInterface: Pointer<*mut DllFunctions> = Pointer::empty(b"gEntityInterface\0");
+pub static gLoadSky: Pointer<*mut c_int> = Pointer::empty(b"gLoadSky\0");
 pub static g_svmove: Pointer<*mut playermove_s> = Pointer::empty(b"g_svmove\0");
 pub static Key_Event: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer::empty_patterns(
     b"Key_Event\0",
@@ -485,6 +486,7 @@ pub static Mem_Free: Pointer<unsafe extern "C" fn(*mut c_void)> = Pointer::empty
     ]),
     null_mut(),
 );
+pub static movevars: Pointer<*mut movevars_s> = Pointer::empty(b"movevars\0");
 pub static paintbuffer: Pointer<*mut [portable_samplepair_t; 1026]> =
     Pointer::empty(b"paintbuffer\0");
 pub static paintedtime: Pointer<*mut c_int> = Pointer::empty(b"paintedtime\0");
@@ -574,6 +576,15 @@ pub static R_DrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_pat
         pattern!(83 EC ?? D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? 56 57 33 FF C7 44),
     ]),
     my_R_DrawViewModel as _,
+);
+pub static R_LoadSkys: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"R_LoadSkys\0",
+    // To find, search for "done\n".
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 83 EC 6C A1 ?? ?? ?? ?? 56),
+    ]),
+    my_R_LoadSkys as _,
 );
 pub static R_PreDrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     // To find, search for "R_RenderView". This is R_RenderView.
@@ -886,6 +897,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &frametime_remainder,
     &GL_BeginRendering,
     &gEntityInterface,
+    &gLoadSky,
     &g_svmove,
     &Key_Event,
     &LoadEntityDLLs,
@@ -900,6 +912,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &hudGetScreenInfo,
     &hudGetViewAngles,
     &idum,
+    &movevars,
     &Memory_Init,
     &Mem_Free,
     &paintbuffer,
@@ -915,6 +928,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &R_DrawSequentialPoly,
     &R_DrawSkyBox,
     &R_DrawViewModel,
+    &R_LoadSkys,
     &R_PreDrawViewModel,
     &S_PaintChannels,
     &S_TransferStereo16,
@@ -1076,6 +1090,36 @@ pub struct client_static_s_demos {
     pub demos: [[c_char; 16]; 32],
     pub demorecording: c_int,
     pub demoplayback: c_int,
+}
+
+#[repr(C)]
+pub struct movevars_s {
+    pub gravity: c_float,
+    pub stopspeed: c_float,
+    pub maxspeed: c_float,
+    pub spectatormaxspeed: c_float,
+    pub accelerate: c_float,
+    pub airaccelerate: c_float,
+    pub wateraccelerate: c_float,
+    pub friction: c_float,
+    pub edgefriction: c_float,
+    pub waterfriction: c_float,
+    pub entgravity: c_float,
+    pub bounce: c_float,
+    pub stepsize: c_float,
+    pub maxvelocity: c_float,
+    pub zmax: c_float,
+    pub waveHeight: c_float,
+    pub footsteps: c_int,
+    pub skyName: [c_char; 32],
+    pub rollangle: c_float,
+    pub rollspeed: c_float,
+    pub skycolor_r: c_float,
+    pub skycolor_g: c_float,
+    pub skycolor_b: c_float,
+    pub skyvec_x: c_float,
+    pub skyvec_y: c_float,
+    pub skyvec_z: c_float,
 }
 
 #[repr(C)]
@@ -1547,6 +1591,20 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         _ => (),
     }
 
+    let ptr = &R_LoadSkys;
+    match ptr.pattern_index(marker) {
+        // 8684
+        Some(0) => {
+            gLoadSky.set(marker, ptr.by_offset(marker, 7));
+            movevars.set(
+                marker,
+                ptr.by_offset(marker, 395)
+                    .and_then(|ptr| NonNull::new(ptr.as_ptr().sub(68))),
+            );
+        }
+        _ => (),
+    }
+
     let ptr = &R_SetFrustum;
     match ptr.pattern_index(marker) {
         // 6153
@@ -1936,6 +1994,19 @@ pub mod exported {
             }
 
             R_DrawViewModel.get(marker)();
+        })
+    }
+
+    #[export_name = "R_LoadSkys"]
+    pub unsafe extern "C" fn my_R_LoadSkys() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            skybox_change::change_name(marker);
+
+            R_LoadSkys.get(marker)();
+
+            skybox_change::restore(marker);
         })
     }
 
