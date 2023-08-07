@@ -12,7 +12,7 @@ use crate::utils::*;
 pub struct SkyboxChange;
 impl Module for SkyboxChange {
     fn name(&self) -> &'static str {
-        "Skybox name."
+        "Skybox name"
     }
 
     fn description(&self) -> &'static str {
