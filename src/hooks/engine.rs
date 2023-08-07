@@ -457,6 +457,7 @@ pub static idum: Pointer<*mut c_int> = Pointer::empty(
     // Not a real symbol name.
     b"idum\0",
 );
+pub static listener_origin: Pointer<*mut [f32; 3]> = Pointer::empty(b"listener_origin\0");
 pub static Memory_Init: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
     Pointer::empty_patterns(
         b"Memory_Init\0",
@@ -653,6 +654,15 @@ pub static S_PrecacheSound: Pointer<unsafe extern "C" fn(*const c_char) -> *mut 
         ]),
         null_mut(),
     );
+pub static S_Say: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"S_Say\0",
+    // To find, search for "Start profiling 10,000 calls to DSP".
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 81 EC 00 01 00 00 D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? 53),
+    ]),
+    null_mut(),
+);
 pub static S_StartDynamicSound: Pointer<
     unsafe extern "C" fn(c_int, c_int, *mut sfx_s, *const c_float, c_float, c_float, c_int, c_int),
 > = Pointer::empty_patterns(
@@ -778,6 +788,18 @@ pub static SV_RunCmd: Pointer<unsafe extern "C" fn(*mut usercmd_s, c_int)> =
         ]),
         null_mut(),
     );
+pub static SV_StartSound: Pointer<
+    unsafe extern "C" fn(c_int, *mut edict_s, c_int, *const c_char, c_int, c_float, c_int, c_int),
+> = Pointer::empty_patterns(
+    b"SV_StartSound\0",
+    // To find, search for "EMIT_SOUND: volume = ". You are in PF_sound_I(). The last call with `0`
+    // in its argument in that function will be SV_StartSound().
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 83 EC 0C 53 8B 5D ?? 56 57 33 C9),
+    ]),
+    null_mut(),
+);
 pub static Sys_VID_FlipScreen: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"_Z18Sys_VID_FlipScreenv\0",
     // To find, search for "Sys_InitLauncherInterface()". Go into function right after the one that
@@ -949,6 +971,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &hudGetViewAngles,
     &idum,
     &movevars,
+    &listener_origin,
     &Memory_Init,
     &Mem_Free,
     &paintbuffer,
@@ -968,6 +991,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &R_PreDrawViewModel,
     &S_PaintChannels,
     &S_PrecacheSound,
+    &S_Say,
     &S_StartDynamicSound,
     &S_StopSound,
     &S_TransferStereo16,
@@ -982,6 +1006,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &SV_ExecuteClientMessage,
     &SV_Frame,
     &SV_RunCmd,
+    &SV_StartSound,
     &Sys_VID_FlipScreen,
     &Sys_VID_FlipScreen_old,
     &tri,
@@ -1715,6 +1740,15 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(2) => {
             paintedtime.set(marker, ptr.by_offset(marker, 7));
             paintbuffer.set(marker, ptr.by_offset(marker, 78));
+        }
+        _ => (),
+    }
+
+    let ptr = &S_Say;
+    match ptr.pattern_index(marker) {
+        // 8684
+        Some(0) => {
+            listener_origin.set(marker, ptr.by_offset(marker, 335));
         }
         _ => (),
     }
