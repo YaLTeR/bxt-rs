@@ -82,6 +82,8 @@ impl Vct {
     }
 
     fn compute(&mut self) {
+        let _span = tracing::info_span!("Vct::compute").entered();
+
         eprintln!("Computing the vectorial compensation table.");
 
         /// Maximal value for forwardmove and sidemove.
