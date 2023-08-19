@@ -22,7 +22,6 @@ pub use main_thread_cell::*;
 
 pub mod main_thread_ref_cell;
 pub use main_thread_ref_cell::*;
-use tracing_tracy::TracyLayer;
 
 /// Runs the given function and aborts the process if it panics.
 ///
@@ -95,11 +94,14 @@ fn setup_logging_hooks() {
         None
     };
 
+    #[cfg(feature = "tracing-tracy")]
     let tracy_layer = if env::var_os("BXT_RS_PROFILE_TRACY").is_some() {
-        Some(TracyLayer::new().with_formatter(only_message))
+        Some(tracing_tracy::TracyLayer::new().with_formatter(only_message))
     } else {
         None
     };
+    #[cfg(not(feature = "tracing-tracy"))]
+    let tracy_layer = None::<tracing_subscriber::layer::Identity>;
 
     let filter = if env::var_os("BXT_RS_VERBOSE").is_some() {
         LevelFilter::TRACE

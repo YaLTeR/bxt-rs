@@ -2019,6 +2019,7 @@ pub mod exported {
 
             Sys_VID_FlipScreen.get(marker)();
 
+            #[cfg(feature = "tracy-client")]
             if let Some(client) = tracy_client::Client::running() {
                 client.frame_mark();
             }
