@@ -38,6 +38,8 @@ thiserror = "1.0.44"
 tracing = "0.1.37"
 tracing-chrome = "0.7.1"
 tracing-subscriber = "0.3.17"
+tracing-tracy = "0.10.3"
+tracy-client = { version = "0.16.1" }
 
 [target."cfg(windows)".dependencies]
 minhook-sys = "0.1.1"

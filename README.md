@@ -48,6 +48,8 @@ If the video looks glitched or the game crashes when starting recording (happens
 
 Start Half-Life with the `BXT_RS_PROFILE` environment variable set to make bxt-rs output a `trace.json` file in the Half-Life folder. This is a Chrome JSON trace file which you can view in [Perfetto](https://ui.perfetto.dev/) or in `chrome://tracing`.
 
+Alternatively, start with the `BXT_RS_PROFILE_TRACY` environment variable set and connect the [Tracy](https://github.com/wolfpld/tracy) profiler.
+
 ### Debugging
 
 There are environment variables that may assist you in debugging:

@@ -22,6 +22,7 @@ pub use main_thread_cell::*;
 
 pub mod main_thread_ref_cell;
 pub use main_thread_ref_cell::*;
+use tracing_tracy::TracyLayer;
 
 /// Runs the given function and aborts the process if it panics.
 ///
@@ -55,15 +56,14 @@ fn setup_logging_hooks() {
     env::set_var("RUST_BACKTRACE", "full");
 
     // Only write the message to the terminal (skipping span arguments) so it's less spammy.
-    let term_layer = tracing_subscriber::fmt::layer().fmt_fields(
-        tracing_subscriber::fmt::format::debug_fn(|writer, field, value| {
-            if field.name() == "message" {
-                write!(writer, "{value:?}")
-            } else {
-                Ok(())
-            }
-        }),
-    );
+    let only_message = tracing_subscriber::fmt::format::debug_fn(|writer, field, value| {
+        if field.name() == "message" {
+            write!(writer, "{value:?}")
+        } else {
+            Ok(())
+        }
+    });
+    let term_layer = tracing_subscriber::fmt::layer().fmt_fields(only_message.clone());
 
     // Disable ANSI colors on Windows as they don't work properly in the legacy console window.
     // https://github.com/tokio-rs/tracing/issues/445
@@ -95,6 +95,12 @@ fn setup_logging_hooks() {
         None
     };
 
+    let tracy_layer = if env::var_os("BXT_RS_PROFILE_TRACY").is_some() {
+        Some(TracyLayer::new().with_formatter(only_message))
+    } else {
+        None
+    };
+
     let filter = if env::var_os("BXT_RS_VERBOSE").is_some() {
         LevelFilter::TRACE
     } else {
@@ -105,6 +111,7 @@ fn setup_logging_hooks() {
         .with(filter)
         .with(file_layer)
         .with(profiling_layer)
+        .with(tracy_layer)
         // Term layer must be last, otherwise the log file will have some ANSI codes:
         // https://github.com/tokio-rs/tracing/issues/1817
         .with(term_layer)

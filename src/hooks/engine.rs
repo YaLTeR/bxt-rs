@@ -2018,6 +2018,10 @@ pub mod exported {
             capture::capture_frame(marker);
 
             Sys_VID_FlipScreen.get(marker)();
+
+            if let Some(client) = tracy_client::Client::running() {
+                client.frame_mark();
+            }
         })
     }
 
