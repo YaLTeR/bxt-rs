@@ -243,6 +243,7 @@ impl Recorder {
         })
     }
 
+    #[instrument(skip_all)]
     fn send_to_thread(&mut self, message: MainToThread) {
         if self.sender.send(message).is_ok() {
             // The happy path.
@@ -261,6 +262,7 @@ impl Recorder {
         }
     }
 
+    #[instrument(skip_all)]
     fn recv_from_thread(&mut self) -> eyre::Result<ThreadToMain> {
         match self.receiver.recv() {
             Err(_) => Err(self
@@ -629,6 +631,7 @@ fn process_message(
     Ok(false)
 }
 
+#[instrument(skip_all)]
 fn accumulate(sampling_buffer: &mut [u16], pixels: &[u8], weight: f32) {
     assert!((0. ..=1.).contains(&weight));
 
@@ -654,6 +657,7 @@ fn accumulate(sampling_buffer: &mut [u16], pixels: &[u8], weight: f32) {
         });
 }
 
+#[instrument(skip_all)]
 fn convert_and_zero(output_buffer: &mut [u8], sampling_buffer: &mut [u16]) {
     for (out, sample) in output_buffer.iter_mut().zip(&*sampling_buffer) {
         // Using saturating_add is 80% faster according to benchmarks, likely because it removes the

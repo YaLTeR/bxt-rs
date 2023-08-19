@@ -32,6 +32,7 @@ impl Drop for Vulkan {
 }
 
 impl Vulkan {
+    #[instrument("Vulkan::new")]
     fn new() -> eyre::Result<Self> {
         debug!("initializing Vulkan");
 

@@ -195,7 +195,7 @@ impl Vulkan {
     pub unsafe fn acquire_image(&self) -> eyre::Result<()> {
         // Wait for the previous iteration of this command buffer to complete.
         {
-            let _span = info_span!("wait for fence").entered();
+            let _span = info_span!("wait for fence_acquire").entered();
 
             self.device
                 .wait_for_fences(&[self.fence_acquire], true, u64::MAX)?;
@@ -563,7 +563,7 @@ impl Vulkan {
             .queue_submit(self.queue, &[*submit_info], fence)?;
 
         {
-            let _span = info_span!("wait for fence").entered();
+            let _span = info_span!("wait for fence color conversion").entered();
 
             self.device
                 .wait_for_fences(&[fence], true, u64::max_value())?;
@@ -606,7 +606,7 @@ impl Vulkan {
     pub unsafe fn accumulate(&self, weight: f32) -> eyre::Result<()> {
         // Wait for the previous iteration of this command buffer to complete.
         {
-            let _span = info_span!("wait for fence").entered();
+            let _span = info_span!("wait for fence_accumulate").entered();
 
             self.device
                 .wait_for_fences(&[self.fence_accumulate], true, u64::MAX)?;
@@ -1411,7 +1411,7 @@ pub fn init(width: u32, height: u32, uuids: &Uuids, is_sampling: bool) -> eyre::
     unsafe { device.queue_submit(queue, &[*submit_info], fence_acquire)? };
 
     {
-        let _span = info_span!("wait for fence").entered();
+        let _span = info_span!("wait for fence_acquire").entered();
 
         unsafe { device.wait_for_fences(&[fence_acquire], true, u64::max_value())? };
     }

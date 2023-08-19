@@ -150,7 +150,9 @@ impl Muxer {
         #[cfg(windows)]
         command.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
 
-        let mut child = command.spawn().map_err(MuxerInitError::FfmpegSpawn)?;
+        let mut child = info_span!("spawn")
+            .in_scope(|| command.spawn())
+            .map_err(MuxerInitError::FfmpegSpawn)?;
         let mut writer = child.stdin.as_mut().unwrap();
 
         const MAIN_STARTCODE: u64 = 0x4e4d7a561f5f04ad;
