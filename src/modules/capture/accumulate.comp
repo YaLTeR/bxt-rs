@@ -1,6 +1,6 @@
 #version 450
 
-// I selected the value that gave the best performance on this workflow.
+// Copied from the color conversion shader where it gave the best performance.
 #define WORKGROUP_SIZE 4
 layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE, local_size_z = 1) in;
 
