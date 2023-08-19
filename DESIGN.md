@@ -33,3 +33,5 @@ The `Commands` module provides safe console command helpers. A console command h
 ### Video Recording
 
 Explanation of how the video part of video recording works is in my [Fast Half-Life Video Recording with Vulkan](https://bxt.rs/blog/fast-half-life-video-recording-with-vulkan/) blog post.
+
+If you're curious how the motion blur support is implemented, read my [Motion Blur for Half-Life Video Recording with Vulkan](https://bxt.rs/blog/motion-blur-for-half-life-video-recording-with-vulkan/) blog post.
