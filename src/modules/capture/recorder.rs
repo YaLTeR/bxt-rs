@@ -385,6 +385,13 @@ impl Recorder {
             assert!(self.acquired_image);
         }
 
+        if weight < 255. / (254. * 65535. * 2.) {
+            // If the weight is so small that any pixel is guaranteed to round down to zero, skip
+            // the whole step. This is needed because after completing a frame we frequently end up
+            // with a miniscule amount of weight left due to imprecision.
+            return;
+        }
+
         self.send_to_thread(MainToThread::Accumulate { weight });
     }
 
