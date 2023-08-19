@@ -90,11 +90,9 @@ fn setup_logging_hooks() {
 
         Box::leak(Box::new(guard));
 
-        chrome_layer.boxed()
+        Some(chrome_layer)
     } else {
-        // Work around https://github.com/tokio-rs/tracing/issues/2265: return boxed ChromeLayer or
-        // boxed Identity instead of Some(ChromeLayer) or None.
-        tracing_subscriber::layer::Identity::new().boxed()
+        None
     };
 
     let filter = if env::var_os("BXT_RS_VERBOSE").is_some() {
