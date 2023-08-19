@@ -99,19 +99,28 @@ Especially useful for TASes.",
 static BXT_CAP_SAMPLING_MIN_FPS: CVar = CVar::new(
     b"_bxt_cap_sampling_min_fps\0",
     b"7200\0",
-    "Minimum recording FPS for frames that make up a sampled frame.",
+    "\
+Minimum recording FPS for frames that make up a sampled frame.
+
+Check the following link for a visual interactive tool where you can play with the sampling \
+parameters: \
+https://bxt.rs/blog/motion-blur-for-half-life-video-recording-with-vulkan/#samplingPlayground",
 );
 static BXT_CAP_SAMPLING_EXPOSURE: CVar = CVar::new(
     b"bxt_cap_sampling_exposure\0",
     b"0\0",
     "\
-How much of the sampled frame contributes to it. E.g. `1` means that the whole frame duration \
-is averaged, `0.5` means that half of the frame is averaged, `0.25` means that a quarter of the \
-frame is averaged, and so on. The averaging always happens towards the end of the frame: that is, \
-an exposure of `0.5` means that every frame is an average of the second half of that frame's \
-duration.
+Controls the amount of motion blur. `1` is the highest, `0` is no blur.
 
-`0` disables sampling.",
+Check the following link for a visual interactive tool where you can play with the sampling \
+parameters: \
+https://bxt.rs/blog/motion-blur-for-half-life-video-recording-with-vulkan/#samplingPlayground
+
+Technically, exposure controls how many of a video frame's sub-frames are blended into it. E.g. \
+`1` means that all sub-frames are blended together, `0.5` means that only half of the sub-frames \
+are blended together, `0.25` means that a quarter of the sub-frames are blended and so on. The \
+blending always happens towards the end of the frame: that is, an exposure of `0.5` means that \
+every frame is an average of the second half of that frame's sub-frames.",
 );
 static BXT_CAP_FORCE_FALLBACK: CVar = CVar::new(
     b"_bxt_cap_force_fallback\0",
