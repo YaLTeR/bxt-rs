@@ -377,7 +377,7 @@ impl Recorder {
         self.send_to_thread(MainToThread::AcquireImage);
     }
 
-    #[instrument(skip(self))]
+    #[instrument("Recorder::accumulate", skip(self))]
     fn accumulate(&mut self, weight: f32) {
         assert!(self.is_sampling());
 
@@ -388,7 +388,7 @@ impl Recorder {
         self.send_to_thread(MainToThread::Accumulate { weight });
     }
 
-    #[instrument(skip(self))]
+    #[instrument("Recorder::record", skip(self))]
     unsafe fn record(&mut self, frames: usize) {
         self.send_to_thread(MainToThread::Record { frames });
     }
