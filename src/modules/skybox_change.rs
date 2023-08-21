@@ -1,4 +1,4 @@
-//! bxt_skyname
+//! bxt_skybox_name
 
 use byte_slice_cast::AsSliceOf;
 
@@ -20,12 +20,12 @@ impl Module for SkyboxChange {
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
-        static CVARS: &[&CVar] = &[&BXT_SKYNAME];
+        static CVARS: &[&CVar] = &[&BXT_SKYBOX_NAME];
         CVARS
     }
 
     fn commands(&self) -> &'static [&'static Command] {
-        static COMMANDS: &[&Command] = &[&BXT_SKYNAME_FORCE];
+        static COMMANDS: &[&Command] = &[&BXT_SKYNAME_RELOAD];
         COMMANDS
     }
 
@@ -36,19 +36,20 @@ impl Module for SkyboxChange {
     }
 }
 
-static BXT_SKYNAME: CVar = CVar::new(
-    b"bxt_skyname\0",
+static BXT_SKYBOX_NAME: CVar = CVar::new(
+    b"bxt_skybox_name\0",
     b"\0",
     "\
-Changes skybox name. This does not take effect instantaneously unless force command is also invoked.
-However, if specified before map load, it will take effect.
-Eg: `bxt_skyname city`",
+Sets skybox name.
+
+This does not take effect instantaneously unless reload command is also invoked.
+E.g.: `bxt_skybox_name city`",
 );
 
-static BXT_SKYNAME_FORCE: Command = Command::new(
-    b"bxt_skyname_force\0",
+static BXT_SKYNAME_RELOAD: Command = Command::new(
+    b"bxt_skybox_reload\0",
     handler!(
-        "bxt_skyname_force
+        "bxt_skybox_reload
 
 Forces skybox name change.",
         force as fn(_)
@@ -57,36 +58,43 @@ Forces skybox name change.",
 
 static ORIGINAL_SKYNAME: MainThreadRefCell<[i8; 32]> = MainThreadRefCell::new([0; 32]);
 
-pub fn change_name(marker: MainThreadMarker) {
-    if !SkyboxChange.is_enabled(marker) {
-        return;
-    }
-
+fn change_name(marker: MainThreadMarker) {
     let mv = unsafe { &mut *engine::movevars.get(marker) };
-    let bytes = BXT_SKYNAME.to_string(marker).into_bytes();
+    let bytes = BXT_SKYBOX_NAME.to_string(marker).into_bytes();
     let original_skyname = *ORIGINAL_SKYNAME.borrow_mut(marker);
 
-    if original_skyname[0] == 0 {
-        // ORIGINAL_SKYNAME is not yet set.
-        *ORIGINAL_SKYNAME.borrow_mut(marker) = mv.skyName;
-    }
+    // Make sure we don't have any side effects.
+    assert_eq!(original_skyname[0], 0);
+
+    *ORIGINAL_SKYNAME.borrow_mut(marker) = mv.skyName;
 
     // Capped size at 32.
-    if bytes.len() > 0 && bytes.len() < 32 {
+    if !bytes.is_empty() && bytes.len() < 32 {
         mv.skyName.fill(0);
         mv.skyName[..bytes.len()].copy_from_slice(bytes.as_slice_of().unwrap());
     }
 }
 
-pub fn restore(marker: MainThreadMarker) {
+pub fn with_changed_name<T>(marker: MainThreadMarker, f: impl FnOnce() -> T) -> T {
     if !SkyboxChange.is_enabled(marker) {
-        return;
+        return f();
     }
 
+    change_name(marker);
+
+    let rv = f();
+
+    restore(marker);
+
+    rv
+}
+
+fn restore(marker: MainThreadMarker) {
     // Demo playback needs this. Though very unnecessary, it is nice to have.
     let mv = unsafe { &mut *engine::movevars.get(marker) };
 
     mv.skyName = *ORIGINAL_SKYNAME.borrow(marker);
+    reset_skyname(marker)
 }
 
 fn force(marker: MainThreadMarker) {
@@ -101,6 +109,6 @@ fn force(marker: MainThreadMarker) {
     restore(marker);
 }
 
-pub fn reset_skyname(marker: MainThreadMarker) {
+fn reset_skyname(marker: MainThreadMarker) {
     *ORIGINAL_SKYNAME.borrow_mut(marker) = [0; 32];
 }
