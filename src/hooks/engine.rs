@@ -2002,11 +2002,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            skybox_change::change_name(marker);
-
-            R_LoadSkys.get(marker)();
-
-            skybox_change::restore(marker);
+            skybox_change::with_changed_name(marker, move || R_LoadSkys.get(marker)());
         })
     }
 
