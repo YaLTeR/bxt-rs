@@ -39,5 +39,17 @@ fi
 export LD_LIBRARY_PATH="$HL_ROOT:$LD_LIBRARY_PATH"
 export SteamEnv=1 # Fix the annoying locale error.
 
+# Set bxt-rs debug variables.
+# export BXT_RS_VULKAN_DEBUG=1
+# export BXT_RS_PROFILE=1
+# export BXT_RS_PROFILE_TRACY=1
+# export BXT_RS_VERBOSE=1
+
+# Allow running the ffmpeg binary from the HL folder.
+# export PATH="$HL_ROOT:$PATH"
+
+# Set to disable BXT and bxt-rs.
+# export LD_PRELOAD=""
+
 cd "$HL_ROOT" || exit 1
 exec ~/.steam/bin/steam-runtime/run.sh ./hl_linux -steam "$@"
