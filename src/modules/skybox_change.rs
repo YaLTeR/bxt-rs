@@ -25,7 +25,7 @@ impl Module for SkyboxChange {
     }
 
     fn commands(&self) -> &'static [&'static Command] {
-        static COMMANDS: &[&Command] = &[&BXT_SKYNAME_RELOAD];
+        static COMMANDS: &[&Command] = &[&BXT_SKYBOX_RELOAD];
         COMMANDS
     }
 
@@ -43,16 +43,17 @@ static BXT_SKYBOX_NAME: CVar = CVar::new(
 Sets skybox name.
 
 This does not take effect instantaneously unless reload command is also invoked.
-E.g.: `bxt_skybox_name city`",
+
+Example: `bxt_skybox_name city`",
 );
 
-static BXT_SKYNAME_RELOAD: Command = Command::new(
+static BXT_SKYBOX_RELOAD: Command = Command::new(
     b"bxt_skybox_reload\0",
     handler!(
         "bxt_skybox_reload
 
 Forces skybox name change.",
-        force as fn(_)
+        reload as fn(_)
     ),
 );
 
@@ -94,21 +95,17 @@ fn restore(marker: MainThreadMarker) {
     let mv = unsafe { &mut *engine::movevars.get(marker) };
 
     mv.skyName = *ORIGINAL_SKYNAME.borrow(marker);
-    reset_skyname(marker)
-}
 
-fn force(marker: MainThreadMarker) {
-    change_name(marker);
-
-    unsafe {
-        // One single boolean check.
-        *engine::gLoadSky.get(marker) = 1;
-        engine::R_LoadSkys.get(marker)();
-    }
-
-    restore(marker);
-}
-
-fn reset_skyname(marker: MainThreadMarker) {
+    // Reset.
     *ORIGINAL_SKYNAME.borrow_mut(marker) = [0; 32];
+}
+
+fn reload(marker: MainThreadMarker) {
+    with_changed_name(marker, move || {
+        unsafe {
+            // One single boolean check.
+            *engine::gLoadSky.get(marker) = 1;
+            engine::R_LoadSkys.get(marker)();
+        }
+    })
 }
