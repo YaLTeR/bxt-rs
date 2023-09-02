@@ -27,6 +27,7 @@ pub mod comment_overflow_fix;
 pub mod demo_playback;
 pub mod disable_loading_text;
 pub mod fade_remove;
+pub mod fix_widescreen;
 pub mod force_fov;
 pub mod help;
 pub mod hud;
@@ -89,6 +90,7 @@ pub static MODULES: &[&dyn Module] = &[
     &demo_playback::DemoPlayback,
     &disable_loading_text::DisableLoadingText,
     &fade_remove::FadeRemove,
+    &fix_widescreen::FixWidescreen,
     &force_fov::ForceFov,
     &help::Help,
     &hud::Hud,

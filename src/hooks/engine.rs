@@ -2178,6 +2178,8 @@ pub mod exported {
                 *scr_fov_value.get(marker) = fov;
             }
 
+            fix_widescreen::fix_widescreen_fov(marker);
+
             R_SetFrustum.get(marker)();
         })
     }
