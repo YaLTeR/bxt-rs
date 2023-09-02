@@ -14,6 +14,7 @@ use crate::ffi::usercmd::usercmd_s;
 
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[repr(C)]
     pub struct TraceFlags: c_int {
         const PM_NORMAL = 0;
         const PM_STUDIO_IGNORE = 1;
