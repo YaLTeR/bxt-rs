@@ -318,7 +318,7 @@ pub fn update_client_connection_condition(marker: MainThreadMarker) {
     }
 
     match STATE.try_lock() {
-        Err(TryLockError::Poisoned(guard)) => Err(guard).unwrap(),
+        Err(TryLockError::Poisoned(guard)) => panic!("{guard:?}"),
         Ok(state) => {
             if state.is_some() {
                 // Don't try to connect if we're already a client or a server.
@@ -343,7 +343,7 @@ pub fn is_connected_to_server() -> bool {
 
 pub fn receive_request_from_server() -> Result<Option<PlayRequest>, ()> {
     let mut state = match STATE.try_lock() {
-        Err(TryLockError::Poisoned(guard)) => Err(guard).unwrap(),
+        Err(TryLockError::Poisoned(guard)) => panic!("{guard:?}"),
         Err(TryLockError::WouldBlock) => return Ok(None),
         Ok(state) => state,
     };
@@ -383,7 +383,7 @@ pub fn send_frame_to_server(frame: AccurateFrame) -> Result<(), ()> {
 
 pub fn receive_frame_from_client() -> Result<Option<AccurateFrame>, ()> {
     let mut state = match STATE.try_lock() {
-        Err(TryLockError::Poisoned(guard)) => Err(guard).unwrap(),
+        Err(TryLockError::Poisoned(guard)) => panic!("{guard:?}"),
         Err(TryLockError::WouldBlock) => return Ok(None),
         Ok(state) => state,
     };
