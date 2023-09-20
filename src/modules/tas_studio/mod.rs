@@ -1460,6 +1460,13 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
             // at least it'll fix the camera next time the user unpauses...
             engine::prepend_command(marker, "m_rawinput 1\n");
 
+            // This allows focus on game I think.
+            // In BunnymodXT, HwDLL::SetTASEditorMode is called.
+            // In bxt-rs, the function is not called. So here we only call the important part.
+            // If game is not focused, is possible for pitch to get set to 0 when on ground.
+            client::activate_mouse(marker, true);
+            sdl::set_relative_mouse_mode(marker, true);
+
             let script = if BXT_TAS_STUDIO_AUTO_SMOOTHING.as_bool(marker) {
                 editor.smoothed_script()
             } else {
