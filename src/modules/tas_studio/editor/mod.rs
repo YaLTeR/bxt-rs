@@ -62,7 +62,7 @@ pub struct Editor {
     ///
     /// Might be `None` for example if the player is looking away from the entire path (so there's
     /// no visible frame which could be under the cursor).
-    /// 
+    ///
     /// During adjustment, it will be the last frame of currently selected framebulk.
     hovered_frame_idx: Option<usize>,
 
