@@ -62,6 +62,8 @@ pub struct Editor {
     ///
     /// Might be `None` for example if the player is looking away from the entire path (so there's
     /// no visible frame which could be under the cursor).
+    /// 
+    /// During adjustment, it will be the last frame of currently selected framebulk.
     hovered_frame_idx: Option<usize>,
 
     /// Mouse state from the last time `tick()` was called.
@@ -1107,25 +1109,32 @@ impl Editor {
         }
 
         // Update the hovered frame index.
-        self.hovered_frame_idx = self
-            .branch()
-            .frames
-            .iter()
-            .enumerate()
-            // Skip past hidden frames.
-            .filter(|(frame_idx, _)| *frame_idx >= self.first_shown_frame_idx)
-            // Convert to screen and take only successfully converted coordinates.
-            .filter_map(|(frame_idx, frame)| {
-                world_to_screen(frame.state.player.pos).map(|screen| (frame_idx, screen))
-            })
-            // Find closest to cursor.
-            .min_by(|(_, screen_a), (_, screen_b)| {
-                let dist_a = screen_a.distance_squared(mouse_pos);
-                let dist_b = screen_b.distance_squared(mouse_pos);
-                dist_a.total_cmp(&dist_b)
-            })
-            // Extract frame index.
-            .map(|(frame_idx, _)| frame_idx);
+        self.hovered_frame_idx =
+            if self.is_any_adjustment_active() && self.selected_bulk_idx.is_some() {
+                let (bulk, frame_idx) = bulk_and_first_frame_idx(self.script())
+                    .nth(self.selected_bulk_idx.unwrap())
+                    .unwrap();
+                Some(frame_idx + (bulk.frame_count.get() as usize) - 1)
+            } else {
+                self.branch()
+                    .frames
+                    .iter()
+                    .enumerate()
+                    // Skip past hidden frames.
+                    .filter(|(frame_idx, _)| *frame_idx >= self.first_shown_frame_idx)
+                    // Convert to screen and take only successfully converted coordinates.
+                    .filter_map(|(frame_idx, frame)| {
+                        world_to_screen(frame.state.player.pos).map(|screen| (frame_idx, screen))
+                    })
+                    // Find closest to cursor.
+                    .min_by(|(_, screen_a), (_, screen_b)| {
+                        let dist_a = screen_a.distance_squared(mouse_pos);
+                        let dist_b = screen_b.distance_squared(mouse_pos);
+                        dist_a.total_cmp(&dist_b)
+                    })
+                    // Extract frame index.
+                    .map(|(frame_idx, _)| frame_idx)
+            };
 
         // Start the camera editor insert-camera-line adjustment here as, countrary to movement
         // editor adjustments, it starts from the hovered frame, updated just above.
