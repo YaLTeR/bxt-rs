@@ -1114,7 +1114,14 @@ impl Editor {
                 let (bulk, frame_idx) = bulk_and_first_frame_idx(self.script())
                     .nth(self.selected_bulk_idx.unwrap())
                     .unwrap();
-                Some(frame_idx + (bulk.frame_count.get() as usize) - 1)
+
+                // Returned value from bulk_and_first_frame_idx might be outdated due to some
+                // prediction going during adjustment. Ergo index out of bound.
+                // Min is needed to make sure it never happens.
+                Some(
+                    (frame_idx + (bulk.frame_count.get() as usize) - 1)
+                        .min(self.branch().frames.len() - 1),
+                )
             } else {
                 self.branch()
                     .frames
