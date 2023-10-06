@@ -60,6 +60,7 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_SMOOTH_SMALL_WINDOW_S,
             &BXT_TAS_STUDIO_SMOOTH_SMALL_WINDOW_MULTIPLIER,
             &BXT_TAS_STUDIO_LINE_WIDTH,
+            &BXT_TAS_STUDIO_NOREFRESH_UNTIL_STOP_FRAME,
         ];
         CVARS
     }
@@ -385,6 +386,47 @@ fn convert_hltas_from_bxt_tas_new(marker: MainThreadMarker, mut path: String) {
     )
 }
 
+static BXT_TAS_STUDIO_NOREFRESH_UNTIL_STOP_FRAME: CVar = CVar::new(
+    b"bxt_tas_studio_norefresh_until_stop_frame\0",
+    b"0\0",
+    "\
+Specifies amount of frames before stop frame marker for playback. 
+
+This cvar will override the value bxt_tas_norefresh_until_last_frames. `0` will use the other one instead.",
+);
+
+fn norefresh_until_stop_frame_frame_idx(marker: MainThreadMarker, editor: &Editor) -> usize {
+    match (editor.stop_frame() as usize)
+        .checked_sub(BXT_TAS_STUDIO_NOREFRESH_UNTIL_STOP_FRAME.as_u64(marker) as usize)
+    {
+        Some(val) => val,
+        None => 0,
+    }
+}
+
+fn set_effective_norefresh_until_stop_frame(marker: MainThreadMarker, editor: &Editor) {
+    let is_norefresh_until_stop_frame =
+        BXT_TAS_STUDIO_NOREFRESH_UNTIL_STOP_FRAME.as_u64(marker) > 0;
+
+    if is_norefresh_until_stop_frame {
+        // Very sad
+        let value = match editor.branch().frames.len().checked_sub(1) {
+            Some(val) => {
+                match val.checked_sub(norefresh_until_stop_frame_frame_idx(marker, editor)) {
+                    Some(val) => val,
+                    None => 0,
+                }
+            }
+            None => 0,
+        };
+
+        engine::prepend_command(
+            marker,
+            &format!("bxt_tas_norefresh_until_last_frames {}\n", value),
+        );
+    }
+}
+
 static BXT_TAS_STUDIO_REPLAY: Command = Command::new(
     b"bxt_tas_studio_replay\0",
     handler!(
@@ -402,9 +444,11 @@ fn replay(marker: MainThreadMarker) {
             mut editor, bridge, ..
         } => {
             editor.cancel_ongoing_adjustments();
+            set_effective_norefresh_until_stop_frame(marker, &editor);
             State::PreparingToPlayToEditor(editor, bridge, true)
         }
         State::PlayingToEditor { editor, bridge, .. } => {
+            set_effective_norefresh_until_stop_frame(marker, &editor);
             State::PreparingToPlayToEditor(editor, bridge, true)
         }
         other => other,
@@ -1767,6 +1811,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     editor.set_smooth_small_window_multiplier(
         BXT_TAS_STUDIO_SMOOTH_SMALL_WINDOW_MULTIPLIER.as_f32(marker),
     );
+    editor.set_norefresh_until_stop_frame(norefresh_until_stop_frame_frame_idx(marker, editor));
 
     // SAFETY: if we have access to TriangleApi, it's safe to do player tracing too.
     let tracer = unsafe { Tracer::new(marker, true) }.unwrap();

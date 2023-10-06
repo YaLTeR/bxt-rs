@@ -83,6 +83,9 @@ pub struct Editor {
     /// Whether the editor is in the camera editor mode.
     in_camera_editor: bool,
 
+    /// Frame index calculated from bxt_tas_studio_norefresh_until_stop_frame.
+    norefresh_until_stop_frame_frame_idx: usize,
+
     // ==============================================
     // Movement-editor-specific state.
     /// Index of the hovered frame bulk.
@@ -415,6 +418,7 @@ impl Editor {
             smooth_window_s: 0.15,
             smooth_small_window_s: 0.03,
             smooth_small_window_multiplier: 3.,
+            norefresh_until_stop_frame_frame_idx: 0,
         })
     }
 
@@ -519,6 +523,10 @@ impl Editor {
 
     pub fn set_show_player_bbox(&mut self, value: bool) {
         self.show_player_bbox = value;
+    }
+
+    pub fn set_norefresh_until_stop_frame(&mut self, value: usize) {
+        self.norefresh_until_stop_frame_frame_idx = value;
     }
 
     /// Invalidates frames starting from given.
@@ -3361,6 +3369,9 @@ impl Editor {
             let is_hovered = self.hovered_frame_idx == Some(idx);
             // If frame is the stop frame.
             let is_stop_frame = branch.branch.stop_frame as usize == idx;
+            // If frame is the end of norefresh for norefresh until stop frame.
+            let is_norefresh_until_stop_frame =
+                !is_stop_frame && self.norefresh_until_stop_frame_frame_idx == idx;
 
             // If frame is in the smoothing input region.
             let in_smoothing_input_region =
@@ -3677,6 +3688,24 @@ impl Editor {
                 draw(DrawLine {
                     start: pos - perp,
                     end: pos + perp,
+                    color: Vec3::new(1., 1., 0.5),
+                });
+            }
+
+            // If bxt_tas_studio_norefresh_until_stop_frame is set, draw another indicator.
+            if is_norefresh_until_stop_frame {
+                let perp = perpendicular(prev_pos, pos) * 2.;
+                let diff = (pos - prev_pos).normalize_or_zero() * 2.;
+
+                // Draw the arrow.
+                draw(DrawLine {
+                    start: pos - perp + diff,
+                    end: pos,
+                    color: Vec3::new(1., 1., 0.5),
+                });
+                draw(DrawLine {
+                    start: pos,
+                    end: pos + perp + diff,
                     color: Vec3::new(1., 1., 0.5),
                 });
             }
