@@ -12,7 +12,7 @@ impl Module for FixWidescreen {
     }
 
     fn description(&self) -> &'static str {
-        "Fixes widescreen vertical field-of-view."
+        "Correcting widescreen vertical field-of-view."
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
@@ -29,15 +29,17 @@ static BXT_FIX_WIDESCREEN_FOV: CVar = CVar::new(
     b"bxt_fix_widescreen_fov\0",
     b"0\0",
     "\
-Fixes reduction in vertical field-of-view of widescreen. Compatible with `bxt_force_fov`",
+Fixes reduction in vertical field-of-view of widescreen. Compatible with `bxt_force_fov.`",
 );
 
 // My guess is that every render cycle, `scr_fov_value` is reset to some values.
 // So even if we override it, at some points, it is back to something else entirely different.
 // But that is not the case for loading. If we don't do this, we will doubly process the value.
+//
+// YaLTeR: It's set in the client DLL in HUD_something which runs every frame but not during loads.
 static PREV_FOV: MainThreadRefCell<f32> = MainThreadRefCell::new(0.);
 
-pub fn fix_widescreen_fov(marker: MainThreadMarker) {
+pub unsafe fn fix_widescreen_fov(marker: MainThreadMarker) {
     if !FixWidescreen.is_enabled(marker) {
         return;
     }
@@ -46,11 +48,11 @@ pub fn fix_widescreen_fov(marker: MainThreadMarker) {
         return;
     }
 
-    let fov = unsafe { *engine::scr_fov_value.get(marker) };
+    let fov = *engine::scr_fov_value.get(marker);
     let prev_fov = *PREV_FOV.borrow(marker);
 
     if fov != prev_fov {
-        let (width, height) = unsafe { engine::get_resolution(marker) };
+        let (width, height) = engine::get_resolution(marker);
         let current_aspect_ratio = width as f32 / height as f32;
         let default_aspect_ratio = 3f32 / 4f32;
 
@@ -61,9 +63,7 @@ pub fn fix_widescreen_fov(marker: MainThreadMarker) {
                 * 2.)
                 .clamp(10f32, 150f32);
 
-        unsafe {
-            *engine::scr_fov_value.get(marker) = new_fov;
-        }
+        *engine::scr_fov_value.get(marker) = new_fov;
 
         *PREV_FOV.borrow_mut(marker) = new_fov;
     }
