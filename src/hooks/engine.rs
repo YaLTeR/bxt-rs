@@ -2199,7 +2199,7 @@ pub mod exported {
             };
 
             if rv != 0 {
-                if !capture_skip_non_gameplay::should_skip_non_gameplay_frames(marker) {
+                if capture_skip_non_gameplay::should_record_current_frame(marker) {
                     capture::time_passed(marker);
                 }
 
