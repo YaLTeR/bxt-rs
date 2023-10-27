@@ -121,6 +121,8 @@ impl Module for TasStudio {
             && bxt::BXT_ON_TAS_PLAYBACK_FRAME.is_set(marker)
             && bxt::BXT_ON_TAS_PLAYBACK_STOPPED.is_set(marker)
             && bxt::BXT_TAS_NEW.is_set(marker)
+            && bxt::BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES.is_set(marker)
+            && bxt::BXT_TAS_STUDIO_NOREFRESH_OVERRIDE.is_set(marker)
             && TriangleDrawing.is_enabled(marker)
             && Commands.is_enabled(marker)
             && PlayerMovementTracing.is_enabled(marker)
@@ -387,44 +389,34 @@ fn convert_hltas_from_bxt_tas_new(marker: MainThreadMarker, mut path: String) {
 }
 
 static BXT_TAS_STUDIO_NOREFRESH_UNTIL_STOP_FRAME: CVar = CVar::new(
-    b"bxt_tas_studio_norefresh_until_stop_frame\0",
-    b"0\0",
+    b"_bxt_tas_studio_norefresh_until_stop_frame\0",
+    b"1\0",
     "\
-Specifies amount of frames before stop frame marker for playback. 
-
-This cvar will override the value bxt_tas_norefresh_until_last_frames. `0` will use the other one instead.",
+When enabled, TAS Studio playback will stop norefresh when reaching some values set in \
+bxt_tas_norefresh_until_last_frames counting from stop frame marker instead of last frame.",
 );
 
 fn norefresh_until_stop_frame_frame_idx(marker: MainThreadMarker, editor: &Editor) -> usize {
-    match (editor.stop_frame() as usize)
-        .checked_sub(BXT_TAS_STUDIO_NOREFRESH_UNTIL_STOP_FRAME.as_u64(marker) as usize)
-    {
-        Some(val) => val,
-        None => 0,
-    }
+    if !BXT_TAS_STUDIO_NOREFRESH_UNTIL_STOP_FRAME.as_bool(marker) {
+        return 0;
+    };
+
+    let norefresh_last_frames = unsafe { bxt::BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES.get(marker)() };
+    (editor.stop_frame() as usize).saturating_sub(norefresh_last_frames as usize)
 }
 
 fn set_effective_norefresh_until_stop_frame(marker: MainThreadMarker, editor: &Editor) {
-    let is_norefresh_until_stop_frame =
-        BXT_TAS_STUDIO_NOREFRESH_UNTIL_STOP_FRAME.as_u64(marker) > 0;
-
-    if is_norefresh_until_stop_frame {
+    let value = if BXT_TAS_STUDIO_NOREFRESH_UNTIL_STOP_FRAME.as_bool(marker) {
         // Very sad
-        let value = match editor.branch().frames.len().checked_sub(1) {
-            Some(val) => {
-                match val.checked_sub(norefresh_until_stop_frame_frame_idx(marker, editor)) {
-                    Some(val) => val,
-                    None => 0,
-                }
-            }
+        match editor.branch().frames.len().checked_sub(1) {
+            Some(val) => val.saturating_sub(norefresh_until_stop_frame_frame_idx(marker, editor)),
             None => 0,
-        };
+        }
+    } else {
+        0
+    };
 
-        engine::prepend_command(
-            marker,
-            &format!("bxt_tas_norefresh_until_last_frames {}\n", value),
-        );
-    }
+    unsafe { bxt::BXT_TAS_STUDIO_NOREFRESH_OVERRIDE.get(marker)(value as i32) };
 }
 
 static BXT_TAS_STUDIO_REPLAY: Command = Command::new(
