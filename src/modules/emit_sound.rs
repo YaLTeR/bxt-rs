@@ -1,8 +1,8 @@
 //! `bxt_emit_sound`
 
+use std::collections::HashSet;
 use std::ffi::CString;
 use std::num::ParseFloatError;
-use std::ptr::NonNull;
 use std::str::FromStr;
 
 use super::Module;
@@ -18,12 +18,12 @@ impl Module for EmitSound {
     }
 
     fn description(&self) -> &'static str {
-        "Exposing some sound functions."
+        "Emitting and stopping sounds."
     }
 
     fn commands(&self) -> &'static [&'static Command] {
         static COMMANDS: &[&Command] = &[
-            &BXT_EMIT_SOUND_STOP_SOUND_EXCEPT,
+            &BXT_STOP_SOUND_EXCEPT_CHANNELS,
             &BXT_EMIT_SOUND_DYNAMIC,
             &BXT_EMIT_SOUND,
         ];
@@ -35,10 +35,10 @@ impl Module for EmitSound {
             && engine::S_StartDynamicSound.is_set(marker)
             && engine::S_StopSound.is_set(marker)
             && engine::S_PrecacheSound.is_set(marker)
+            && engine::listener_origin.is_set(marker)
     }
 }
 
-#[derive(Default)]
 struct SoundInfo {
     sound: String,
     channel: i32,
@@ -70,25 +70,38 @@ impl SoundInfo {
     }
 }
 
+// It goes up to 14-15 something. I've seen up to 8 used so far.
+// There should be only 8 usable channels from SV_StartSounds.
+// But SND_PickDynamicChannel says something very weird otherwise.
+static MAX_CHANNELS: i32 = 10;
+
 // Eh.
 // Parse float then round then convert to integer to avoid a more convoluted solution.
 impl FromStr for SoundInfo {
     type Err = ParseFloatError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut rv = SoundInfo::default();
-
         let mut iter = s.split_ascii_whitespace();
-        rv.sound = iter.next().unwrap_or_default().to_string();
-        rv.channel = (f32::from_str(iter.next().unwrap_or_default())?).round() as i32;
-        rv.volume = f32::from_str(iter.next().unwrap_or_default())?;
-        rv.from = (f32::from_str(iter.next().unwrap_or_default())?).round() as i32;
-        rv.to = (f32::from_str(iter.next().unwrap_or_default())?).round() as i32;
-        rv.attenuation = f32::from_str(iter.next().unwrap_or_default())?;
-        rv.flag = (f32::from_str(iter.next().unwrap_or_default())?).round() as i32;
-        rv.pitch = (f32::from_str(iter.next().unwrap_or_default())?).round() as i32;
+        let sound = iter.next().unwrap_or("").to_string();
+        let channel =
+            ((f32::from_str(iter.next().unwrap_or(""))?).round() as i32).clamp(0, MAX_CHANNELS);
+        let volume = (f32::from_str(iter.next().unwrap_or(""))?).clamp(0., 1.);
+        let from = ((f32::from_str(iter.next().unwrap_or(""))?).round() as i32).clamp(0, 2047);
+        let to = ((f32::from_str(iter.next().unwrap_or(""))?).round() as i32).clamp(0, 2047);
+        let attenuation = (f32::from_str(iter.next().unwrap_or(""))?).clamp(-1., 1.);
+        let flag = ((f32::from_str(iter.next().unwrap_or(""))?).round() as i32).clamp(0, 255);
+        let pitch = ((f32::from_str(iter.next().unwrap_or(""))?).round() as i32).clamp(0, 255);
 
-        Ok(rv)
+        Ok(SoundInfo {
+            sound,
+            channel,
+            volume,
+            from,
+            to,
+            attenuation,
+            flag,
+            pitch,
+        })
     }
 }
 
@@ -108,9 +121,13 @@ fn emit_sound(marker: MainThreadMarker, sound: String, channel: i32) {
 
 fn emit_sound_full(marker: MainThreadMarker, info: SoundInfo) {
     if let Some(player) = unsafe { engine::player_edict(marker) } {
-        let mut entity = unsafe { NonNull::new(player.as_ptr().add(info.from as usize)).unwrap() };
+        let entity = unsafe { player.as_ptr().add(info.from as usize).as_mut() };
 
-        let entity = unsafe { entity.as_mut() };
+        if entity.is_none() {
+            return;
+        }
+
+        let entity = entity.unwrap();
         let binding = CString::new(info.sound).unwrap();
         let sound = binding.as_ptr();
 
@@ -155,8 +172,13 @@ fn emit_sound_dynamic_full(marker: MainThreadMarker, info: SoundInfo) {
                 // It does this to have the sound follow player's vieworg rather than origin.
                 *engine::listener_origin.get(marker)
             } else {
-                let to = NonNull::new(player.as_ptr().add(info.to as usize)).unwrap();
-                to.as_ref().v.origin
+                let to = player.as_ptr().add(info.to as usize).as_ref();
+
+                if to.is_none() {
+                    return;
+                }
+
+                to.unwrap().v.origin
             }
         };
 
@@ -179,8 +201,8 @@ fn emit_sound_dynamic_full(marker: MainThreadMarker, info: SoundInfo) {
     }
 }
 
-static BXT_EMIT_SOUND_STOP_SOUND_EXCEPT: Command = Command::new(
-    b"bxt_emit_sound_stop_sound_except\0",
+static BXT_STOP_SOUND_EXCEPT_CHANNELS: Command = Command::new(
+    b"bxt_stop_sound_except_channels\0",
     handler!(
         "bxt_emit_sound_stop_sound_except <list of channels seperated by space>.
         
@@ -189,31 +211,19 @@ Stops emitting sounds from every channel except given list of channels.",
     ),
 );
 
-// It goes up to 14-15 something. I've seen up to 8 used so far.
-static MAX_CHANNELS: i32 = 10;
-
 fn stop_sound(marker: MainThreadMarker, channels: String) {
-    let mut list = vec![];
-    // There should be only 8 usable channels from SV_StartSounds.
-    // But SND_PickDynamicChannel says something very weird otherwise.
-    let mut list0 = Vec::from_iter(0..MAX_CHANNELS + 1);
+    let mut allowlist = HashSet::<i32>::new();
     let iter = channels.split_ascii_whitespace();
 
     for channel in iter {
         if let Ok(allow) = channel.parse::<i32>() {
-            list.push(allow);
+            allowlist.insert(allow.clamp(0, MAX_CHANNELS));
         }
     }
 
-    // Eh.
-    list.sort();
-
-    for channel in list.iter().rev() {
-        let channel = (*channel).clamp(0i32, MAX_CHANNELS);
-        list0.remove(channel as usize);
-    }
-
-    for channel in list0 {
-        unsafe { engine::S_StopSound.get(marker)(0, channel) };
+    for channel in 0..=MAX_CHANNELS {
+        if !allowlist.contains(&channel) {
+            unsafe { engine::S_StopSound.get(marker)(0, channel) };
+        }
     }
 }
