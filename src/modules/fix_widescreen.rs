@@ -16,7 +16,11 @@ impl Module for FixWidescreen {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        engine::R_SetFrustum.is_set(marker) && engine::scr_fov_value.is_set(marker)
+        engine::R_SetFrustum.is_set(marker)
+            && engine::scr_fov_value.is_set(marker)
+            && engine::VideoMode_IsWindowed.is_set(marker)
+            && engine::VideoMode_GetCurrentVideoMode.is_set(marker)
+            && engine::window_rect.is_set(marker)
     }
 
     fn cvars(&self) -> &'static [&'static CVar] {
@@ -39,7 +43,7 @@ Fixes reduction in vertical field-of-view of widescreen. Compatible with `bxt_fo
 // YaLTeR: It's set in the client DLL in HUD_something which runs every frame but not during loads.
 static PREV_FOV: MainThreadRefCell<f32> = MainThreadRefCell::new(0.);
 
-pub unsafe fn fix_widescreen_fov(marker: MainThreadMarker) {
+pub fn fix_widescreen_fov(marker: MainThreadMarker) {
     if !FixWidescreen.is_enabled(marker) {
         return;
     }
@@ -48,11 +52,11 @@ pub unsafe fn fix_widescreen_fov(marker: MainThreadMarker) {
         return;
     }
 
-    let fov = *engine::scr_fov_value.get(marker);
+    let fov = unsafe { *engine::scr_fov_value.get(marker) };
     let prev_fov = *PREV_FOV.borrow(marker);
 
     if fov != prev_fov {
-        let (width, height) = engine::get_resolution(marker);
+        let (width, height) = unsafe { engine::get_resolution(marker) };
         let current_aspect_ratio = width as f32 / height as f32;
         let default_aspect_ratio = 3f32 / 4f32;
 
@@ -63,7 +67,7 @@ pub unsafe fn fix_widescreen_fov(marker: MainThreadMarker) {
                 * 2.)
                 .clamp(10f32, 150f32);
 
-        *engine::scr_fov_value.get(marker) = new_fov;
+        unsafe { *engine::scr_fov_value.get(marker) = new_fov };
 
         *PREV_FOV.borrow_mut(marker) = new_fov;
     }
