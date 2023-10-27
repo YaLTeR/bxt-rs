@@ -1,14 +1,13 @@
 use std::array::from_fn;
 
 use nom::bytes::complete::{tag, take_until};
-use nom::character::complete::{multispace0, newline, space1, u32};
+use nom::character::complete::{multispace0, newline, space0, u32};
 use nom::combinator::{all_consuming, map, opt};
 use nom::multi::separated_list0;
-use nom::number::complete::float;
 use nom::sequence::{delimited, preceded, tuple};
 use nom::IResult;
 
-use super::common::{cam_float, lerp, ViewInfo};
+use super::common::{cam_double, cam_float, ViewInfo};
 use crate::modules::campath::common::angle_diff;
 
 #[derive(Clone, Copy)]
@@ -58,17 +57,19 @@ impl Bvh {
         let target =
             (time - next_campath_index as f64 * self.header.frametime) / (self.header.frametime);
 
-        let new_vieworg: [f64; 3] =
-            from_fn(|i| lerp(curr_entry.vieworg[i], next_entry.vieworg[i], target));
+        let new_vieworg = curr_entry.vieworg.lerp(next_entry.vieworg, target as f32);
 
-        let new_viewangles: [f64; 3] = from_fn(|i| {
-            lerp(
+        let viewangles_diff: [f32; 3] = from_fn(|i| {
+            angle_diff(
+                // normalize is not what we want as we are in between +/-
                 curr_entry.viewangles[i],
-                curr_entry.viewangles[i]
-                    + angle_diff(curr_entry.viewangles[i], next_entry.viewangles[i]),
-                target,
+                next_entry.viewangles[i],
             )
         });
+        let viewangles_diff = glam::Vec3::from(viewangles_diff);
+        let new_viewangles = curr_entry
+            .viewangles
+            .lerp(curr_entry.viewangles + viewangles_diff, target as f32);
 
         Some(ViewInfo {
             vieworg: new_vieworg,
@@ -82,11 +83,11 @@ fn channel(i: &str) -> IResult<&str, &str> {
 }
 
 fn frames(i: &str) -> IResult<&str, u32> {
-    preceded(tuple((tag("Frames:"), space1)), u32)(i)
+    preceded(tuple((tag("Frames:"), space0)), u32)(i)
 }
 
-fn frametime(i: &str) -> IResult<&str, f32> {
-    preceded(tuple((tag("Frame Time:"), space1)), float)(i)
+fn frametime(i: &str) -> IResult<&str, f64> {
+    preceded(tuple((tag("Frame Time:"), space0)), cam_double)(i)
 }
 
 fn header(i: &str) -> IResult<&str, BvhHeader> {
@@ -105,7 +106,7 @@ fn header(i: &str) -> IResult<&str, BvhHeader> {
         ),
         |(frames, frametime)| BvhHeader {
             frames: frames as usize,
-            frametime: frametime as f64,
+            frametime,
         },
     )(i)
 }
@@ -116,8 +117,8 @@ fn cam(i: &str) -> IResult<&str, ViewInfo> {
             cam_float, cam_float, cam_float, cam_float, cam_float, cam_float,
         )), // parameters appear in the order of CHANNELS 6 specified in channel()
         |(ypos, zpos, xpos, zrot, xrot, yrot)| ViewInfo {
-            vieworg: [-xpos, -ypos, zpos], // HLAE does this
-            viewangles: [-xrot, yrot, -zrot],
+            vieworg: [-xpos, -ypos, zpos].into(), // HLAE does this
+            viewangles: [-xrot, yrot, -zrot].into(),
         },
     )(i)
 }
@@ -137,4 +138,37 @@ pub fn read_bvh(i: &str) -> IResult<&str, Bvh> {
         )),
         |(header, campaths)| Bvh { header, campaths },
     )(i)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn parse_ok() {
+        let input = "\
+HIERARCHY
+ROOT MdtCam
+{
+	OFFSET 0.00 0.00 0.00
+	CHANNELS 6 Xposition Yposition Zposition Zrotation Xrotation Yrotation
+	End Site
+	{
+		OFFSET 0.00 0.00 -1.00
+	}
+}
+MOTION
+Frames: 1152
+Frame Time: 0.041667
+-2796.320343 -1898.937416 -2443.945312 -0.000002 5.559472 -116.619866
+-3161.070251 3701.062393 1584.867191 0.000000 -15.507801 7.794800";
+
+        let res = read_bvh(input);
+        if let Ok(mdt) = res {
+            assert!(mdt.0.is_empty());
+            assert_eq!(mdt.1.header.frames, 1152);
+            assert_eq!(mdt.1.header.frametime, 0.041667);
+            assert_eq!(mdt.1.campaths.len(), 2);
+        }
+    }
 }

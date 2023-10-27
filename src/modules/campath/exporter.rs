@@ -33,9 +33,9 @@ DATA
     pub fn append_entry(
         &mut self,
         time: f64,
-        vieworg: [f64; 3],
-        viewangles: [f64; 3],
-        fov: f64,
+        vieworg: glam::Vec3,
+        viewangles: glam::Vec3,
+        fov: f32,
     ) -> &Self {
         self.data.campaths.push(ViewInfoCamIO {
             viewinfo: ViewInfo {
@@ -72,12 +72,10 @@ DATA
         let mut file = BufWriter::new(file);
 
         file.write_all(self.header().as_bytes())
-            .expect("Error: Cannot write motion into buffer.");
+            .expect("Error: Cannot write motion into .cam file.");
         for idx in 0..self.data.campaths.len() {
             file.write_all(self.entry_to_string(idx).as_bytes())
-                .expect("Error: Cannot write motion into buffer.");
+                .expect("Error: Cannot write motion into .cam file.");
         }
-        file.flush()
-            .expect("Error: Cannot write motion into .cam file.");
     }
 }

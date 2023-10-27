@@ -60,7 +60,7 @@ static BXT_CAMPATH_LOAD: CVar = CVar::new(
     b"bxt_campath_load\0",
     b"\0",
     "\
-Loads campath .cam or .bvh file and playback during demo.
+Loads campath .cam or .bvh file for playback during demo.
 ",
 );
 
@@ -185,8 +185,8 @@ pub fn override_view(marker: MainThreadMarker) {
                 match mdt.get_view(TIME.get(marker) - BXT_CAMPATH_OFFSET.as_f32(marker) as f64) {
                     Some(cam) => {
                         for i in 0..3 {
-                            r_refdef_vieworg[i] = cam.vieworg[i] as f32;
-                            r_refdef_viewangles[i] = cam.viewangles[i] as f32;
+                            r_refdef_vieworg[i] = cam.vieworg[i];
+                            r_refdef_viewangles[i] = cam.viewangles[i];
                         }
                     }
                     // If there is no campath to override, it is done.
@@ -197,11 +197,11 @@ pub fn override_view(marker: MainThreadMarker) {
                 match mdt.get_view(TIME.get(marker) - BXT_CAMPATH_OFFSET.as_f32(marker) as f64) {
                     Some(cam) => {
                         for i in 0..3 {
-                            r_refdef_vieworg[i] = cam.viewinfo.vieworg[i] as f32;
-                            r_refdef_viewangles[i] = cam.viewinfo.viewangles[i] as f32;
+                            r_refdef_vieworg[i] = cam.viewinfo.vieworg[i];
+                            r_refdef_viewangles[i] = cam.viewinfo.viewangles[i];
                         }
 
-                        unsafe { *engine::scr_fov_value.get(marker) = cam.fov as f32 };
+                        unsafe { *engine::scr_fov_value.get(marker) = cam.fov };
                     }
                     None => done = true,
                 }
@@ -220,6 +220,8 @@ static BXT_CAMPATH_EXPORT_START: Command = Command::new(
         "bxt_campath_export_start [filename.cam]
 
 Starts capturing player's position and viewangle from either gameplay or demo into .cam format.
+
+Automatically stops when demo stops.
 
 When capturing motion from demo, in order to speed up, try `timedemo \"demoname\"`.",
         export_start as fn(_),
@@ -277,16 +279,18 @@ pub fn capture_motion(marker: MainThreadMarker) {
         exporter.append_entry(
             TIME.get(marker),
             [
-                r_refdef_vieworg[0] as f64,
-                r_refdef_vieworg[1] as f64,
-                r_refdef_vieworg[2] as f64,
-            ],
+                r_refdef_vieworg[0],
+                r_refdef_vieworg[1],
+                r_refdef_vieworg[2],
+            ]
+            .into(),
             [
-                r_refdef_viewangles[2] as f64, // flip the order
-                r_refdef_viewangles[0] as f64,
-                r_refdef_viewangles[1] as f64,
-            ],
-            fov as f64,
+                r_refdef_viewangles[2], // flip the order
+                r_refdef_viewangles[0],
+                r_refdef_viewangles[1],
+            ]
+            .into(),
+            fov,
         );
     }
 }
@@ -296,7 +300,7 @@ static BXT_CAMPATH_EXPORT_STOP: Command = Command::new(
     handler!(
         "bxt_campath_export_stop
         
-Stops capturing player motion. Automatically stops when demo stops.",
+Stops capturing player motion.",
         export_stop as fn(_)
     ),
 );
