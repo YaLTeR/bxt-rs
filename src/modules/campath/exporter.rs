@@ -72,10 +72,12 @@ DATA
         let mut file = BufWriter::new(file);
 
         file.write_all(self.header().as_bytes())
-            .expect("Error: Cannot write motion into .cam file.");
+            .expect("Error: Cannot write motion into buffer.");
         for idx in 0..self.data.campaths.len() {
             file.write_all(self.entry_to_string(idx).as_bytes())
-                .expect("Error: Cannot write motion into .cam file.");
+                .expect("Error: Cannot write motion into buffer.");
         }
+        file.flush()
+            .expect("Error: Cannot write motion into .cam file.");
     }
 }
