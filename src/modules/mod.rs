@@ -22,6 +22,7 @@ pub mod cvars;
 use cvars::CVar;
 
 pub mod capture;
+pub mod capture_skip_non_gameplay;
 pub mod capture_video_per_demo;
 pub mod comment_overflow_fix;
 pub mod demo_playback;
@@ -84,6 +85,7 @@ pub trait Module: Sync {
 /// All modules.
 pub static MODULES: &[&dyn Module] = &[
     &capture::Capture,
+    &capture_skip_non_gameplay::CaptureSkipNonGameplay,
     &capture_video_per_demo::CaptureVideoPerDemo,
     &commands::Commands,
     &comment_overflow_fix::CommentOverflowFix,

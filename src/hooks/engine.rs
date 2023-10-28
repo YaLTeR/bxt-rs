@@ -145,6 +145,10 @@ pub static ClientDLL_DrawTransparentTriangles: Pointer<unsafe extern "C" fn()> =
         null_mut(),
     );
 pub static cl: Pointer<*mut client_state_t> = Pointer::empty(b"cl\0");
+pub static cl_stats: Pointer<*mut [i32; 32]> = Pointer::empty(
+    // Not a real symbol name.
+    b"cl_stats\0",
+);
 pub static cl_viewent: Pointer<*mut cl_entity_s> = Pointer::empty(
     // Not a real symbol name.
     b"cl_viewent\0",
@@ -154,6 +158,10 @@ pub static cl_viewent_viewmodel: Pointer<*mut cl_entity_s_viewmodel> = Pointer::
     b"cl_viewent_viewmodel\0",
 );
 pub static cls: Pointer<*mut client_static_s> = Pointer::empty(b"cls\0");
+pub static cls_demoframecount: Pointer<*mut c_int> = Pointer::empty(
+    // Not a real symbol name.
+    b"cls_demoframecount\0",
+);
 pub static cls_demos: Pointer<*mut client_static_s_demos> = Pointer::empty(
     // Not a real symbol name.
     b"cls_demos\0",
@@ -878,9 +886,11 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &ClientDLL_Init,
     &ClientDLL_DrawTransparentTriangles,
     &cl,
+    &cl_stats,
     &cl_viewent,
     &cl_viewent_viewmodel,
     &cls,
+    &cls_demoframecount,
     &cls_demos,
     &Cmd_AddMallocCommand,
     &Cmd_Argc,
@@ -1341,8 +1351,10 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
         pointer.set(marker, ptr);
     }
 
+    cl_stats.set(marker, cl.offset(marker, 174892));
     cl_viewent.set(marker, cl.offset(marker, 1717500));
     cl_viewent_viewmodel.set(marker, cl_viewent.offset(marker, 2888));
+    cls_demoframecount.set(marker, cls.offset(marker, 16776));
     cls_demos.set(marker, cls.offset(marker, 15960));
     frametime_remainder.set(marker, CL_Move.by_offset(marker, 452));
     idum.set(marker, ran1.by_offset(marker, 2));
@@ -1407,6 +1419,13 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
     match ptr.pattern_index(marker) {
         // 6153
         Some(0) => frametime_remainder.set(marker, ptr.by_offset(marker, 451)),
+        _ => (),
+    }
+
+    let ptr = &CL_PlayDemo_f;
+    match ptr.pattern_index(marker) {
+        // 8684
+        Some(0) => cls_demoframecount.set(marker, ptr.by_offset(marker, 735)),
         _ => (),
     }
 
@@ -1601,6 +1620,15 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
                 ptr.by_offset(marker, 395)
                     .and_then(|ptr| NonNull::new(ptr.as_ptr().sub(68))),
             );
+        }
+        _ => (),
+    }
+
+    let ptr = &R_DrawViewModel;
+    match ptr.pattern_index(marker) {
+        // 8684
+        Some(0) => {
+            cl_stats.set(marker, ptr.by_offset(marker, 129));
         }
         _ => (),
     }
@@ -2171,7 +2199,9 @@ pub mod exported {
             };
 
             if rv != 0 {
-                capture::time_passed(marker);
+                if capture_skip_non_gameplay::should_record_current_frame(marker) {
+                    capture::time_passed(marker);
+                }
 
                 tas_optimizer::update_client_connection_condition(marker);
                 tas_optimizer::maybe_receive_messages_from_remote_server(marker);
@@ -2188,6 +2218,8 @@ pub mod exported {
     pub unsafe extern "C" fn my_CL_Disconnect() {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
+
+            capture_skip_non_gameplay::on_cl_disconnect(marker);
 
             if !capture_video_per_demo::on_cl_disconnect(marker) {
                 capture::on_cl_disconnect(marker);
