@@ -393,11 +393,20 @@ fn norefresh_until_stop_frame_frame_idx(marker: MainThreadMarker, editor: &Edito
 }
 
 fn set_effective_norefresh_until_stop_frame(marker: MainThreadMarker, editor: &Editor) {
-    // Very sad
-    let value = match editor.branch().frames.len().checked_sub(1) {
-        Some(val) => val.saturating_sub(norefresh_until_stop_frame_frame_idx(marker, editor)),
-        None => 0,
-    };
+    let stop_frame = norefresh_until_stop_frame_frame_idx(marker, editor);
+
+    if stop_frame == 0 {
+        // very rare and unusual case where we set stop frame to 0
+        // also BunnymodXT does not reset the override value for some reasons
+        unsafe {
+            bxt::BXT_TAS_STUDIO_NOREFRESH_OVERRIDE.get(marker)(
+                bxt::BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES.get(marker)(),
+            )
+        };
+        return;
+    }
+
+    let value = (editor.branch().frames.len() - 1).saturating_sub(stop_frame);
 
     unsafe { bxt::BXT_TAS_STUDIO_NOREFRESH_OVERRIDE.get(marker)(value as i32) };
 }
