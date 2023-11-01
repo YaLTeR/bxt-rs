@@ -727,6 +727,10 @@ pub static SCR_DrawLoading: Pointer<unsafe extern "C" fn()> = Pointer::empty_pat
 pub static scr_fov_value: Pointer<*mut c_float> = Pointer::empty(b"scr_fov_value\0");
 pub static shm: Pointer<*mut *mut dma_t> = Pointer::empty(b"shm\0");
 pub static sv: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
+pub static sv_edicts: Pointer<*mut *mut edict_s> = Pointer::empty(
+    // Not a real symbol name.
+    b"sv_edicts\0",
+);
 pub static svs: Pointer<*mut server_static_s> = Pointer::empty(b"svs\0");
 pub static sv_areanodes: Pointer<*mut c_void> = Pointer::empty(b"sv_areanodes\0");
 pub static SV_AddLinksToPM: Pointer<unsafe extern "C" fn(*mut c_void, *const [f32; 3])> =
@@ -999,6 +1003,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &scr_fov_value,
     &shm,
     &sv,
+    &sv_edicts,
     &svs,
     &sv_areanodes,
     &SV_AddLinksToPM,
@@ -1421,6 +1426,7 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
     ran1_iy.set(marker, ran1.by_offset(marker, 13));
     ran1_iv.set(marker, ran1.by_offset(marker, 116));
     client_s_edict_offset.set(marker, Some(19076));
+    sv_edicts.set(marker, sv.offset(marker, 244824));
 
     for pointer in POINTERS {
         pointer.log(marker);
@@ -1611,12 +1617,14 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 6153
         Some(0) => {
             sv.set(marker, ptr.by_offset(marker, 19));
+            sv_edicts.set(marker, sv.offset(marker, 0x3bc60));
             cls.set(marker, ptr.by_offset(marker, 69));
             Con_Printf.set_if_empty(marker, ptr.by_relative_call(marker, 33));
         }
         // CoF-5936
         Some(1) => {
             sv.set(marker, ptr.by_offset(marker, 50));
+            sv_edicts.set(marker, sv.offset(marker, 0x52160));
             cls.set(marker, ptr.by_offset(marker, 105));
             Con_Printf.set_if_empty(marker, ptr.by_relative_call(marker, 34));
         }

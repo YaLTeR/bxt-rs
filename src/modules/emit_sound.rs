@@ -36,6 +36,7 @@ impl Module for EmitSound {
             && engine::S_StopSound.is_set(marker)
             && engine::S_PrecacheSound.is_set(marker)
             && engine::listener_origin.is_set(marker)
+            && engine::sv_edicts.is_set(marker)
     }
 }
 
@@ -120,34 +121,36 @@ fn emit_sound(marker: MainThreadMarker, sound: String, channel: i32) {
 }
 
 fn emit_sound_full(marker: MainThreadMarker, info: SoundInfo) {
-    if let Some(player) = unsafe { engine::player_edict(marker) } {
-        let entity = unsafe { player.as_ptr().add(info.from as usize).as_mut() };
+    let entity = unsafe {
+        (*engine::sv_edicts.get(marker))
+            .add(info.from as usize)
+            .as_mut()
+    };
 
-        if entity.is_none() {
-            return;
-        }
-
-        let entity = entity.unwrap();
-        let binding = CString::new(info.sound).unwrap();
-        let sound = binding.as_ptr();
-
-        unsafe {
-            // TODO: precache the sound so it can play any sound like dynamic option.
-            engine::S_PrecacheSound.get(marker)(sound);
-
-            engine::SV_StartSound.get(marker)(
-                info.to,
-                entity,
-                info.channel,
-                sound,
-                // [0,255]
-                (info.volume * 255.).round() as i32,
-                info.attenuation,
-                info.flag,
-                info.pitch,
-            );
-        };
+    if entity.is_none() {
+        return;
     }
+
+    let entity = entity.unwrap();
+    let binding = CString::new(info.sound).unwrap();
+    let sound = binding.as_ptr();
+
+    unsafe {
+        // TODO: precache the sound so it can play any sound like dynamic option.
+        engine::S_PrecacheSound.get(marker)(sound);
+
+        engine::SV_StartSound.get(marker)(
+            info.to,
+            entity,
+            info.channel,
+            sound,
+            // [0,255]
+            (info.volume * 255.).round() as i32,
+            info.attenuation,
+            info.flag,
+            info.pitch,
+        );
+    };
 }
 
 static BXT_EMIT_SOUND_DYNAMIC: Command = Command::new(
@@ -166,39 +169,39 @@ fn emit_sound_dynamic(marker: MainThreadMarker, sound: String, channel: i32) {
 }
 
 fn emit_sound_dynamic_full(marker: MainThreadMarker, info: SoundInfo) {
-    if let Some(player) = unsafe { engine::player_edict(marker) } {
-        let origin = unsafe {
-            if info.to == 0 {
-                // It does this to have the sound follow player's vieworg rather than origin.
-                *engine::listener_origin.get(marker)
-            } else {
-                let to = player.as_ptr().add(info.to as usize).as_ref();
+    let origin = unsafe {
+        if info.to == 0 {
+            // It does this to have the sound follow player's vieworg rather than origin.
+            *engine::listener_origin.get(marker)
+        } else {
+            let to = (*engine::sv_edicts.get(marker))
+                .add(info.to as usize)
+                .as_ref();
 
-                if to.is_none() {
-                    return;
-                }
-
-                to.unwrap().v.origin
+            if to.is_none() {
+                return;
             }
-        };
 
-        let binding = CString::new(info.sound).unwrap();
-        let sound = binding.as_ptr();
-        let precache_result = unsafe { engine::S_PrecacheSound.get(marker)(sound) };
+            to.unwrap().v.origin
+        }
+    };
 
-        unsafe {
-            engine::S_StartDynamicSound.get(marker)(
-                info.from,
-                info.channel,
-                precache_result,
-                origin.as_ptr(),
-                info.volume,
-                info.attenuation,
-                info.flag,
-                info.pitch,
-            )
-        };
-    }
+    let binding = CString::new(info.sound).unwrap();
+    let sound = binding.as_ptr();
+    let precache_result = unsafe { engine::S_PrecacheSound.get(marker)(sound) };
+
+    unsafe {
+        engine::S_StartDynamicSound.get(marker)(
+            info.from,
+            info.channel,
+            precache_result,
+            origin.as_ptr(),
+            info.volume,
+            info.attenuation,
+            info.flag,
+            info.pitch,
+        )
+    };
 }
 
 static BXT_STOP_SOUND_EXCEPT_CHANNELS: Command = Command::new(
