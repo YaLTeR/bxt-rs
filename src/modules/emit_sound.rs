@@ -121,17 +121,21 @@ fn emit_sound(marker: MainThreadMarker, sound: String, channel: i32) {
 }
 
 fn emit_sound_full(marker: MainThreadMarker, info: SoundInfo) {
+    if info.from >= unsafe { *engine::sv_num_edicts.get(marker) } {
+        return;
+    }
+
     let entity = unsafe {
         (*engine::sv_edicts.get(marker))
             .add(info.from as usize)
             .as_mut()
+            .unwrap()
     };
 
-    if entity.is_none() {
+    if entity.free != 0 {
         return;
     }
 
-    let entity = entity.unwrap();
     let binding = CString::new(info.sound).unwrap();
     let sound = binding.as_ptr();
 
@@ -174,15 +178,20 @@ fn emit_sound_dynamic_full(marker: MainThreadMarker, info: SoundInfo) {
             // It does this to have the sound follow player's vieworg rather than origin.
             *engine::listener_origin.get(marker)
         } else {
-            let to = (*engine::sv_edicts.get(marker))
-                .add(info.to as usize)
-                .as_ref();
-
-            if to.is_none() {
+            if info.from >= *engine::sv_num_edicts.get(marker) {
                 return;
             }
 
-            to.unwrap().v.origin
+            let to = (*engine::sv_edicts.get(marker))
+                .add(info.to as usize)
+                .as_ref()
+                .unwrap();
+
+            if to.free != 0 {
+                return;
+            }
+
+            to.v.origin
         }
     };
 

@@ -731,6 +731,10 @@ pub static sv_edicts: Pointer<*mut *mut edict_s> = Pointer::empty(
     // Not a real symbol name.
     b"sv_edicts\0",
 );
+pub static sv_num_edicts: Pointer<*mut c_int> = Pointer::empty(
+    // Not a real symbol name.
+    b"sv_num_edicts\0",
+);
 pub static svs: Pointer<*mut server_static_s> = Pointer::empty(b"svs\0");
 pub static sv_areanodes: Pointer<*mut c_void> = Pointer::empty(b"sv_areanodes\0");
 pub static SV_AddLinksToPM: Pointer<unsafe extern "C" fn(*mut c_void, *const [f32; 3])> =
@@ -1004,6 +1008,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &shm,
     &sv,
     &sv_edicts,
+    &sv_num_edicts,
     &svs,
     &sv_areanodes,
     &SV_AddLinksToPM,
@@ -1427,6 +1432,7 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
     ran1_iv.set(marker, ran1.by_offset(marker, 116));
     client_s_edict_offset.set(marker, Some(19076));
     sv_edicts.set(marker, sv.offset(marker, 244824));
+    sv_num_edicts.set(marker, sv.offset(marker, 0x3bc50));
 
     for pointer in POINTERS {
         pointer.log(marker);
@@ -1618,6 +1624,7 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(0) => {
             sv.set(marker, ptr.by_offset(marker, 19));
             sv_edicts.set(marker, sv.offset(marker, 0x3bc60));
+            sv_num_edicts.set(marker, sv.offset(marker, 0x3bc58));
             cls.set(marker, ptr.by_offset(marker, 69));
             Con_Printf.set_if_empty(marker, ptr.by_relative_call(marker, 33));
         }
@@ -1625,6 +1632,7 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(1) => {
             sv.set(marker, ptr.by_offset(marker, 50));
             sv_edicts.set(marker, sv.offset(marker, 0x52160));
+            sv_num_edicts.set(marker, sv.offset(marker, 0x52158));
             cls.set(marker, ptr.by_offset(marker, 105));
             Con_Printf.set_if_empty(marker, ptr.by_relative_call(marker, 34));
         }
