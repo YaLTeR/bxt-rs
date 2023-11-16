@@ -388,24 +388,18 @@ fn convert_hltas_from_bxt_tas_new(marker: MainThreadMarker, mut path: String) {
 }
 
 fn norefresh_until_stop_frame_frame_idx(marker: MainThreadMarker, editor: &Editor) -> usize {
-    let norefresh_last_frames = unsafe { bxt::BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES.get(marker)() };
-    (editor.stop_frame() as usize).saturating_sub(norefresh_last_frames as usize)
+    let norefresh_last_frames =
+        unsafe { bxt::BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES.get(marker)() } as usize;
+
+    if editor.stop_frame() == 0 {
+        (editor.branch().frames.len() - 1).saturating_sub(norefresh_last_frames)
+    } else {
+        (editor.stop_frame() as usize).saturating_sub(norefresh_last_frames)
+    }
 }
 
 fn set_effective_norefresh_until_stop_frame(marker: MainThreadMarker, editor: &Editor) {
     let stop_frame = norefresh_until_stop_frame_frame_idx(marker, editor);
-
-    if stop_frame == 0 {
-        // very rare and unusual case where we set stop frame to 0
-        // also BunnymodXT does not reset the override value for some reasons
-        unsafe {
-            bxt::BXT_TAS_STUDIO_NOREFRESH_OVERRIDE.get(marker)(
-                bxt::BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES.get(marker)(),
-            )
-        };
-        return;
-    }
-
     let value = (editor.branch().frames.len() - 1).saturating_sub(stop_frame);
 
     unsafe { bxt::BXT_TAS_STUDIO_NOREFRESH_OVERRIDE.get(marker)(value as i32) };
