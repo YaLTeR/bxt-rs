@@ -23,6 +23,10 @@ pub static BXT_IS_TAS_EDITOR_ACTIVE: Pointer<unsafe extern "C" fn() -> c_int> =
 pub static BXT_TAS_NEW: Pointer<
     unsafe extern "C" fn(*const c_char, *const c_char, *const c_char, c_int),
 > = Pointer::empty(b"bxt_tas_new\0");
+pub static BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES: Pointer<unsafe extern "C" fn() -> c_int> =
+    Pointer::empty(b"bxt_tas_norefresh_until_last_frames\0");
+pub static BXT_TAS_STUDIO_NOREFRESH_OVERRIDE: Pointer<unsafe extern "C" fn(c_int)> =
+    Pointer::empty(b"bxt_tas_studio_norefresh_override\0");
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &BXT_ON_TAS_PLAYBACK_FRAME,
@@ -31,6 +35,8 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &BXT_TAS_LOAD_SCRIPT_FROM_STRING,
     &BXT_IS_TAS_EDITOR_ACTIVE,
     &BXT_TAS_NEW,
+    &BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES,
+    &BXT_TAS_STUDIO_NOREFRESH_OVERRIDE,
 ];
 
 #[cfg(unix)]

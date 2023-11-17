@@ -120,6 +120,8 @@ impl Module for TasStudio {
             && bxt::BXT_ON_TAS_PLAYBACK_FRAME.is_set(marker)
             && bxt::BXT_ON_TAS_PLAYBACK_STOPPED.is_set(marker)
             && bxt::BXT_TAS_NEW.is_set(marker)
+            && bxt::BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES.is_set(marker)
+            && bxt::BXT_TAS_STUDIO_NOREFRESH_OVERRIDE.is_set(marker)
             && TriangleDrawing.is_enabled(marker)
             && Commands.is_enabled(marker)
             && PlayerMovementTracing.is_enabled(marker)
@@ -385,6 +387,24 @@ fn convert_hltas_from_bxt_tas_new(marker: MainThreadMarker, mut path: String) {
     )
 }
 
+fn norefresh_until_stop_frame_frame_idx(marker: MainThreadMarker, editor: &Editor) -> usize {
+    let norefresh_last_frames =
+        unsafe { bxt::BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES.get(marker)() } as usize;
+
+    if editor.stop_frame() == 0 {
+        (editor.branch().frames.len() - 1).saturating_sub(norefresh_last_frames)
+    } else {
+        (editor.stop_frame() as usize).saturating_sub(norefresh_last_frames)
+    }
+}
+
+fn set_effective_norefresh_until_stop_frame(marker: MainThreadMarker, editor: &Editor) {
+    let stop_frame = norefresh_until_stop_frame_frame_idx(marker, editor);
+    let value = (editor.branch().frames.len() - 1).saturating_sub(stop_frame);
+
+    unsafe { bxt::BXT_TAS_STUDIO_NOREFRESH_OVERRIDE.get(marker)(value as i32) };
+}
+
 static BXT_TAS_STUDIO_REPLAY: Command = Command::new(
     b"bxt_tas_studio_replay\0",
     handler!(
@@ -402,9 +422,11 @@ fn replay(marker: MainThreadMarker) {
             mut editor, bridge, ..
         } => {
             editor.cancel_ongoing_adjustments();
+            set_effective_norefresh_until_stop_frame(marker, &editor);
             State::PreparingToPlayToEditor(editor, bridge, true)
         }
         State::PlayingToEditor { editor, bridge, .. } => {
+            set_effective_norefresh_until_stop_frame(marker, &editor);
             State::PreparingToPlayToEditor(editor, bridge, true)
         }
         other => other,
@@ -1767,6 +1789,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     editor.set_smooth_small_window_multiplier(
         BXT_TAS_STUDIO_SMOOTH_SMALL_WINDOW_MULTIPLIER.as_f32(marker),
     );
+    editor.set_norefresh_until_stop_frame(norefresh_until_stop_frame_frame_idx(marker, editor));
 
     // SAFETY: if we have access to TriangleApi, it's safe to do player tracing too.
     let tracer = unsafe { Tracer::new(marker, true) }.unwrap();
