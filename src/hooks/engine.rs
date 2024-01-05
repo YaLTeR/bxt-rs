@@ -2274,7 +2274,9 @@ pub mod exported {
             };
 
             if rv != 0 {
-                capture::time_passed(marker);
+                if capture_skip_non_gameplay::should_record_current_frame(marker) {
+                    capture::time_passed(marker);
+                }
 
                 tas_optimizer::update_client_connection_condition(marker);
                 tas_optimizer::maybe_receive_messages_from_remote_server(marker);
