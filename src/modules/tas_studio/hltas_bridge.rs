@@ -84,6 +84,8 @@ fn write_thread(
             }
             Some(Request::Stop) => break,
             Some(Request::Write(script)) => {
+                drop(request);
+
                 let file = match File::create(&tmp_path) {
                     Ok(file) => file,
                     Err(err) => {
@@ -105,6 +107,8 @@ fn write_thread(
                 if let Err(err) = fs::rename(&tmp_path, &path) {
                     warn!("Error renaming temp .hltas to bridged file: {err:?}");
                 }
+
+                request = lock.lock().unwrap();
             }
         }
     }
