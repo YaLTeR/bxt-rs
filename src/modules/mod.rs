@@ -34,6 +34,7 @@ pub mod force_fov;
 pub mod help;
 pub mod hud;
 pub mod hud_scale;
+pub mod lightstyle;
 pub mod novis;
 pub mod player_movement_tracing;
 pub mod remote_forbid;
@@ -100,6 +101,7 @@ pub static MODULES: &[&dyn Module] = &[
     &help::Help,
     &hud::Hud,
     &hud_scale::HudScale,
+    &lightstyle::LightStyle,
     &novis::NoVis,
     &player_movement_tracing::PlayerMovementTracing,
     &remote_forbid::RemoteForbid,

@@ -108,6 +108,15 @@ pub static CL_Move: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     ]),
     my_CL_Move as _,
 );
+pub static CL_Parse_LightStyle: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"CL_Parse_LightStyle\0",
+    // To find, search for "svc_lightstyle > MAX_LIGHTSTYLES"
+    Patterns(&[
+        // 8684
+        pattern!(56 57 E8 ?? ?? ?? ?? 8B ?? 83 ?? ?? ?? ?? 68),
+    ]),
+    my_CL_Parse_LightStyle as _,
+);
 pub static CL_PlayDemo_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"CL_PlayDemo_f\0",
     // To find, search for "playdemo <demoname> <replayspeed>: plays a demo".
@@ -908,7 +917,9 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &CL_Disconnect,
     &cl_funcs,
     &CL_GameDir_f,
+    &cl_lightstyle,
     &CL_Move,
+    &CL_Parse_LightStyle,
     &CL_PlayDemo_f,
     &CL_ViewDemo_f,
     &ClientDLL_Init,
@@ -1132,6 +1143,12 @@ pub struct client_static_s_demos {
     pub demos: [[c_char; 16]; 32],
     pub demorecording: c_int,
     pub demoplayback: c_int,
+}
+
+#[repr(C)]
+pub struct lightstyle_t {
+    pub length: c_int,
+    pub map: [c_char; 64],
 }
 
 #[repr(C)]
@@ -1439,6 +1456,13 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(0) => com_gamedir.set(marker, ptr.by_offset(marker, 11)),
         // CoF-5936
         Some(1) => com_gamedir.set(marker, ptr.by_offset(marker, 14)),
+        _ => (),
+    }
+
+    let ptr = &CL_Parse_LightStyle;
+    match ptr.pattern_index(marker) {
+        // 8684
+        Some(0) => cl_lightstyle.set(marker, ptr.by_offset(marker, 75)),
         _ => (),
     }
 
@@ -2419,6 +2443,17 @@ pub mod exported {
             tas_recording::on_cl_move(marker);
 
             CL_Move.get(marker)();
+        })
+    }
+
+    #[export_name = "CL_Parse_LightStyle"]
+    pub unsafe extern "C" fn my_CL_Parse_LightStyle() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            CL_Parse_LightStyle.get(marker)();
+
+            lightstyle::apply_from_cvars(marker);
         })
     }
 
