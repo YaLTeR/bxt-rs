@@ -99,6 +99,7 @@ pub static CL_GameDir_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
     ]),
     null_mut(),
 );
+pub static cl_lightstyle: Pointer<*mut [lightstyle_t; 64]> = Pointer::empty(b"cl_lightstyle\0");
 pub static CL_Move: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"CL_Move\0",
     // To find, search for "Client Move".
