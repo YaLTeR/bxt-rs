@@ -51,7 +51,7 @@ pub unsafe fn should_record_current_frame(marker: MainThreadMarker) -> bool {
         *capture::STATE.borrow_mut(marker),
         capture::State::Recording(_)
     ) {
-        return true;
+        return false;
     };
 
     let skip_frames = BXT_CAP_SKIP_NON_GAMEPLAY_FRAMES.as_u64(marker);
