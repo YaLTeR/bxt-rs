@@ -47,13 +47,20 @@ pub unsafe fn should_record_current_frame(marker: MainThreadMarker) -> bool {
         return true;
     }
 
+    if !matches!(
+        *capture::STATE.borrow_mut(marker),
+        capture::State::Recording(_)
+    ) {
+        return true;
+    };
+
     let skip_frames = BXT_CAP_SKIP_NON_GAMEPLAY_FRAMES.as_u64(marker);
 
     if skip_frames == 0 {
         return true;
     }
 
-    if (&*engine::cls.get(marker)).state != 5 {
+    if (*engine::cls.get(marker)).state != 5 {
         // If state is not 5, skip frame.
         // State 4 is still loading.
         return false;
@@ -61,8 +68,8 @@ pub unsafe fn should_record_current_frame(marker: MainThreadMarker) -> bool {
 
     // demoplayback is updated to 1 after state 4 is done.
     // The current implementation will skip all the frames until some viewmodel values are set.
-    if (&*engine::cls_demos.get(marker)).demoplayback == 1 {
-        // For some reasons, the "true" first frame will be catched in this condition
+    if (*engine::cls_demos.get(marker)).demoplayback == 1 {
+        // For some reasons, the "true" first frame will be caught in this condition
         // despite having no viewmodel shown in demo.
         // So it does technically capture all non-loading frames.
         if (*engine::cl_stats.get(marker))[2] == 0 {

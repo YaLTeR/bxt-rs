@@ -200,13 +200,13 @@ pub enum SoundCaptureMode {
 }
 
 #[allow(clippy::large_enum_variant)]
-enum State {
+pub enum State {
     Idle,
     Starting(String),
     Recording(Recorder),
 }
 
-static STATE: MainThreadRefCell<State> = MainThreadRefCell::new(State::Idle);
+pub static STATE: MainThreadRefCell<State> = MainThreadRefCell::new(State::Idle);
 
 static BXT_CAP_START: Command = Command::new(
     b"bxt_cap_start\0",
