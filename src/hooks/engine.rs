@@ -2454,7 +2454,7 @@ pub mod exported {
 
             CL_Parse_LightStyle.get(marker)();
 
-            lightstyle::apply_from_cvars(marker);
+            lightstyle::on_cl_parse_lightstyle(marker);
         })
     }
 

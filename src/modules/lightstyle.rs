@@ -66,7 +66,7 @@ static BXT_LIGHTSTYLE_APPLY: Command = Command::new(
     ),
 );
 
-pub fn apply_from_cvars(marker: MainThreadMarker) {
+fn apply_from_cvars(marker: MainThreadMarker) {
     if !BXT_LIGHTSTYLE_CUSTOM.to_string(marker).is_empty() {
         // 0 and "m" is default normal
         let s = BXT_LIGHTSTYLE_CUSTOM.to_string(marker);
@@ -110,5 +110,14 @@ fn apply(marker: MainThreadMarker, index: u64, lightinfo: &str) {
         cl_lightstyle[index as usize].map[..lightinfo.len()]
             .copy_from_slice(lightinfo.as_slice_of().unwrap());
         cl_lightstyle[index as usize].length = lightinfo.len() as i32;
+    }
+}
+
+pub fn on_cl_parse_lightstyle(marker: MainThreadMarker) {
+    // It is possible that the map has a preferred light style.
+    // Then, if we don't have any thing for our cvar, which is style is normal
+    // and no custom. THen we just don't do anything.
+    if BXT_LIGHTSTYLE.as_u64(marker) != 0 || !BXT_LIGHTSTYLE_CUSTOM.to_string(marker).is_empty() {
+        apply_from_cvars(marker);
     }
 }
