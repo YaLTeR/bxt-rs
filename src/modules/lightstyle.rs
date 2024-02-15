@@ -131,10 +131,12 @@ pub fn on_cl_parse_lightstyle(marker: MainThreadMarker) {
     // Then, if we don't have any thing for our cvar, which is style is normal
     // and no custom. THen we just don't do anything.
     if BXT_LIGHTSTYLE.as_u64(marker) != 0 || !BXT_LIGHTSTYLE_CUSTOM.to_string(marker).is_empty() {
-        let cl_lightstyle = &mut unsafe { *engine::cl_lightstyle.get(marker) };
+        {
+            let cl_lightstyle = &mut unsafe { *engine::cl_lightstyle.get(marker) };
+            // More often a map's default lightstyle will be empty.
+            *ORIGINAL_LIGHTSTYLE.borrow_mut(marker) = cl_lightstyle[0].map.to_vec();
+        }
 
-        // More often a map's default lightstyle will be empty.
-        *ORIGINAL_LIGHTSTYLE.borrow_mut(marker) = cl_lightstyle[0].map.to_vec();
         apply_from_cvars(marker);
     }
 }
