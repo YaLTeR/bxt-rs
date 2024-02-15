@@ -1147,6 +1147,7 @@ pub struct client_static_s_demos {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct lightstyle_t {
     pub length: c_int,
     pub map: [c_char; 64],

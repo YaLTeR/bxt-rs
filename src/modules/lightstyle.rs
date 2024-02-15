@@ -30,7 +30,7 @@ impl Module for LightStyle {
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
-        engine::cl_lightstyle.is_set(marker) || engine::CL_Parse_LightStyle.is_set(marker)
+        engine::cl_lightstyle.is_set(marker) && engine::CL_Parse_LightStyle.is_set(marker)
     }
 }
 
@@ -66,32 +66,37 @@ static BXT_LIGHTSTYLE_APPLY: Command = Command::new(
     ),
 );
 
+static ORIGINAL_LIGHTSTYLE: MainThreadRefCell<Vec<i8>> = MainThreadRefCell::new(vec![]);
+
 fn apply_from_cvars(marker: MainThreadMarker) {
-    if !BXT_LIGHTSTYLE_CUSTOM.to_string(marker).is_empty() {
+    let input = BXT_LIGHTSTYLE_CUSTOM.to_string(marker);
+
+    if !input.is_empty() {
         // 0 and "m" is default normal
-        let s = BXT_LIGHTSTYLE_CUSTOM.to_string(marker);
-        let mut args = s.split_ascii_whitespace();
-        let index = args.next().unwrap_or("0").parse().unwrap_or(0);
+        let mut args = input.split_ascii_whitespace();
+        let index = args.next().and_then(|x| x.parse().ok()).unwrap_or(0);
         let lightinfo = args.next().unwrap_or("m");
+
         apply(marker, index, lightinfo);
     } else {
-        apply_preset(marker, BXT_LIGHTSTYLE.as_u64(marker))
+        apply_preset(marker, BXT_LIGHTSTYLE.as_u64(marker) as usize)
     }
 }
 
-fn apply_preset(marker: MainThreadMarker, preset: u64) {
+fn apply_preset(marker: MainThreadMarker, preset: usize) {
     let lightinfo = match preset {
-        0 => "m",
+        0 => "",
         1 => "z",
         2 => "#",
         3 => "a",
         4 => "g", // from someone else's personal preference
-        _ => "m",
+        _ => "m", // m is the default normal lighting
     };
+
     apply(marker, 0, lightinfo);
 }
 
-fn apply(marker: MainThreadMarker, index: u64, lightinfo: &str) {
+fn apply(marker: MainThreadMarker, index: usize, lightinfo: &str) {
     if !LightStyle.is_enabled(marker) {
         return;
     }
@@ -106,10 +111,18 @@ fn apply(marker: MainThreadMarker, index: u64, lightinfo: &str) {
 
     unsafe {
         let cl_lightstyle = &mut *engine::cl_lightstyle.get(marker);
+        let original = ORIGINAL_LIGHTSTYLE.borrow_mut(marker);
 
-        cl_lightstyle[index as usize].map[..lightinfo.len()]
-            .copy_from_slice(lightinfo.as_slice_of().unwrap());
-        cl_lightstyle[index as usize].length = lightinfo.len() as i32;
+        let slice: &[i8] = if lightinfo.is_empty() && !(*original).is_empty() && index == 0 {
+            (*original).as_slice()
+        } else {
+            lightinfo.as_slice_of().unwrap()
+        };
+
+        let slice_len = slice.len();
+
+        cl_lightstyle[index].map[..slice_len].copy_from_slice(slice);
+        cl_lightstyle[index].length = slice_len as i32;
     }
 }
 
@@ -118,6 +131,10 @@ pub fn on_cl_parse_lightstyle(marker: MainThreadMarker) {
     // Then, if we don't have any thing for our cvar, which is style is normal
     // and no custom. THen we just don't do anything.
     if BXT_LIGHTSTYLE.as_u64(marker) != 0 || !BXT_LIGHTSTYLE_CUSTOM.to_string(marker).is_empty() {
+        let cl_lightstyle = &mut unsafe { *engine::cl_lightstyle.get(marker) };
+
+        // More often a map's default lightstyle will be empty.
+        *ORIGINAL_LIGHTSTYLE.borrow_mut(marker) = cl_lightstyle[0].map.to_vec();
         apply_from_cvars(marker);
     }
 }
