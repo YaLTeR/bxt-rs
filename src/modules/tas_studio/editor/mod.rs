@@ -26,8 +26,10 @@ use self::utils::{
     bulk_idx_and_repeat_at_frame, join_lines, line_first_frame_idx, line_idx_and_repeat_at_frame,
     FrameBulkExt,
 };
+use super::marker::MainThreadMarker;
 use super::remote::{AccurateFrame, PlayRequest};
-use crate::hooks::sdl::MouseState;
+use crate::hooks::sdl::{self, MouseState};
+use crate::hooks::{bxt, client, engine};
 use crate::modules::tas_optimizer::simulator::Simulator;
 use crate::modules::triangle_drawing::triangle_api::{Primitive, RenderMode};
 use crate::modules::triangle_drawing::TriangleApi;
@@ -139,6 +141,13 @@ pub struct Editor {
     /// Adjustment to insert a camera line.
     insert_camera_line_adjustment: Option<InsertCameraLineAdjustment>,
 
+    /// Adjustment to a camera line depending on the context.
+    ///
+    /// Adjusts the yaw of `target_yaw x` line.
+    ///
+    /// Adjusts the change mode and final value of `change x to x over x` line.
+    camera_view_adjustment: Option<CameraViewAdjustment>,
+
     /// Smoothing window size in seconds.
     smooth_window_s: f32,
     /// Smoothing small window size in seconds.
@@ -193,8 +202,8 @@ struct ExtraCameraEditorFrameData {
     smoothing_input_region: Option<(usize, usize)>,
     /// Index into `script.lines` of a change frame that ends on this frame.
     change_line_that_ends_here: Vec<usize>,
-    /// Index of a frame where the change line which starts on this frame ends.
-    change_ends_at: Vec<usize>,
+    /// Index of a change line and a frame where the frame is end frame of change line.
+    change_ends_at: Vec<(usize, usize)>,
     /// Index into `script.lines` of a camera frame that starts or ends on this frame.
     camera_line_that_starts_or_ends_here: Vec<usize>,
     /// Index into `script.lines` of a camera frame that starts on this frame.
@@ -294,6 +303,23 @@ struct InsertCameraLineAdjustment {
     camera_line_idx: usize,
     initial_yaw: f32,
     did_split: bool,
+}
+
+/// Camera view edit modes.
+///
+/// `Alt` adjusts differently for different kinds of line.
+#[derive(Debug, Clone, Copy)]
+pub enum CameraViewAdjustmentMode {
+    Yaw,
+    Pitch,
+    Alt,
+}
+
+/// Data for handling camera view adjustment.
+#[derive(Debug, Clone, Copy)]
+pub struct CameraViewAdjustment {
+    pub mode: CameraViewAdjustmentMode,
+    camera_line_idx: usize,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -415,6 +441,7 @@ impl Editor {
             first_shown_frame_idx: 0,
             hovered_line_idx: None,
             insert_camera_line_adjustment: None,
+            camera_view_adjustment: None,
             smooth_window_s: 0.15,
             smooth_small_window_s: 0.03,
             smooth_small_window_multiplier: 3.,
@@ -480,6 +507,10 @@ impl Editor {
 
     pub fn undo_log_len(&self) -> usize {
         self.undo_log.len()
+    }
+
+    pub fn camera_view_adjustment(&self) -> Option<CameraViewAdjustment> {
+        self.camera_view_adjustment
     }
 
     pub fn set_in_camera_editor(&mut self, value: bool) {
@@ -687,7 +718,7 @@ impl Editor {
                             .push(line_idx);
                         branch.extra_cam[frame_idx]
                             .change_ends_at
-                            .push(end_frame_idx);
+                            .push((line_idx, end_frame_idx));
                         branch.extra_cam[end_frame_idx]
                             .camera_line_that_starts_or_ends_here
                             .push(line_idx);
@@ -726,6 +757,7 @@ impl Editor {
             || self.side_strafe_yawspeed_adjustment.is_some()
             || self.adjacent_side_strafe_yawspeed_adjustment.is_some()
             || self.insert_camera_line_adjustment.is_some()
+            || self.camera_view_adjustment.is_some()
     }
 
     /// Updates the editor state.
@@ -750,6 +782,7 @@ impl Editor {
         self.tick_adjacent_side_strafe_yawspeed_adjustment(mouse, keyboard)?;
 
         self.tick_insert_camera_line_adjustment(mouse, keyboard)?;
+        self.tick_camera_view_adjustment(mouse, self.prev_mouse_state)?;
 
         // Predict any frames that need prediction.
         //
@@ -1226,6 +1259,75 @@ impl Editor {
                         camera_line_idx,
                         initial_yaw,
                         did_split: repeat != 0,
+                    });
+                }
+            }
+
+            if let Some(hovered_line_idx) = self.hovered_line_idx {
+                // For carmera editor camera line editing.
+                if mouse.buttons.is_right_down() && !self.prev_mouse_state.buttons.is_right_down() {
+                    // Mouse was released last frame so the adjustment cannot be active.
+                    assert!(self.camera_view_adjustment.is_none());
+
+                    // There are no other adjustments in the camera editor at the moment; and anyhow
+                    // when more are added, this condition should still be upheld.
+                    assert!(!self.is_any_adjustment_active());
+
+                    let line = &self.branch().branch.script.lines[hovered_line_idx];
+
+                    // Find the end frame of change line or camera line so we can change origin.
+                    // In case of change line we need to know the end frame.
+                    // Camera line we can just use the `line_first_frame_idx`.
+                    let line_first_frame_idx = line_first_frame_idx(self.script())
+                        .nth(hovered_line_idx)
+                        .expect("invalid line index");
+
+                    let change_line_end_frame_index = &self.branch().extra_cam
+                        [line_first_frame_idx]
+                        .change_ends_at
+                        .iter()
+                        .find(|(line_idx, _)| *line_idx == hovered_line_idx)
+                        .map(|(_, end_frame_idx)| *end_frame_idx);
+
+                    let end_frame_index =
+                        if let Some(change_line_end_frame_index) = change_line_end_frame_index {
+                            *change_line_end_frame_index
+                        } else {
+                            // So, for camera line, it is 1 off but not for the change line.
+                            // If anything crashes, it is this one.
+                            line_first_frame_idx - 1
+                        };
+
+                    // Enable mouse look so we can look around to have a good reference.
+                    enable_mouse_look();
+
+                    // Change origin to the position of the end of that line.
+                    let mut vieworg = self.branch().frames[end_frame_index].state.player.pos;
+
+                    vieworg[2] += 28.;
+                    if self.branch().frames[end_frame_index].state.player.ducking {
+                        vieworg[2] -= 16.;
+                    }
+
+                    change_origin(vieworg);
+
+                    // Figuring whether the line is generally changing pitch or yaw.
+                    let mode = match line {
+                        Line::VectorialStrafingConstraints(_) => CameraViewAdjustmentMode::Yaw,
+                        Line::Change(Change { target, .. }) => match target {
+                            ChangeTarget::Yaw
+                            | ChangeTarget::VectorialStrafingYaw
+                            | ChangeTarget::VectorialStrafingYawOffset => {
+                                CameraViewAdjustmentMode::Yaw
+                            }
+                            ChangeTarget::Pitch => CameraViewAdjustmentMode::Pitch,
+                        },
+                        _ => CameraViewAdjustmentMode::Alt,
+                    };
+
+                    self.camera_view_adjustment = Some(CameraViewAdjustment {
+                        mode,
+                        camera_line_idx: hovered_line_idx,
                     });
                 }
             }
@@ -1832,6 +1934,129 @@ impl Editor {
         Ok(())
     }
 
+    pub fn tick_camera_view_adjustment(
+        &mut self,
+        mouse: MouseState,
+        prev_mouse: MouseState,
+    ) -> eyre::Result<()> {
+        let Some(CameraViewAdjustment {
+            ref mut mode,
+            camera_line_idx,
+        }) = &mut self.camera_view_adjustment
+        else {
+            return Ok(());
+        };
+
+        // Switching line mode.
+        // Should be a click.
+        if mouse.buttons.is_left_down() && !prev_mouse.buttons.is_left_down() {
+            // Cycling
+            // Currently there is no `pitch` line...
+            *mode = match *mode {
+                CameraViewAdjustmentMode::Yaw => CameraViewAdjustmentMode::Pitch,
+                CameraViewAdjustmentMode::Pitch => CameraViewAdjustmentMode::Alt,
+                CameraViewAdjustmentMode::Alt => CameraViewAdjustmentMode::Yaw,
+            }
+        }
+
+        // Right mouse button hold means adjusting.
+        if mouse.buttons.is_right_down() {
+            // Keep looking around
+            return Ok(());
+        }
+
+        let branch = &mut self.branches[self.branch_idx];
+
+        let viewangles = get_viewangles();
+        let line = &mut branch.branch.script.lines[*camera_line_idx];
+
+        // Disable as soon as possible in case of failure or lock.
+        disable_mouse_look();
+
+        let mut buffer = Vec::new();
+        hltas::write::gen_line(&mut buffer, line)?;
+        let from = String::from_utf8(buffer)
+            .expect("Line serialization should never produce invalid UTF-8");
+
+        match line {
+            Line::VectorialStrafingConstraints(constraints) => match constraints {
+                // Since there is no `pitch` line,
+                // there won't be any attempts to change `target_yaw` into `pitch`.
+                // `target_yaw velocity_lock` will be changed to `target_yaw x`
+                VectorialStrafingConstraints::VelocityYawLocking { .. } => match mode {
+                    CameraViewAdjustmentMode::Yaw => {
+                        *constraints = VectorialStrafingConstraints::Yaw {
+                            yaw: viewangles[1],
+                            tolerance: 0.,
+                        };
+                    }
+                    CameraViewAdjustmentMode::Pitch => (),
+                    CameraViewAdjustmentMode::Alt => (),
+                },
+                VectorialStrafingConstraints::Yaw { yaw, .. } => {
+                    match mode {
+                        CameraViewAdjustmentMode::Yaw => *yaw = viewangles[1],
+                        CameraViewAdjustmentMode::Pitch => (),
+                        // Alt mode will change this to `target_yaw velocity_lock`.
+                        CameraViewAdjustmentMode::Alt => {
+                            *constraints =
+                                VectorialStrafingConstraints::VelocityYawLocking { tolerance: 0. };
+                        }
+                    }
+                }
+                _ => (),
+            },
+            Line::Change(Change {
+                target,
+                final_value,
+                ..
+            }) => {
+                match target {
+                    ChangeTarget::Yaw | ChangeTarget::VectorialStrafingYaw => match mode {
+                        CameraViewAdjustmentMode::Yaw => *final_value = viewangles[1],
+                        CameraViewAdjustmentMode::Pitch => {
+                            *target = ChangeTarget::Pitch;
+                            *final_value = viewangles[0];
+                        }
+                        CameraViewAdjustmentMode::Alt => (),
+                    },
+                    ChangeTarget::Pitch => match mode {
+                        CameraViewAdjustmentMode::Yaw => {
+                            // Pitch will always do `target_yaw` change.
+                            *target = ChangeTarget::VectorialStrafingYaw;
+                            *final_value = viewangles[1];
+                        }
+                        CameraViewAdjustmentMode::Pitch => *final_value = viewangles[0],
+                        CameraViewAdjustmentMode::Alt => (),
+                    },
+                    ChangeTarget::VectorialStrafingYawOffset => {
+                        if matches!(mode, CameraViewAdjustmentMode::Yaw) {
+                            *final_value = viewangles[1];
+                        }
+                    }
+                }
+            }
+            _ => (),
+        };
+
+        let mut buffer = Vec::new();
+        hltas::write::gen_line(&mut buffer, line)?;
+        let to = String::from_utf8(buffer)
+            .expect("Line serialization should never produce invalid UTF-8");
+
+        let op = Operation::Replace {
+            line_idx: *camera_line_idx,
+            from,
+            to,
+        };
+        self.apply_operation(op)?;
+
+        // Setting back to `None` to indicate finished operation.
+        self.camera_view_adjustment = None;
+
+        Ok(())
+    }
+
     pub fn cancel_ongoing_adjustments(&mut self) {
         if let Some(adjustment) = self.frame_count_adjustment.take() {
             let original_value = adjustment.original_value;
@@ -2027,6 +2252,11 @@ impl Editor {
 
             self.invalidate(curr_frame_idx);
         }
+
+        // Camera adjustment only takes effects after the key is released.
+        // So there is no need to add this.
+        // if let Some(CameraViewAdjustment { mode, starting_frame_idx, camera_line_idx }) =
+        // self.camera_view_adjustment.take() {}
     }
 
     /// Stores already-applied operation.
@@ -4055,6 +4285,33 @@ fn replace_multiple_params<'a>(
     let to = &new_script.lines[first_line_idx..new_one_past_last_line_idx];
 
     Some((first_line_idx, count, to))
+}
+
+fn enable_mouse_look() {
+    let marker = unsafe { MainThreadMarker::new() };
+    sdl::set_relative_mouse_mode(marker, true);
+    client::activate_mouse(marker, true);
+}
+
+fn disable_mouse_look() {
+    let marker = unsafe { MainThreadMarker::new() };
+    sdl::set_relative_mouse_mode(marker, false);
+    client::activate_mouse(marker, false);
+}
+
+fn get_viewangles() -> [f32; 3] {
+    let marker = unsafe { MainThreadMarker::new() };
+    let mut view_angles = [0.; 3];
+
+    unsafe { engine::hudGetViewAngles.get(marker)(&mut view_angles) };
+
+    view_angles
+}
+
+fn change_origin(origin: Vec3) {
+    let marker = unsafe { MainThreadMarker::new() };
+
+    unsafe { bxt::BXT_TAS_STUDIO_FREECAM_SET_ORIGIN.get(marker)(origin.into()) };
 }
 
 #[cfg(test)]

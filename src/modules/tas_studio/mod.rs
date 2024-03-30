@@ -38,6 +38,7 @@ use crate::handler;
 use crate::hooks::bxt::{OnTasPlaybackFrameData, BXT_IS_TAS_EDITOR_ACTIVE};
 use crate::hooks::engine::con_print;
 use crate::hooks::{bxt, client, engine, sdl};
+use crate::modules::tas_studio::editor::CameraViewAdjustmentMode;
 use crate::utils::*;
 
 pub struct TasStudio;
@@ -122,6 +123,7 @@ impl Module for TasStudio {
             && bxt::BXT_TAS_NEW.is_set(marker)
             && bxt::BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES.is_set(marker)
             && bxt::BXT_TAS_STUDIO_NOREFRESH_OVERRIDE.is_set(marker)
+            && bxt::BXT_TAS_STUDIO_FREECAM_SET_ORIGIN.is_set(marker)
             && TriangleDrawing.is_enabled(marker)
             && Commands.is_enabled(marker)
             && PlayerMovementTracing.is_enabled(marker)
@@ -2032,6 +2034,20 @@ pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
     let mut ml = draw.multi_line(IVec2::new(PADDING, 2 * info.iCharHeight + PADDING));
     for line in text.split_inclusive(|c| *c == b'\0') {
         ml.line(line);
+    }
+
+    if let Some(camera_view_adjustment) = editor.camera_view_adjustment() {
+        draw.string(
+            IVec2::new(
+                info.iWidth / 2 - info.iCharHeight * 3,
+                info.iHeight / 2 + info.iCharHeight * 2,
+            ),
+            match camera_view_adjustment.mode {
+                CameraViewAdjustmentMode::Yaw => b"Camera view change: Yaw\0",
+                CameraViewAdjustmentMode::Pitch => b"Camera view change: Pitch\0",
+                CameraViewAdjustmentMode::Alt => b"Camera view change: Alt\0",
+            },
+        );
     }
 }
 
