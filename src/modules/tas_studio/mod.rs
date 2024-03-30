@@ -71,6 +71,7 @@ impl Module for TasStudio {
             &BXT_TAS_STUDIO_NEW,
             &BXT_TAS_STUDIO_LOAD,
             &BXT_TAS_STUDIO_CONVERT_HLTAS,
+            &BXT_TAS_STUDIO_REPLAY_VIEWS,
             &BXT_TAS_STUDIO_REPLAY,
             &BXT_TAS_STUDIO_SET_STOP_FRAME,
             &BXT_TAS_STUDIO_SET_YAWSPEED,
@@ -391,11 +392,13 @@ fn norefresh_until_stop_frame_frame_idx(marker: MainThreadMarker, editor: &Edito
     let norefresh_last_frames =
         unsafe { bxt::BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES.get(marker)() } as usize;
 
-    if editor.stop_frame() == 0 {
+    let first_frame_idx = if editor.stop_frame() == 0 {
         (editor.branch().frames.len() - 1).saturating_sub(norefresh_last_frames)
     } else {
         (editor.stop_frame() as usize).saturating_sub(norefresh_last_frames)
-    }
+    };
+
+    first_frame_idx.clamp(0, editor.branch().frames.len() - 1)
 }
 
 fn set_effective_norefresh_until_stop_frame(marker: MainThreadMarker, editor: &Editor) {
@@ -428,6 +431,71 @@ fn replay(marker: MainThreadMarker) {
         State::PlayingToEditor { editor, bridge, .. } => {
             set_effective_norefresh_until_stop_frame(marker, &editor);
             State::PreparingToPlayToEditor(editor, bridge, true)
+        }
+        other => other,
+    };
+}
+
+static BXT_TAS_STUDIO_REPLAY_VIEWS: Command = Command::new(
+    b"bxt_tas_studio_replay_views\0",
+    handler!(
+        "bxt_tas_studio_replay_views
+
+Replays the currently loaded camera views of TAS up to the stop frame.",
+        replay_views as fn(_)
+    ),
+);
+
+fn replay_views(marker: MainThreadMarker) {
+    let mut state = STATE.borrow_mut(marker);
+    *state = match mem::take(&mut *state) {
+        State::Editing {
+            mut editor,
+            last_generation,
+            last_branch_idx,
+            simulate_at,
+            bridge,
+        } => {
+            editor.cancel_ongoing_adjustments();
+
+            sdl::set_relative_mouse_mode(marker, true);
+            client::activate_mouse(marker, true);
+
+            // bxt_tas_norefresh_until_last_frames = 0 means 1 frame being played. Heh.
+            let start_frame = norefresh_until_stop_frame_frame_idx(marker, &editor);
+
+            engine::prepend_command(marker, "bxt_hud 0; hud_draw 0\n");
+
+            State::PlayingViews {
+                editor,
+                last_generation,
+                last_branch_idx,
+                simulate_at,
+                bridge,
+                current_frame: start_frame,
+            }
+        }
+        // Press play view again to stop.
+        State::PlayingViews {
+            editor,
+            last_generation,
+            last_branch_idx,
+            simulate_at,
+            bridge,
+            ..
+        } => {
+            sdl::set_relative_mouse_mode(marker, false);
+            client::activate_mouse(marker, false);
+            engine::prepend_command(marker, "bxt_hud 1; hud_draw 1\n");
+            ENABLE_FREECAM_ON_CALCREFDEF.set(marker, true);
+
+            State::Editing {
+                editor,
+                last_generation,
+                last_branch_idx,
+                simulate_at,
+                bridge,
+            }
         }
         other => other,
     };
@@ -1451,6 +1519,16 @@ enum State {
         simulate_at: Option<Instant>,
         bridge: Bridge,
     },
+    /// Playing camera views, will open the editor afterwards.
+    /// Playback is inside Editing mode so original data will be restored.
+    PlayingViews {
+        editor: Editor,
+        last_generation: u16,
+        last_branch_idx: usize,
+        simulate_at: Option<Instant>,
+        bridge: Bridge,
+        current_frame: usize,
+    },
 }
 
 impl Default for State {
@@ -1560,7 +1638,82 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
             editor.recompute_extra_camera_frame_data_if_needed();
         }
         State::PreparingToPlayToEditor(_, _, _) => unreachable!(),
+        _ => (),
     }
+}
+
+pub fn should_draw_pause(marker: MainThreadMarker) -> bool {
+    !matches!(*STATE.borrow_mut(marker), State::PlayingViews { .. })
+}
+
+pub fn tas_playback_rendered_views(marker: MainThreadMarker) {
+    if !TasStudio.is_enabled(marker) {
+        return;
+    }
+
+    let mut state = STATE.borrow_mut(marker);
+    *state = match mem::take(&mut *state) {
+        State::PlayingViews {
+            editor,
+            last_generation,
+            last_branch_idx,
+            simulate_at,
+            bridge,
+            current_frame,
+        } => {
+            if current_frame == editor.stop_frame() as usize
+                || current_frame >= editor.branch().frames.len()
+            {
+                sdl::set_relative_mouse_mode(marker, false);
+                client::activate_mouse(marker, false);
+                engine::prepend_command(marker, "bxt_hud 1; hud_draw 1\n");
+                ENABLE_FREECAM_ON_CALCREFDEF.set(marker, true);
+
+                State::Editing {
+                    editor,
+                    last_generation,
+                    last_branch_idx,
+                    simulate_at,
+                    bridge,
+                }
+            } else {
+                let r_refdef_vieworg = unsafe { &mut *engine::r_refdef_vieworg.get(marker) };
+                let r_refdef_viewangles = unsafe { &mut *engine::r_refdef_viewangles.get(marker) };
+
+                r_refdef_vieworg[0] = editor.branch().frames[current_frame].state.player.pos[0];
+                r_refdef_vieworg[1] = editor.branch().frames[current_frame].state.player.pos[1];
+                r_refdef_vieworg[2] = editor.branch().frames[current_frame].state.player.pos[2];
+
+                // We don't keep track of vieworg so just deduce it from here instead.
+                // It is not easy to keep track of vieworg because it isn't there to track.
+                // vieworg is calculated.
+                // It is also funny how vieworg is calculated here,
+                // but viewangles is passed from BXT.
+                r_refdef_vieworg[2] += 28.;
+                if editor.branch().frames[current_frame].state.player.ducking {
+                    r_refdef_vieworg[2] -= 16.;
+                }
+
+                r_refdef_viewangles[0] = editor.branch().frames[current_frame]
+                    .state
+                    .rendered_viewangles[0];
+
+                r_refdef_viewangles[1] = editor.branch().frames[current_frame]
+                    .state
+                    .rendered_viewangles[1];
+
+                State::PlayingViews {
+                    editor,
+                    last_generation,
+                    last_branch_idx,
+                    simulate_at,
+                    bridge,
+                    current_frame: current_frame + 1,
+                }
+            }
+        }
+        other => other,
+    };
 }
 
 pub unsafe fn on_tas_playback_frame(
@@ -1601,6 +1754,12 @@ pub unsafe fn on_tas_playback_frame(
             strafe_state.prev_frame_input.pitch = view_angles[0].to_radians();
             strafe_state.prev_frame_input.yaw = view_angles[1].to_radians();
         }
+
+        // Store the rendered viewangles
+        // Viewangles is always available. Same as origin.
+        // Vieworigin is something that is not available per player. It is calculated upon
+        // rendering.
+        strafe_state.rendered_viewangles = data.rendered_viewangles.into();
 
         // We don't have a good way to extract real trace results from the movement code, so let's
         // make up trace results based on previous frame's predicted fractions and normal Zs from

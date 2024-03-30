@@ -723,6 +723,14 @@ pub static SCR_DrawLoading: Pointer<unsafe extern "C" fn()> = Pointer::empty_pat
     ]),
     my_SCR_DrawLoading as _,
 );
+pub static SCR_DrawPause: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"SCR_DrawPause\0",
+    // To find, search for "cz_worldmap". You are in SCR_DrawPause().
+    Patterns(&[
+        pattern!(D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? DF E0 F6 C4 44 7B ?? A1 ?? ?? ?? ?? 85 C0 74 ?? E8 ?? ?? ?? ?? 85),
+    ]),
+    my_SCR_DrawPause as _,
+);
 pub static scr_fov_value: Pointer<*mut c_float> = Pointer::empty(b"scr_fov_value\0");
 pub static shm: Pointer<*mut *mut dma_t> = Pointer::empty(b"shm\0");
 pub static sv: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
@@ -987,6 +995,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &S_PaintChannels,
     &S_TransferStereo16,
     &SCR_DrawLoading,
+    &SCR_DrawPause,
     &scr_fov_value,
     &shm,
     &sv,
@@ -2191,6 +2200,19 @@ pub mod exported {
         })
     }
 
+    #[export_name = "SCR_DrawPause"]
+    pub unsafe extern "C" fn my_SCR_DrawPause() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if !tas_studio::should_draw_pause(marker) {
+                return;
+            }
+
+            SCR_DrawPause.get(marker)();
+        })
+    }
+
     #[export_name = "SV_Frame"]
     pub unsafe extern "C" fn my_SV_Frame() {
         abort_on_panic(move || {
@@ -2376,6 +2398,7 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             campath::override_view(marker);
+            tas_studio::tas_playback_rendered_views(marker);
 
             R_RenderView.get(marker)();
         })
