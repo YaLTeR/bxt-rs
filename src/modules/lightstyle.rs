@@ -40,11 +40,11 @@ static BXT_LIGHTSTYLE: CVar = CVar::new(
     "\
 Preset controls. Must invoke apply command to take effects. Persists across level changes.
 
-0: Off
-1: Maximum brightness
-2: Full bright
-3: Maximum darkness
-4: Mildy darker",
+- `0`: Off
+- `1`: Maximum brightness
+- `2`: Full bright
+- `3`: Maximum darkness
+- `4`: Mildy darker",
 );
 static BXT_LIGHTSTYLE_CUSTOM: CVar = CVar::new(
     b"bxt_lightstyle_custom\0",
@@ -53,14 +53,16 @@ static BXT_LIGHTSTYLE_CUSTOM: CVar = CVar::new(
 Custom controls. Takes precedence over preset when using bxt_lightstyle_apply.
 
 First value is effect. Second value is amount.
-E.g.: bxt_lightstyle_custom \"1 nomnomnom\".
+E.g.: `bxt_lightstyle_custom \"1 nomnomnom\"`.
 ",
 );
 
 static BXT_LIGHTSTYLE_APPLY: Command = Command::new(
     b"bxt_lightstyle_apply\0",
     handler!(
-        "Apply lightstyle changes. Takes an optional argument for instantly applying a preset.",
+        "bxt_lightstyle_apply [preset]
+
+Apply lightstyle changes. Takes an optional argument for instantly applying a preset.",
         apply_from_cvars as fn(_),
         apply_preset as fn(_, _)
     ),
