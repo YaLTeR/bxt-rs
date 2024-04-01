@@ -40,15 +40,11 @@ static BXT_LIGHTSTYLE: CVar = CVar::new(
     "\
 Preset controls. Must invoke apply command to take effects. Persists across level changes.
 
-`0`: Off
-
-`1`: Maximum brightness
-
-`2`: Full bright
-
-`3`: Maximum darkness
-
-`4`: Mildy darker",
+- `0`: Off
+- `1`: Maximum brightness
+- `2`: Full bright
+- `3`: Maximum darkness
+- `4`: Mildy darker",
 );
 static BXT_LIGHTSTYLE_CUSTOM: CVar = CVar::new(
     b"bxt_lightstyle_custom\0",
