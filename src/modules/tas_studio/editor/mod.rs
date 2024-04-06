@@ -4960,7 +4960,7 @@ mod tests {
             })
             .collect();
 
-        let smoothed = smoothed_views(1., small_window_size, 4., &frames);
+        let smoothed = smoothed_views(1., small_window_size, 4., &frames).1;
         expect.assert_debug_eq(&smoothed);
     }
 
