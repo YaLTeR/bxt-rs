@@ -4425,4 +4425,11 @@ mod tests {
             prop_assert_eq!(old_script, new_script);
         }
     }
+
+    #[test]
+    fn open_db() {
+        let file = Path::new("test/db_test.hltasproj");
+
+        Editor::open(file).unwrap();
+    }
 }

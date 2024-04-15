@@ -12,7 +12,7 @@ use crate::modules::tas_studio::editor::utils::{
 
 // This enum is stored in a SQLite DB as bincode bytes. All changes MUST BE BACKWARDS COMPATIBLE to
 // be able to load old projects.
-// Make sure that newer operations must be added at the end of the enum.
+// Make sure that newer operations must be added at the end of the enum and update test/db_test.hltasproj.
 /// A basic operation on a HLTAS.
 ///
 /// All operations can be applied and undone. They therefore store enough information to be able to
