@@ -12,6 +12,7 @@ use crate::modules::tas_studio::editor::utils::{
 
 // This enum is stored in a SQLite DB as bincode bytes. All changes MUST BE BACKWARDS COMPATIBLE to
 // be able to load old projects.
+// Make sure that newer operations must be added at the end of the enum.
 /// A basic operation on a HLTAS.
 ///
 /// All operations can be applied and undone. They therefore store enough information to be able to
@@ -81,6 +82,16 @@ pub enum Operation {
         from: u32,
         to: u32,
     },
+    SetFrameTime {
+        bulk_idx: usize,
+        from: String,
+        to: String,
+    },
+    SetCommands {
+        bulk_idx: usize,
+        from: Option<String>,
+        to: Option<String>,
+    },
     SetYawspeed {
         bulk_idx: usize,
         from: f32,
@@ -91,16 +102,6 @@ pub enum Operation {
         bulk_count: usize,
         from: f32,
         to: f32,
-    },
-    SetFrameTime {
-        bulk_idx: usize,
-        from: String,
-        to: String,
-    },
-    SetCommands {
-        bulk_idx: usize,
-        from: Option<String>,
-        to: Option<String>,
     },
 }
 
