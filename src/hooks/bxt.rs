@@ -1,7 +1,7 @@
 //! Bunnymod XT.
 
 use std::ffi::CString;
-use std::os::raw::{c_char, c_int};
+use std::os::raw::{c_char, c_float, c_int};
 use std::ptr::NonNull;
 
 use hltas::HLTAS;
@@ -27,6 +27,8 @@ pub static BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES: Pointer<unsafe extern "C" fn() -
     Pointer::empty(b"bxt_tas_norefresh_until_last_frames\0");
 pub static BXT_TAS_STUDIO_NOREFRESH_OVERRIDE: Pointer<unsafe extern "C" fn(c_int)> =
     Pointer::empty(b"bxt_tas_studio_norefresh_override\0");
+pub static BXT_TAS_STUDIO_FREECAM_SET_ORIGIN: Pointer<unsafe extern "C" fn([c_float; 3])> =
+    Pointer::empty(b"bxt_tas_studio_freecam_set_origin\0");
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &BXT_ON_TAS_PLAYBACK_FRAME,
@@ -37,6 +39,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &BXT_TAS_NEW,
     &BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES,
     &BXT_TAS_STUDIO_NOREFRESH_OVERRIDE,
+    &BXT_TAS_STUDIO_FREECAM_SET_ORIGIN,
 ];
 
 #[cfg(unix)]
