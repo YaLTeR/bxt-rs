@@ -125,6 +125,8 @@ impl<'a, T: Trace> Iterator for Simulator<'a, T> {
                 Line::Change(_) => (),
                 Line::TargetYawOverride(_) => (),
                 Line::RenderYawOverride(_) => (),
+                Line::PitchOverride(_) => (),
+                Line::RenderPitchOverride(_) => (),
             }
 
             // Advance to the next line for non-frame-bulks.
