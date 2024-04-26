@@ -430,6 +430,8 @@ impl Optimizer {
                 Line::Change(_) => (),
                 Line::TargetYawOverride(_) => (),
                 Line::RenderYawOverride(_) => (),
+                Line::PitchOverride(_) => (),
+                Line::RenderPitchOverride(_) => (),
             }
         }
 

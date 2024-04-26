@@ -125,6 +125,8 @@ impl<'a, T: Trace> Iterator for Simulator<'a, T> {
                 Line::Change(_) => (),
                 Line::TargetYawOverride(_) => (),
                 Line::RenderYawOverride(_) => (),
+                Line::PitchOverride(_) => (),
+                Line::RenderPitchOverride(_) => (),
             }
 
             // Advance to the next line for non-frame-bulks.
@@ -141,7 +143,10 @@ mod tests {
 
     use bxt_strafe::{DummyTracer, Parameters, Player, State};
     use glam::Vec3;
-    use hltas::types::FrameBulk;
+    use hltas::types::{
+        ActionKeys, AutoActions, AutoMovement, FrameBulk, MovementKeys, StrafeDir, StrafeSettings,
+        StrafeType,
+    };
 
     use super::*;
 
@@ -282,5 +287,240 @@ mod tests {
         ];
         let simulator = Simulator::new(&DummyTracer, &[default_frame()], &lines);
         assert_eq!(simulator.count(), 2);
+    }
+
+    #[test]
+    fn simulator_accel_yawspeed_increment() {
+        let mut frames: Vec<Frame> = vec![default_frame()];
+
+        let lines = [Line::FrameBulk(FrameBulk {
+            auto_actions: AutoActions {
+                movement: Some(AutoMovement::Strafe(StrafeSettings {
+                    type_: StrafeType::MaxAccelYawOffset {
+                        start: 0.,
+                        target: 210.,
+                        accel: 10.,
+                    },
+                    dir: StrafeDir::Left,
+                })),
+                leave_ground_action: None,
+                jump_bug: None,
+                duck_before_collision: None,
+                duck_before_ground: None,
+                duck_when_jump: None,
+            },
+            movement_keys: MovementKeys::default(),
+            action_keys: ActionKeys::default(),
+            frame_time: "0.01".to_string(),
+            pitch: None,
+            frame_count: NonZeroU32::new(5).unwrap(),
+            console_command: None,
+        })];
+
+        let simulator = Simulator::new(&DummyTracer, &frames, &lines);
+
+        frames.append(&mut simulator.collect::<Vec<Frame>>());
+
+        let lines2 = [
+            Line::FrameBulk(FrameBulk {
+                auto_actions: AutoActions {
+                    movement: Some(AutoMovement::Strafe(StrafeSettings {
+                        type_: StrafeType::MaxAccelYawOffset {
+                            start: 0.,
+                            target: 210.,
+                            accel: 10.,
+                        },
+                        dir: StrafeDir::Left,
+                    })),
+                    leave_ground_action: None,
+                    jump_bug: None,
+                    duck_before_collision: None,
+                    duck_before_ground: None,
+                    duck_when_jump: None,
+                },
+                movement_keys: MovementKeys::default(),
+                action_keys: ActionKeys::default(),
+                frame_time: "0.01".to_string(),
+                pitch: None,
+                frame_count: NonZeroU32::new(5).unwrap(),
+                console_command: None,
+            }),
+            Line::FrameBulk(FrameBulk {
+                auto_actions: AutoActions {
+                    movement: Some(AutoMovement::Strafe(StrafeSettings {
+                        type_: StrafeType::MaxAccelYawOffset {
+                            start: 0.,
+                            target: 210.,
+                            accel: 10.,
+                        },
+                        dir: StrafeDir::Left,
+                    })),
+                    leave_ground_action: None,
+                    jump_bug: None,
+                    duck_before_collision: None,
+                    duck_before_ground: None,
+                    duck_when_jump: None,
+                },
+                movement_keys: MovementKeys::default(),
+                action_keys: ActionKeys::default(),
+                frame_time: "0.01".to_string(),
+                pitch: None,
+                frame_count: NonZeroU32::new(1).unwrap(),
+                console_command: None,
+            }),
+        ];
+
+        let simulator2 = Simulator::new(&DummyTracer, &frames, &lines2);
+        frames.append(&mut simulator2.collect::<Vec<Frame>>());
+
+        assert_eq!(frames.last().unwrap().state.max_accel_yaw_offset_value, 50.);
+    }
+
+    #[test]
+    fn simulator_accel_yawspeed_reset() {
+        let mut frames: Vec<Frame> = vec![default_frame()];
+
+        let mut lines = vec![Line::FrameBulk(FrameBulk {
+            auto_actions: AutoActions {
+                movement: Some(AutoMovement::Strafe(StrafeSettings {
+                    type_: StrafeType::MaxAccelYawOffset {
+                        start: 0.,
+                        target: 200.,
+                        accel: 10.,
+                    },
+                    dir: StrafeDir::Left,
+                })),
+                leave_ground_action: None,
+                jump_bug: None,
+                duck_before_collision: None,
+                duck_before_ground: None,
+                duck_when_jump: None,
+            },
+            movement_keys: MovementKeys::default(),
+            action_keys: ActionKeys::default(),
+            frame_time: "0.01".to_string(),
+            pitch: None,
+            frame_count: NonZeroU32::new(5).unwrap(),
+            console_command: None,
+        })];
+
+        let simulator = Simulator::new(&DummyTracer, &frames, &lines);
+        frames.append(&mut simulator.collect::<Vec<Frame>>());
+
+        // reset due to target change
+        lines.push(Line::FrameBulk(FrameBulk {
+            auto_actions: AutoActions {
+                movement: Some(AutoMovement::Strafe(StrafeSettings {
+                    type_: StrafeType::MaxAccelYawOffset {
+                        start: 0.,
+                        target: 210.,
+                        accel: 10.,
+                    },
+                    dir: StrafeDir::Left,
+                })),
+                leave_ground_action: None,
+                jump_bug: None,
+                duck_before_collision: None,
+                duck_before_ground: None,
+                duck_when_jump: None,
+            },
+            movement_keys: MovementKeys::default(),
+            action_keys: ActionKeys::default(),
+            frame_time: "0.01".to_string(),
+            pitch: None,
+            frame_count: NonZeroU32::new(10).unwrap(),
+            console_command: None,
+        }));
+
+        let simulator = Simulator::new(&DummyTracer, &frames, &lines);
+        frames.append(&mut simulator.collect::<Vec<Frame>>());
+        assert_eq!(frames.last().unwrap().state.max_accel_yaw_offset_value, 90.);
+
+        // reset due to accel change
+        lines.push(Line::FrameBulk(FrameBulk {
+            auto_actions: AutoActions {
+                movement: Some(AutoMovement::Strafe(StrafeSettings {
+                    type_: StrafeType::MaxAccelYawOffset {
+                        start: 0.,
+                        target: 210.,
+                        accel: 9.,
+                    },
+                    dir: StrafeDir::Left,
+                })),
+                leave_ground_action: None,
+                jump_bug: None,
+                duck_before_collision: None,
+                duck_before_ground: None,
+                duck_when_jump: None,
+            },
+            movement_keys: MovementKeys::default(),
+            action_keys: ActionKeys::default(),
+            frame_time: "0.01".to_string(),
+            pitch: None,
+            frame_count: NonZeroU32::new(9).unwrap(),
+            console_command: None,
+        }));
+
+        let simulator = Simulator::new(&DummyTracer, &frames, &lines);
+        frames.append(&mut simulator.collect::<Vec<Frame>>());
+        assert_eq!(frames.last().unwrap().state.max_accel_yaw_offset_value, 72.);
+
+        // reset due to direction change
+        lines.push(Line::FrameBulk(FrameBulk {
+            auto_actions: AutoActions {
+                movement: Some(AutoMovement::Strafe(StrafeSettings {
+                    type_: StrafeType::MaxAccelYawOffset {
+                        start: 0.,
+                        target: 210.,
+                        accel: 9.,
+                    },
+                    dir: StrafeDir::Right,
+                })),
+                leave_ground_action: None,
+                jump_bug: None,
+                duck_before_collision: None,
+                duck_before_ground: None,
+                duck_when_jump: None,
+            },
+            movement_keys: MovementKeys::default(),
+            action_keys: ActionKeys::default(),
+            frame_time: "0.01".to_string(),
+            pitch: None,
+            frame_count: NonZeroU32::new(9).unwrap(),
+            console_command: None,
+        }));
+
+        let simulator = Simulator::new(&DummyTracer, &frames, &lines);
+        frames.append(&mut simulator.collect::<Vec<Frame>>());
+        assert_eq!(frames.last().unwrap().state.max_accel_yaw_offset_value, 72.);
+
+        // reset due to start change
+        lines.push(Line::FrameBulk(FrameBulk {
+            auto_actions: AutoActions {
+                movement: Some(AutoMovement::Strafe(StrafeSettings {
+                    type_: StrafeType::MaxAccelYawOffset {
+                        start: 10.,
+                        target: 210.,
+                        accel: 9.,
+                    },
+                    dir: StrafeDir::Right,
+                })),
+                leave_ground_action: None,
+                jump_bug: None,
+                duck_before_collision: None,
+                duck_before_ground: None,
+                duck_when_jump: None,
+            },
+            movement_keys: MovementKeys::default(),
+            action_keys: ActionKeys::default(),
+            frame_time: "0.01".to_string(),
+            pitch: None,
+            frame_count: NonZeroU32::new(9).unwrap(),
+            console_command: None,
+        }));
+
+        let simulator = Simulator::new(&DummyTracer, &frames, &lines);
+        frames.append(&mut simulator.collect::<Vec<Frame>>());
+        assert_eq!(frames.last().unwrap().state.max_accel_yaw_offset_value, 82.);
     }
 }
