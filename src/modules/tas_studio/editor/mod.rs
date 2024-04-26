@@ -26,10 +26,8 @@ use self::utils::{
     bulk_idx_and_repeat_at_frame, join_lines, line_first_frame_idx, line_idx_and_repeat_at_frame,
     FrameBulkExt,
 };
-use super::marker::MainThreadMarker;
 use super::remote::{AccurateFrame, PlayRequest};
-use crate::hooks::sdl::{self, MouseState};
-use crate::hooks::{bxt, client, engine};
+use crate::hooks::sdl::MouseState;
 use crate::modules::tas_optimizer::simulator::Simulator;
 use crate::modules::triangle_drawing::triangle_api::{Primitive, RenderMode};
 use crate::modules::triangle_drawing::TriangleApi;
@@ -203,11 +201,17 @@ struct ExtraCameraEditorFrameData {
     /// Index into `script.lines` of a change frame that ends on this frame.
     change_line_that_ends_here: Vec<usize>,
     /// Index of a change line and a frame where the frame is end frame of change line.
-    change_ends_at: Vec<(usize, usize)>,
+    change_ends_at: Vec<LineChangeEndsAt>,
     /// Index into `script.lines` of a camera frame that starts or ends on this frame.
     camera_line_that_starts_or_ends_here: Vec<usize>,
     /// Index into `script.lines` of a camera frame that starts on this frame.
     camera_line_that_starts_here: Vec<usize>,
+}
+
+#[derive(Debug, Default, Clone)]
+struct LineChangeEndsAt {
+    line_idx: usize,
+    end_frame_idx: usize,
 }
 
 /// Data for handling adjustment done by pressing and dragging the mouse.
@@ -307,7 +311,11 @@ struct InsertCameraLineAdjustment {
 
 /// Camera view edit modes.
 ///
-/// `Alt` adjusts differently for different kinds of line.
+/// `CameraViewAdjustmentMode::Alt` adjusts differently for different kinds of line depending on
+/// implementation.
+///
+/// If target_yaw, result is velocity_lock.
+// More to come I guess
 #[derive(Debug, Clone, Copy)]
 pub enum CameraViewAdjustmentMode {
     Yaw,
@@ -398,6 +406,14 @@ impl ManualOpError {
     pub fn is_internal(&self) -> bool {
         matches!(self, Self::InternalError(..))
     }
+}
+
+#[derive(Clone, Copy)]
+pub struct Callbacks<'a> {
+    pub enable_mouse_look: &'a dyn Fn(),
+    pub disable_mouse_look: &'a dyn Fn(),
+    pub get_viewangles: &'a dyn Fn() -> [f32; 3],
+    pub change_view_origin: &'a dyn Fn(Vec3),
 }
 
 impl Editor {
@@ -718,7 +734,10 @@ impl Editor {
                             .push(line_idx);
                         branch.extra_cam[frame_idx]
                             .change_ends_at
-                            .push((line_idx, end_frame_idx));
+                            .push(LineChangeEndsAt {
+                                line_idx,
+                                end_frame_idx,
+                            });
                         branch.extra_cam[end_frame_idx]
                             .camera_line_that_starts_or_ends_here
                             .push(line_idx);
@@ -768,6 +787,7 @@ impl Editor {
         mouse: MouseState,
         keyboard: KeyboardState,
         deadline: Instant,
+        callbacks: Callbacks,
     ) -> eyre::Result<()> {
         let _span = info_span!("Editor::tick").entered();
 
@@ -782,7 +802,7 @@ impl Editor {
         self.tick_adjacent_side_strafe_yawspeed_adjustment(mouse, keyboard)?;
 
         self.tick_insert_camera_line_adjustment(mouse, keyboard)?;
-        self.tick_camera_view_adjustment(mouse, self.prev_mouse_state)?;
+        self.tick_camera_view_adjustment(mouse, self.prev_mouse_state, callbacks)?;
 
         // Predict any frames that need prediction.
         //
@@ -1264,7 +1284,7 @@ impl Editor {
             }
 
             if let Some(hovered_line_idx) = self.hovered_line_idx {
-                // For carmera editor camera line editing.
+                // For camera editor camera line editing.
                 if mouse.buttons.is_right_down() && !self.prev_mouse_state.buttons.is_right_down() {
                     // Mouse was released last frame so the adjustment cannot be active.
                     assert!(self.camera_view_adjustment.is_none());
@@ -1286,8 +1306,8 @@ impl Editor {
                         [line_first_frame_idx]
                         .change_ends_at
                         .iter()
-                        .find(|(line_idx, _)| *line_idx == hovered_line_idx)
-                        .map(|(_, end_frame_idx)| *end_frame_idx);
+                        .find(|LineChangeEndsAt { line_idx, .. }| *line_idx == hovered_line_idx)
+                        .map(|LineChangeEndsAt { end_frame_idx, .. }| *end_frame_idx);
 
                     let end_frame_index =
                         if let Some(change_line_end_frame_index) = change_line_end_frame_index {
@@ -1299,7 +1319,7 @@ impl Editor {
                         };
 
                     // Enable mouse look so we can look around to have a good reference.
-                    enable_mouse_look();
+                    (callbacks.enable_mouse_look)();
 
                     // Change origin to the position of the end of that line.
                     let mut vieworg = self.branch().frames[end_frame_index].state.player.pos;
@@ -1309,7 +1329,7 @@ impl Editor {
                         vieworg[2] -= 16.;
                     }
 
-                    change_origin(vieworg);
+                    (callbacks.change_view_origin)(vieworg);
 
                     // Figuring whether the line is generally changing pitch or yaw.
                     let mode = match line {
@@ -1938,6 +1958,7 @@ impl Editor {
         &mut self,
         mouse: MouseState,
         prev_mouse: MouseState,
+        callbacks: Callbacks,
     ) -> eyre::Result<()> {
         let Some(CameraViewAdjustment {
             ref mut mode,
@@ -1967,11 +1988,11 @@ impl Editor {
 
         let branch = &mut self.branches[self.branch_idx];
 
-        let viewangles = get_viewangles();
+        let viewangles = (callbacks.get_viewangles)();
         let line = &mut branch.branch.script.lines[*camera_line_idx];
 
         // Disable as soon as possible in case of failure or lock.
-        disable_mouse_look();
+        (callbacks.disable_mouse_look)();
 
         let mut buffer = Vec::new();
         hltas::write::gen_line(&mut buffer, line)?;
@@ -4285,33 +4306,6 @@ fn replace_multiple_params<'a>(
     let to = &new_script.lines[first_line_idx..new_one_past_last_line_idx];
 
     Some((first_line_idx, count, to))
-}
-
-fn enable_mouse_look() {
-    let marker = unsafe { MainThreadMarker::new() };
-    sdl::set_relative_mouse_mode(marker, true);
-    client::activate_mouse(marker, true);
-}
-
-fn disable_mouse_look() {
-    let marker = unsafe { MainThreadMarker::new() };
-    sdl::set_relative_mouse_mode(marker, false);
-    client::activate_mouse(marker, false);
-}
-
-fn get_viewangles() -> [f32; 3] {
-    let marker = unsafe { MainThreadMarker::new() };
-    let mut view_angles = [0.; 3];
-
-    unsafe { engine::hudGetViewAngles.get(marker)(&mut view_angles) };
-
-    view_angles
-}
-
-fn change_origin(origin: Vec3) {
-    let marker = unsafe { MainThreadMarker::new() };
-
-    unsafe { bxt::BXT_TAS_STUDIO_FREECAM_SET_ORIGIN.get(marker)(origin.into()) };
 }
 
 #[cfg(test)]

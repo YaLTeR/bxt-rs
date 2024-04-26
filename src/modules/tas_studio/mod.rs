@@ -22,7 +22,7 @@ use hltas::HLTAS;
 use self::editor::operation::Key;
 use self::editor::toggle_auto_action::ToggleAutoActionTarget;
 use self::editor::utils::{bulk_and_first_frame_idx, FrameBulkExt};
-use self::editor::KeyboardState;
+use self::editor::{Callbacks, KeyboardState};
 use self::remote::{AccurateFrame, PlayRequest};
 use super::commands::{Command, Commands};
 use super::cvars::CVar;
@@ -1813,7 +1813,20 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     };
 
     let deadline = Instant::now() + Duration::from_millis(20);
-    if let Err(err) = editor.tick(&tracer, world_to_screen, mouse, keyboard, deadline) {
+    let callbacks = Callbacks {
+        enable_mouse_look: &|| enable_mouse_look(marker),
+        disable_mouse_look: &|| disable_mouse_look(marker),
+        get_viewangles: &|| get_viewangles(marker),
+        change_view_origin: &|origin| change_view_origin(marker, origin),
+    };
+    if let Err(err) = editor.tick(
+        &tracer,
+        world_to_screen,
+        mouse,
+        keyboard,
+        deadline,
+        callbacks,
+    ) {
         con_print(marker, &format!("Error ticking the TAS editor: {err}\n"));
         *state = State::Idle;
         return;
@@ -2173,4 +2186,26 @@ pub unsafe fn maybe_enable_freecam(marker: MainThreadMarker) {
         ENABLE_FREECAM_ON_CALCREFDEF.set(marker, false);
         engine::prepend_command(marker, "bxt_freecam 1\n");
     }
+}
+
+fn enable_mouse_look(marker: MainThreadMarker) {
+    sdl::set_relative_mouse_mode(marker, true);
+    client::activate_mouse(marker, true);
+}
+
+fn disable_mouse_look(marker: MainThreadMarker) {
+    sdl::set_relative_mouse_mode(marker, false);
+    client::activate_mouse(marker, false);
+}
+
+fn get_viewangles(marker: MainThreadMarker) -> [f32; 3] {
+    let mut view_angles = [0.; 3];
+
+    unsafe { engine::hudGetViewAngles.get(marker)(&mut view_angles) };
+
+    view_angles
+}
+
+fn change_view_origin(marker: MainThreadMarker, origin: Vec3) {
+    unsafe { bxt::BXT_TAS_STUDIO_FREECAM_SET_ORIGIN.get(marker)(origin.into()) };
 }
