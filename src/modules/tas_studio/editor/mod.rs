@@ -3508,16 +3508,29 @@ impl Editor {
         }
 
         let frames = &self.branch().frames;
-        let smoothed = smoothed_views(
+
+        let yaws = frames.iter().map(|f| f.state.prev_frame_input.yaw);
+        let pitches = frames.iter().map(|f| f.state.prev_frame_input.pitch);
+
+        let smoothed_yaws = smoothed_views(
             self.smooth_window_s,
             self.smooth_small_window_s,
             self.smooth_small_window_multiplier,
             &frames[..frames.len()],
+            yaws,
+        );
+
+        let smoothed_pitches = smoothed_views(
+            self.smooth_window_s,
+            self.smooth_small_window_s,
+            self.smooth_small_window_multiplier,
+            &frames[..frames.len()],
+            pitches,
         );
 
         let mut line = "target_yaw_override".to_string();
         // Skip the first frame because it is the initial frame before the start of the TAS.
-        for yaw in &smoothed.1[1..] {
+        for yaw in &smoothed_yaws[1..] {
             let yaw = yaw.to_degrees();
             write!(&mut line, " {yaw}").unwrap();
         }
@@ -3526,7 +3539,7 @@ impl Editor {
         self.apply_operation(op)?;
 
         let mut line = "pitch_override".to_string();
-        for pitch in &smoothed.0[1..] {
+        for pitch in &smoothed_pitches[1..] {
             let pitch = pitch.to_degrees();
             write!(&mut line, " {pitch}").unwrap();
         }
@@ -3570,21 +3583,23 @@ impl Editor {
             ));
         }
 
-        let mut smoothed = smoothed_views(
+        let yaws = frames.iter().map(|f| f.state.prev_frame_input.yaw);
+        let mut smoothed_yaws = smoothed_views(
             self.smooth_window_s,
             self.smooth_small_window_s,
             self.smooth_small_window_multiplier,
             &frames[start..=end],
+            yaws,
         );
 
         // Skip the first frame because it is the initial frame before the start of the TAS.
         let first = start.max(1);
         if start == 0 {
-            smoothed.1.remove(0);
+            smoothed_yaws.remove(0);
         }
 
         // Convert to degrees for .hltas.
-        for yaw in &mut smoothed.1 {
+        for yaw in &mut smoothed_yaws {
             *yaw = yaw.to_degrees();
         }
 
@@ -3594,7 +3609,7 @@ impl Editor {
 
         if repeat == 0 {
             let mut line = "target_yaw_override".to_string();
-            for yaw in smoothed.1 {
+            for yaw in smoothed_yaws {
                 write!(&mut line, " {yaw}").unwrap();
             }
 
@@ -3603,7 +3618,7 @@ impl Editor {
             self.apply_operation(op)?;
             Ok(())
         } else {
-            let target_yaw_override = Line::TargetYawOverride(smoothed.1);
+            let target_yaw_override = Line::TargetYawOverride(smoothed_yaws);
 
             // We need to insert the line in the middle of a frame bulk, so split it.
             let mut line = self.branch().branch.script.lines[line_idx].clone();
@@ -3788,26 +3803,39 @@ impl Editor {
                     ),
                 );
 
-                // Compute and insert the smoothed TargetYawOverride line.
-                let mut smoothed = smoothed_views(
+                // Compute and insert the smoothed TargetYawOverride and PitchOverride line.
+                let yaws = branch.frames.iter().map(|f| f.state.prev_frame_input.yaw);
+                let pitches = branch.frames.iter().map(|f| f.state.prev_frame_input.pitch);
+
+                let mut smoothed_yaws = smoothed_views(
                     self.smooth_window_s,
                     self.smooth_small_window_s,
                     self.smooth_small_window_multiplier,
                     &branch.frames,
+                    yaws,
                 );
+                let mut smoothed_pitches = smoothed_views(
+                    self.smooth_window_s,
+                    self.smooth_small_window_s,
+                    self.smooth_small_window_multiplier,
+                    &branch.frames,
+                    pitches,
+                );
+
                 // First yaw corresponds to the initial frame, which is not controlled by the TAS.
-                smoothed.0.remove(0);
-                smoothed.1.remove(0);
-                for yaw in &mut smoothed.1 {
+                smoothed_yaws.remove(0);
+                for yaw in &mut smoothed_yaws {
                     *yaw = yaw.to_degrees();
                 }
-                let line = Line::TargetYawOverride(smoothed.1);
+
+                let line = Line::TargetYawOverride(smoothed_yaws);
                 smoothed_script.lines.insert(2, line);
 
-                for pitch in &mut smoothed.0 {
+                smoothed_pitches.remove(0);
+                for pitch in &mut smoothed_pitches {
                     *pitch = pitch.to_degrees();
                 }
-                let line = Line::PitchOverride(smoothed.0);
+                let line = Line::PitchOverride(smoothed_pitches);
                 smoothed_script.lines.insert(3, line);
 
                 // Remove all lines disabling vectorial strafing.
@@ -4576,51 +4604,39 @@ fn smoothed_views(
     small_window_size: f32,
     small_window_multiplier: f32,
     frames: &[Frame],
-) -> (Vec<f32>, Vec<f32>) {
+    views: impl Iterator<Item = f32>,
+) -> Vec<f32> {
     if frames.is_empty() {
-        return (vec![], vec![]);
+        return vec![];
     }
 
-    let yaws = frames.iter().map(|f| f.state.prev_frame_input.yaw);
-    let unwrapped_yaws: Vec<f32> = unwrap_angles(yaws).collect();
-    let mut rv_yaws = Vec::with_capacity(unwrapped_yaws.len());
-
-    let pitches = frames.iter().map(|f| f.state.prev_frame_input.pitch);
-    let unwrapped_pitches: Vec<f32> = unwrap_angles(pitches).collect();
-    let mut rv_pitches = Vec::with_capacity(unwrapped_pitches.len());
+    let unwrapped: Vec<f32> = unwrap_angles(views).collect();
+    let mut rv = Vec::with_capacity(unwrapped.len());
 
     fn frame_time(frame: &Frame) -> f32 {
         frame.parameters.frame_time
     }
 
-    let repeat_first_view = iter::repeat((
-        frame_time(&frames[0]),
-        unwrapped_pitches[0],
-        unwrapped_yaws[0],
-    ));
-    let repeat_last_view = iter::repeat((
+    let repeat_first = iter::repeat((frame_time(&frames[0]), unwrapped[0]));
+    let repeat_last = iter::repeat((
         frame_time(frames.last().unwrap()),
-        *unwrapped_pitches.last().unwrap(),
-        *unwrapped_yaws.last().unwrap(),
+        *unwrapped.last().unwrap(),
     ));
 
     // The smoothing window is centered at the center of each yaw.
     // For pitch smoothing, every frame has both pitch and yaw so iterate over this is ok.
-    for i in 0..unwrapped_yaws.len() {
-        let mut total_yaw = 0.;
-        let mut total_pitch = 0.;
+    for i in 0..unwrapped.len() {
+        let mut total_view = 0.;
         let mut total_weight = 0.;
 
         let mut process_frame =
-            |(mut rem_win_size, mut rem_small_win_size),
-             (mut frame_time, pitch, yaw): (f32, f32, f32)| {
+            |(mut rem_win_size, mut rem_small_win_size), (mut frame_time, view): (f32, f32)| {
                 // If there's any small window zone left to cover, do so.
                 if rem_small_win_size > 0. {
                     let dt = frame_time.min(rem_small_win_size);
                     let weight = dt * small_window_multiplier;
 
-                    total_yaw += yaw * weight;
-                    total_pitch += pitch * weight;
+                    total_view += view * weight;
                     total_weight += weight;
 
                     rem_win_size -= dt;
@@ -4643,8 +4659,7 @@ fn smoothed_views(
                 let dt = frame_time.min(rem_win_size);
                 let weight = dt;
 
-                total_yaw += yaw * weight;
-                total_pitch += pitch * weight;
+                total_view += view * weight;
                 total_weight += weight;
 
                 rem_win_size -= dt;
@@ -4663,41 +4678,34 @@ fn smoothed_views(
         let rem_small_win_size = small_window_size / 2.;
 
         // Start from the middle frame.
-        let middle_frame_half = iter::once((
-            frames[i].parameters.frame_time / 2.,
-            unwrapped_pitches[i],
-            unwrapped_yaws[i],
-        ));
+        let middle_frame_half = iter::once((frames[i].parameters.frame_time / 2., unwrapped[i]));
 
         // Walk back half an interval.
         middle_frame_half
             .clone()
             .chain(
-                izip!(
+                zip(
                     frames[..i].iter().map(frame_time),
-                    unwrapped_pitches[..i].iter().copied(),
-                    unwrapped_yaws[..i].iter().copied(),
+                    unwrapped[..i].iter().copied(),
                 )
                 .rev(),
             )
-            .chain(repeat_first_view.clone())
+            .chain(repeat_first.clone())
             .try_fold((rem_win_size, rem_small_win_size), &mut process_frame);
 
         // Walk forward half an interval.
         middle_frame_half
             .chain(izip!(
                 frames[i + 1..].iter().map(frame_time),
-                unwrapped_pitches[i + 1..].iter().copied(),
-                unwrapped_yaws[i + 1..].iter().copied(),
+                unwrapped[i + 1..].iter().copied(),
             ))
-            .chain(repeat_last_view.clone())
+            .chain(repeat_last.clone())
             .try_fold((rem_win_size, rem_small_win_size), &mut process_frame);
 
-        rv_yaws.push(total_yaw / total_weight);
-        rv_pitches.push(total_pitch / total_weight);
+        rv.push(total_view / total_weight);
     }
 
-    (rv_pitches, rv_yaws)
+    rv
 }
 
 fn replace_multiple_params<'a>(
@@ -4960,7 +4968,8 @@ mod tests {
             })
             .collect();
 
-        let smoothed = smoothed_views(1., small_window_size, 4., &frames).1;
+        let yaws = frames.iter().map(|f| f.state.prev_frame_input.yaw);
+        let smoothed = smoothed_views(1., small_window_size, 4., &frames, yaws);
         expect.assert_debug_eq(&smoothed);
     }
 
