@@ -2304,6 +2304,8 @@ pub mod exported {
                     capture::time_passed(marker);
                 }
 
+                campath::update_time(marker);
+
                 tas_optimizer::update_client_connection_condition(marker);
                 tas_optimizer::maybe_receive_messages_from_remote_server(marker);
 
