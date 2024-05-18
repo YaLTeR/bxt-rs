@@ -480,11 +480,26 @@ pub static hudGetViewAngles: Pointer<unsafe extern "C" fn(*mut [c_float; 3])> =
         ]),
         null_mut(),
     );
+pub static hudSetViewAngles: Pointer<unsafe extern "C" fn(*mut [c_float; 3])> =
+    Pointer::empty_patterns(
+        b"hudSetViewAngles\0",
+        // 36th pointer in cl_enginefuncs.
+        //
+        // Be careful! The very previous function is hudGetViewAngles() which looks VERY similar,
+        // yet does the exact opposite thing!
+        Patterns(&[
+            // 8684
+            // pattern!(55 8B EC 8D 45 ?? 50 FF 15 ?? ?? ?? ?? 8B 55),
+        ]),
+        null_mut(),
+    );
 pub static idum: Pointer<*mut c_int> = Pointer::empty(
     // Not a real symbol name.
     b"idum\0",
 );
 pub static listener_origin: Pointer<*mut [f32; 3]> = Pointer::empty(b"listener_origin\0");
+pub static LoadThisDll: Pointer<unsafe extern "C" fn(*mut c_char)> =
+    Pointer::empty_patterns(b"LoadThisDll\0", Patterns(&[]), my_LoadThisDll as _);
 pub static Memory_Init: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
     Pointer::empty_patterns(
         b"Memory_Init\0",
@@ -833,6 +848,7 @@ pub static SV_Frame: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     ]),
     my_SV_Frame as _,
 );
+pub static sv_player: Pointer<*mut edict_s> = Pointer::empty(b"sv_player\0");
 pub static SV_RunCmd: Pointer<unsafe extern "C" fn(*mut usercmd_s, c_int)> =
     Pointer::empty_patterns(
         b"SV_RunCmd\0",
@@ -1035,7 +1051,9 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Host_ValidSave,
     &hudGetScreenInfo,
     &hudGetViewAngles,
+    &hudSetViewAngles,
     &idum,
+    &LoadThisDll,
     &movevars,
     &listener_origin,
     &Memory_Init,
@@ -1078,6 +1096,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &SV_AddLinksToPM_,
     &SV_ExecuteClientMessage,
     &SV_Frame,
+    &sv_player,
     &SV_RunCmd,
     &SV_StartSound,
     &Sys_VID_FlipScreen,
@@ -2067,6 +2086,21 @@ pub mod exported {
     use crate::gl;
     use crate::hooks::client;
 
+    #[export_name = "LoadThisDll"]
+    pub unsafe extern "C" fn my_LoadThisDll(dll: *mut c_char) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+            use std::ffi::CStr;
+
+            let s = CStr::from_ptr(dll).to_str().unwrap();
+
+            LoadThisDll.get(marker)(dll);
+
+            // LoadThisDll only loads server library.
+            server::find_pointers(marker, s);
+        })
+    }
+
     #[export_name = "Memory_Init"]
     pub unsafe extern "C" fn my_Memory_Init(buf: *mut c_void, size: c_int) -> c_int {
         abort_on_panic(move || {
@@ -2097,6 +2131,9 @@ pub mod exported {
             #[cfg(windows)]
             opengl32::find_pointers(marker);
             bxt::find_pointers(marker);
+
+            // client::find_pointers(marker);
+            // server::find_pointers(marker);
 
             let rv = Memory_Init.get(marker)(buf, size);
 
@@ -2424,6 +2461,8 @@ pub mod exported {
                 }
 
                 campath::update_time(marker);
+
+                ghost::update_ghosts(marker);
 
                 tas_optimizer::update_client_connection_condition(marker);
                 tas_optimizer::maybe_receive_messages_from_remote_server(marker);

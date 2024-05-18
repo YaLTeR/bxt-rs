@@ -5,6 +5,7 @@ pub mod client;
 pub mod engine;
 pub mod sdl;
 pub mod server;
+pub mod utils;
 
 #[cfg(windows)]
 pub mod opengl32;

@@ -32,6 +32,7 @@ pub mod emit_sound;
 pub mod fade_remove;
 pub mod fix_widescreen;
 pub mod force_fov;
+pub mod ghost;
 pub mod help;
 pub mod hud;
 pub mod hud_scale;
@@ -100,6 +101,7 @@ pub static MODULES: &[&dyn Module] = &[
     &fade_remove::FadeRemove,
     &fix_widescreen::FixWidescreen,
     &force_fov::ForceFov,
+    &ghost::Ghost,
     &help::Help,
     &hud::Hud,
     &hud_scale::HudScale,

@@ -5,6 +5,9 @@
 use std::os::raw::*;
 use std::ptr::NonNull;
 
+use bxt_patterns::Patterns;
+
+use crate::ffi::edict::{edict_s, entvars_s};
 use crate::ffi::playermove::playermove_s;
 use crate::ffi::usercmd::usercmd_s;
 use crate::hooks::engine;
@@ -15,6 +18,57 @@ pub static CmdStart: Pointer<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c
     Pointer::empty(b"CmdStart\0");
 pub static PM_Move: Pointer<unsafe extern "C" fn(*mut playermove_s, c_int)> =
     Pointer::empty(b"PM_Move\0");
+
+pub static CBaseEntity__Create: Pointer<
+    unsafe extern "C" fn(*mut c_char, *mut c_float, *mut c_float, *mut c_void) -> *mut c_void,
+> = Pointer::empty(b"_ZN11CBaseEntity6CreateEPcRK6VectorS3_P7edict_s\0");
+pub static UTIL_Remove: Pointer<unsafe extern "C" fn(*mut c_void)> =
+    Pointer::empty(b"_Z11UTIL_RemoveP11CBaseEntity\0");
+// pub static CBasePlayer__TakeDamage: Pointer<unsafe extern "C" fn(*mut c_void, *mut entvars_s,
+// *mut entvars_s, c_float, c_int)> =
+// Pointer::empty_patterns(b"_ZN11CBasePlayer10TakeDamageEP9entvars_sS1_fi\0", Patterns(&[]),
+// my_CBasePlayer__TakeDamage as _);
+
+static POINTERS: &[&dyn PointerTrait] = &[
+    &CBaseEntity__Create,
+    &UTIL_Remove,
+    // &CBasePlayer__TakeDamage,
+];
+
+#[cfg(unix)]
+fn open_library(library_path: &str) -> Option<libloading::Library> {
+    use libc::{RTLD_NOLOAD, RTLD_NOW};
+
+    let library =
+        unsafe { libloading::os::unix::Library::open(Some(library_path), RTLD_NOW | RTLD_NOLOAD) };
+    library.ok().map(libloading::Library::from)
+}
+
+#[cfg(windows)]
+fn open_library(library_path: &str) -> Option<libloading::Library> {
+    libloading::os::windows::Library::open_already_loaded(library_path)
+        .ok()
+        .map(libloading::Library::from)
+}
+
+#[instrument(name = "server::find_pointers", skip_all)]
+pub unsafe fn find_pointers(marker: MainThreadMarker, library_path: &str) {
+    let Some(library) = open_library(library_path) else {
+        debug!("could not find server library");
+        return;
+    };
+
+    for pointer in POINTERS {
+        let ptr = library
+            .get(pointer.symbol())
+            .ok()
+            .and_then(|sym| NonNull::new(*sym));
+        pointer.set(marker, ptr);
+        pointer.log(marker);
+    }
+
+    // set_callbacks(marker);
+}
 
 /// # Safety
 ///
@@ -87,4 +141,22 @@ pub unsafe extern "C" fn my_PM_Move(ppmove: *mut playermove_s, server: c_int) {
         tas_logging::write_post_pm_state(marker, ppmove);
         tas_logging::end_cmd_frame(marker);
     })
+}
+
+use exported::*;
+
+mod exported {
+    use super::*;
+
+    // #[export_name = "_ZN11CBasePlayer10TakeDamageEP9entvars_sS1_fi"]
+    // pub unsafe fn my_CBasePlayer__TakeDamage(thisptr: *mut c_void, pevInflictor: *mut entvars_s,
+    // pevAttacker: *mut entvars_s, flDamage: c_float, bitsDamageType: c_int) {
+    //     abort_on_panic(move || {
+    //         let marker = MainThreadMarker::new();
+
+    //         println!("this runs");
+
+    //         CBasePlayer__TakeDamage.get(marker)(thisptr, pevInflictor, pevAttacker, flDamage,
+    // bitsDamageType);     });
+    // }
 }
