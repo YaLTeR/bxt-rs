@@ -1,7 +1,9 @@
 use std::fs::File;
 use std::io::Read;
 
-use hldemo::FrameData;
+use dem::hldemo::{Demo, FrameData};
+use dem::types::{EngineMessage, NetMessage};
+use dem::{init_parse, parse_netmsg, Aux};
 
 use super::*;
 
@@ -12,7 +14,7 @@ pub fn demo_ghost_parse(filename: &str) -> eyre::Result<GhostInfo> {
     let mut f = File::open(pathbuf)?;
     f.read_to_end(&mut bytes)?;
 
-    let demo = hldemo::Demo::parse(&bytes);
+    let demo = Demo::parse(&bytes);
 
     // Huh cannot propagate error from the `parse`. Interesting.
     if demo.is_err() {
@@ -21,22 +23,160 @@ pub fn demo_ghost_parse(filename: &str) -> eyre::Result<GhostInfo> {
 
     let demo = demo.unwrap();
 
+    let aux = Aux::new();
+
+    // Because player origin/viewangles and animation are on different frame, we have to sync it.
+    // Order goes: players info > animation > player info > ...
+    // TODO parses everything within netmsg
+    let mut sequence: Option<i32> = None;
+    let mut anim_frame: Option<f32> = None;
+    let mut animtime: Option<f32> = None;
+    let mut gaitsequence: Option<i32> = None;
+    // No need to do optional type for this.
+    // Just make sure that blending is persistent across frames.
+    let mut blending = [0u8; 2];
+
+    let mut origin = [0f32; 3];
+    let mut viewangles = [0f32; 3];
+
+    let aux = init_parse!(demo);
+
     let ghost_frames = demo.directory.entries[1]
         .frames
         .iter()
         .filter_map(|frame| match &frame.data {
-            FrameData::ClientData(client) => Some(GhostFrame {
-                origin: client.origin.into(),
-                viewangles: client.viewangles.into(),
-                frametime: Some(frame.time as f64), // time here is accummulative, will fix after
-                sequence: None,
-                frame: None,
-                animtime: None,
-                buttons: None,
-            }),
+            // FrameData::ClientData(client) => {
+            //     Some(GhostFrame {
+            //         origin: client.origin.into(),
+            //         viewangles: client.viewangles.into(),
+            //         frametime: Some(frame.time as f64), /* time here is accummulative, will fix
+            //                                              * after */
+            //         sequence: None,
+            //         frame: None,
+            //         animtime: None,
+            //         buttons: None,
+            //     })
+            // }
+            FrameData::ClientData(client) => {
+                origin = client.origin;
+                viewangles = client.viewangles;
+
+                // ClientData happens before NetMsg so we can reset some values here.
+                sequence = None;
+                anim_frame = None;
+                animtime = None;
+
+                None
+            }
+            FrameData::NetMsg((_, data)) => {
+                let parse = parse_netmsg(data.msg, &aux);
+
+                if parse.is_err() {
+                    return None;
+                }
+
+                let (_, messages) = parse.unwrap();
+
+                // Every time there is svc_clientdata, there is svc_deltapacketentities
+                // Even if there isn't, this is more safe to make sure that we have the client data.
+                let client_data = messages.iter().find_map(|message| {
+                    if let NetMessage::EngineMessage(engine_message) = message {
+                        if let EngineMessage::SvcClientData(ref client_data) = **engine_message {
+                            Some(client_data)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                });
+
+                // If no client_dat then we that means there won't be packet entity. Typically.
+                client_data?;
+
+                // Cannot use client_data here because it only reports delta.
+                // Even though it is something that can be worked with. Ehh.
+                // let client_data = client_data.unwrap();
+
+                // let (origin, viewangles) = if let Some(client_data) = client_data {
+                //     (client_data.client_data.get(""))
+                // } else {
+                //     (None, None)
+                // };
+
+                let delta_packet_entities = messages.iter().find_map(|message| {
+                    if let NetMessage::EngineMessage(engine_message) = message {
+                        if let EngineMessage::SvcDeltaPacketEntities(ref delta_packet_entities) =
+                            **engine_message
+                        {
+                            Some(delta_packet_entities)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                });
+
+                if let Some(delta_packet_entities) = delta_packet_entities {
+                    if delta_packet_entities.entity_states.first().is_some()
+                        && delta_packet_entities.entity_states[0].delta.is_some()
+                    {
+                        let delta = &delta_packet_entities.entity_states[0]
+                            .delta
+                            .as_ref()
+                            .unwrap();
+
+                        if let Some(sequence_bytes) = delta.get("sequence\0") {
+                            let sequence_bytes: [u8; 4] = from_fn(|i| sequence_bytes[i]);
+                            sequence = Some(i32::from_le_bytes(sequence_bytes));
+                        }
+
+                        if let Some(anim_frame_bytes) = delta.get("frame\0") {
+                            let anim_frame_bytes: [u8; 4] = from_fn(|i: usize| anim_frame_bytes[i]);
+                            anim_frame = Some(f32::from_le_bytes(anim_frame_bytes));
+                        }
+
+                        if let Some(animtime_bytes) = delta.get("animtime\0") {
+                            let animtime_bytes: [u8; 4] = from_fn(|i| animtime_bytes[i]);
+                            animtime = Some(f32::from_le_bytes(animtime_bytes));
+                        }
+
+                        if let Some(gaitsequence_bytes) = delta.get("gaitsequence\0") {
+                            let gaitsequence_bytes: [u8; 4] = from_fn(|i| gaitsequence_bytes[i]);
+                            gaitsequence = Some(i32::from_le_bytes(gaitsequence_bytes));
+                        }
+
+                        if let Some(blending0) = delta.get("blending[0]\0") {
+                            // blending is just [u8; 1]
+                            blending[0] = blending0[0];
+                        }
+
+                        if let Some(blending1) = delta.get("blending[1]\0") {
+                            // blending is just [u8; 1]
+                            blending[1] = blending1[0];
+                        }
+                    }
+                }
+
+                Some(GhostFrame {
+                    origin: Vec3::from_array(origin),
+                    viewangles: Vec3::from_array(viewangles),
+                    frametime: Some(frame.time as f64), /* time here is accummulative, will fix
+                                                         * after */
+                    buttons: None,
+                    anim: Some(GhostFrameAnim {
+                        sequence,
+                        frame: anim_frame,
+                        animtime,
+                        gaitsequence,
+                        blending,
+                    }),
+                })
+            }
             _ => None,
         })
-        .scan(0., |acc, mut frame| {
+        .scan(0., |acc, mut frame: GhostFrame| {
             // Cummulative time is 1 2 3 4, so do subtraction to get the correct frametime
             let cum_time = frame.frametime.unwrap();
 
@@ -50,101 +190,5 @@ pub fn demo_ghost_parse(filename: &str) -> eyre::Result<GhostInfo> {
     Ok(GhostInfo {
         ghost_name: filename.to_owned(),
         frames: ghost_frames,
-        ghost_anim_frame: 0.,
     })
 }
-
-// pub fn demo_ghost_parse(
-//     name: &str,
-//     offset: f32,
-//     parse_anim: bool,
-// ) -> GhostInfo {
-//     // New ghost
-//     let mut ghost = GhostInfo::new();
-//     ghost.set_name(name.to_owned());
-//     ghost.reset_ghost_anim_frame();
-
-//     let mut delta_decoders = get_initial_delta();
-//     let mut custom_messages = HashMap::<u8, SvcNewUserMsg>::new();
-
-//     // Help with checking out which demo is unparse-able.
-//     // println!("Last parsed demo {}", ghost.get_name());
-
-//     // Because player origin/viewangles and animation are on different frame, we have to sync it.
-//     // Order goes: players info > animation > player info > ...
-//     let mut sequence: Option<Vec<u8>> = None;
-//     let mut anim_frame: Option<Vec<u8>> = None;
-//     let mut animtime: Option<Vec<u8>> = None;
-
-//     for (_, entry) in demo.directory.entries.iter().enumerate() {
-//         for frame in &entry.frames {
-//             match &frame.data {
-//                 FrameData::NetMsg((_, data)) => {
-//                     if !parse_anim {
-//                         continue;
-//                     }
-
-//                     let (_, messages) =
-//                         parse_netmsg(data.msg, &mut delta_decoders, &mut
-// custom_messages).unwrap();
-
-//                     for message in messages {
-//                         match message {
-//                             Message::EngineMessage(what) => match what {
-//                                 EngineMessage::SvcDeltaPacketEntities(what) => {
-//                                     for entity in &what.entity_states {
-//                                         if entity.entity_index == 1 && entity.delta.is_some() {
-//                                             sequence = entity
-//                                                 .delta
-//                                                 .as_ref()
-//                                                 .unwrap()
-//                                                 .get("gaitsequence\0")
-//                                                 .cloned();
-//                                             anim_frame = entity
-//                                                 .delta
-//                                                 .as_ref()
-//                                                 .unwrap()
-//                                                 .get("frame\0")
-//                                                 .cloned();
-//                                             animtime = entity
-//                                                 .delta
-//                                                 .as_ref()
-//                                                 .unwrap()
-//                                                 .get("animtime\0")
-//                                                 .cloned();
-//                                         }
-//                                     }
-//                                     // These numbers are not very close to what we want.
-//                                     // They are vieworigin, not player origin.
-//                                     // origin.push(data.info.ref_params.vieworg);
-//                                     // viewangles.push(data.info.ref_params.viewangles);
-//                                 }
-//                                 _ => (),
-//                             },
-//                             _ => (),
-//                         }
-//                     }
-//                 }
-//                 FrameData::ClientData(what) => {
-//                     // Append frame on this frame because the demo orders like it.
-//                     ghost.append_frame(
-//                         what.origin,
-//                         what.viewangles,
-//                         sequence.to_owned(),
-//                         anim_frame.to_owned(),
-//                         animtime.to_owned(),
-//                         None,
-//                     );
-
-//                     // Reset for next find.
-//                     sequence = None;
-//                     anim_frame = None;
-//                     animtime = None;
-//                 }
-//                 _ => (),
-//             }
-//         }
-//     }
-
-//     ghost
-// }

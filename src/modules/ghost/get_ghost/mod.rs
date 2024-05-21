@@ -54,63 +54,27 @@ pub struct GhostFrame {
     pub origin: Vec3,
     pub viewangles: Vec3,
     pub frametime: Option<f64>,
-    pub sequence: Option<Vec<u8>>,
-    /// frame here is frame count for `sequence`. Related to animation playback.
-    pub frame: Option<Vec<u8>>,
-    pub animtime: Option<Vec<u8>>,
     pub buttons: Option<u32>,
+    pub anim: Option<GhostFrameAnim>,
 }
 
+#[derive(Debug, Clone)]
+pub struct GhostFrameAnim {
+    pub sequence: Option<i32>,
+    pub frame: Option<f32>,
+    pub animtime: Option<f32>,
+    pub gaitsequence: Option<i32>,
+    // 0 is the same as no blending so there is no need to do optional type.
+    pub blending: [u8; 2],
+}
+
+#[derive(Debug)]
 pub struct GhostInfo {
     pub ghost_name: String,
     pub frames: Vec<GhostFrame>,
-    pub ghost_anim_frame: f32,
 }
 
 impl GhostInfo {
-    // fn new() -> Self {
-    //     Self {
-    //         ghost_name: "".to_string(),
-    //         frames: vec![],
-    //         ghost_anim_frame: 0.,
-    //     }
-    // }
-
-    // fn append_frame(
-    //     &mut self,
-    //     origin: Vec3,
-    //     viewangles: Vec3,
-    //     sequence: Option<Vec<u8>>,
-    //     frame: Option<Vec<u8>>,
-    //     animtime: Option<Vec<u8>>,
-    //     buttons: Option<u32>,
-    // ) {
-    //     self.append_frame_with_frametime(
-    //         0., origin, viewangles, sequence, frame, animtime, buttons,
-    //     );
-    // }
-
-    // fn append_frame_with_frametime(
-    //     &mut self,
-    //     frametime: f32,
-    //     origin: Vec3,
-    //     viewangles: Vec3,
-    //     sequence: Option<Vec<u8>>,
-    //     frame: Option<Vec<u8>>,
-    //     animtime: Option<Vec<u8>>,
-    //     buttons: Option<u32>,
-    // ) {
-    //     self.frames.push(GhostFrame {
-    //         frametime: Some(frametime as f64),
-    //         origin,
-    //         viewangles,
-    //         sequence,
-    //         frame,
-    //         animtime,
-    //         buttons,
-    //     });
-    // }
-
     /// Returns an interpolated [`GhostFrame`] based on current time.
     ///
     /// Takes an optional argument to force frametime.
@@ -143,8 +107,14 @@ impl GhostInfo {
             to_index = index;
         }
 
-        if to_index <= 0 {
+        if to_index == 0 {
             return Some(frame0.clone());
+        }
+
+        // If exceeding the number of available frames then we have nothing.
+        // This is to make sure that we know when it ends.
+        if to_index == self.frames.len() - 1 && time >= to_time {
+            return None;
         }
 
         let to_frame = self.frames.get(to_index)?;
@@ -175,56 +145,10 @@ impl GhostInfo {
             origin: new_origin,
             viewangles: new_viewangles,
             frametime: from_frame.frametime,
-            sequence: from_frame.sequence.clone(),
-            frame: from_frame.frame.clone(),
-            animtime: from_frame.animtime.clone(),
             buttons: from_frame.buttons.clone(),
+            anim: from_frame.anim.clone(),
         })
     }
-
-    // pub fn get_frame(&self, idx: usize) -> &GhostFrame {
-    //     self.frames.get(idx.min(self.frames.len() - 1)).unwrap()
-    // }
-
-    // pub fn get_size(&self) -> usize {
-    //     self.frames.len()
-    // }
-
-    // pub fn set_name(&mut self, name: String) {
-    //     self.ghost_name = name.to_owned();
-    // }
-
-    // pub fn get_name(&self) -> String {
-    //     self.ghost_name.to_owned()
-    // }
-
-    // pub fn set_entity_index(&mut self, idx: usize) {
-    //     self.entity_index = idx;
-    // }
-
-    // pub fn get_entity_index(&self) -> usize {
-    //     self.entity_index
-    // }
-
-    // pub fn increment_ghost_anim_frame(&mut self) {
-    //     self.ghost_anim_frame += 1.;
-    // }
-
-    // pub fn reset_ghost_anim_frame(&mut self) {
-    //     self.ghost_anim_frame = 0.;
-    // }
-
-    // pub fn get_ghost_anim_frame(&self) -> f32 {
-    //     self.ghost_anim_frame
-    // }
-
-    // pub fn get_offset(&self) -> f32 {
-    //     self.offset
-    // }
-}
-
-pub fn lerp(v0: f64, v1: f64, t: f64) -> f64 {
-    (1. - t) * v0 + t * v1
 }
 
 /// Difference between curr and next

@@ -803,6 +803,10 @@ pub static sv_num_edicts: Pointer<*mut c_int> = Pointer::empty(
     // Not a real symbol name.
     b"sv_num_edicts\0",
 );
+pub static sv_paused: Pointer<*mut c_int> = Pointer::empty(
+    // Not a real symbol name.
+    b"sv_paused\0",
+);
 pub static svs: Pointer<*mut server_static_s> = Pointer::empty(b"svs\0");
 pub static sv_areanodes: Pointer<*mut c_void> = Pointer::empty(b"sv_areanodes\0");
 pub static SV_AddLinksToPM: Pointer<unsafe extern "C" fn(*mut c_void, *const [f32; 3])> =
@@ -1090,6 +1094,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &sv,
     &sv_edicts,
     &sv_num_edicts,
+    &sv_paused,
     &svs,
     &sv_areanodes,
     &SV_AddLinksToPM,
@@ -1526,6 +1531,7 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
     client_s_edict_offset.set(marker, Some(19076));
     sv_edicts.set(marker, sv.offset(marker, 244824));
     sv_num_edicts.set(marker, sv.offset(marker, 0x3bc50));
+    sv_paused.set(marker, sv.offset(marker, 4));
 
     for pointer in POINTERS {
         pointer.log(marker);
@@ -1745,6 +1751,9 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         }
         _ => (),
     }
+
+    let ptr = &sv;
+    sv_paused.set(marker, ptr.by_offset(marker, 4));
 
     let ptr = &GL_BeginRendering;
     match ptr.pattern_index(marker) {
@@ -2488,6 +2497,7 @@ pub mod exported {
 
             campath::on_cl_disconnect(marker);
             viewmodel_sway::on_cl_disconnnect(marker);
+            ghost::on_cl_disconnect(marker);
 
             CL_Disconnect.get(marker)();
         })

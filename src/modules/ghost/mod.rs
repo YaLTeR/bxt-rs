@@ -1,4 +1,3 @@
-use std::array::from_fn;
 use std::ptr::null_mut;
 
 use self::get_ghost::GhostInfo;
@@ -7,7 +6,7 @@ use super::cvars::CVar;
 use super::Module;
 use crate::ffi::edict::{edict_s, entvars_s};
 use crate::handler;
-use crate::hooks::engine::{self, con_print, player_edict, sv_player};
+use crate::hooks::engine::{self, con_print, player_edict};
 use crate::hooks::server::{self, CBaseEntity__Create};
 use crate::hooks::utils::get_entvars;
 use crate::utils::*;
@@ -39,7 +38,6 @@ impl Module for Ghost {
             &BXT_GHOST_PLAY,
             &BXT_GHOST_STOP,
             &BXT_GHOST_RESET,
-            &BXT_TEST_WHAT,
         ];
         COMMANDS
     }
@@ -58,9 +56,12 @@ impl Module for Ghost {
         // && server::CBaseEntity__Create.is_set(marker)
         && engine::svs.is_set(marker)
         && engine::hudSetViewAngles.is_set(marker)
+        && engine::sv_paused.is_set(marker)
+        && engine::cls.is_set(marker)
     }
 }
 
+#[derive(Debug)]
 struct BxtGhostInfo<'a> {
     ghost_info: GhostInfo,
     offset: f64,
@@ -75,6 +76,19 @@ struct BxtGhostInfo<'a> {
     edict: Option<&'a mut edict_s>,
     // Eh, good enough to free the CBaseEntity
     _cbase_entity: Option<*mut c_void>,
+    // Animation info
+    curr_anim: Animation,
+    last_origin: [f32; 3],
+    // To avoid calculation where a ghost is done playing.
+    should_stop: bool,
+}
+
+#[derive(Debug)]
+enum Animation {
+    /// 4
+    OnGround,
+    /// 6 or 7
+    InAir,
 }
 
 static GHOSTS: MainThreadRefCell<Vec<BxtGhostInfo>> = MainThreadRefCell::new(vec![]);
@@ -90,6 +104,15 @@ xxx.",
 );
 
 fn ghost_add(marker: MainThreadMarker, file_name: String, offset: f64) {
+    // If not idling then switch to spawning right away.
+    // So, if ghost is added after playing, then ghost will show up.
+    // Ignore the idling state so the ghosts won't play right after add.
+    let mut state = STATE.borrow_mut(marker);
+
+    if !matches!(*state, State::Idle) {
+        *state = State::Spawning;
+    }
+
     match get_ghost(&file_name) {
         Ok(ghost_info) => {
             GHOSTS.borrow_mut(marker).push(BxtGhostInfo {
@@ -100,6 +123,10 @@ fn ghost_add(marker: MainThreadMarker, file_name: String, offset: f64) {
                 is_spectable: false,
                 edict: None,
                 _cbase_entity: None,
+                // better to start in air so we can use the z diff
+                curr_anim: Animation::InAir,
+                last_origin: [0f32; 3],
+                should_stop: false,
             });
         }
         Err(err) => con_print(marker, &format!("Cannot read file.\n{}\n", err)),
@@ -203,15 +230,29 @@ static BXT_GHOST_PLAY: Command =
     Command::new(b"bxt_ghost_play\0", handler!("Play ghosts.", play as fn(_)));
 
 pub fn play(marker: MainThreadMarker) {
+    if !can_play_ghost(marker) {
+        return;
+    }
+
     let mut state = STATE.borrow_mut(marker);
+
+    let mut ghosts = GHOSTS.borrow_mut(marker);
+
+    if ghosts.len() == 0 {
+        con_print(marker, "There are no ghosts.\n");
+        return;
+    }
 
     *state = match *state {
         State::Idle => State::Spawning,
         State::Playing => State::Paused,
+        State::Stopped => {
+            // Reset time if it is stopped. Then set back to playing.
+            TIME.set(marker, 0.);
+            State::Playing
+        }
         _ => State::Playing,
     };
-
-    let mut ghosts = GHOSTS.borrow_mut(marker);
 
     // Set some variables
     ghosts.iter_mut().for_each(|ghost| {
@@ -221,10 +262,8 @@ pub fn play(marker: MainThreadMarker) {
                 edict.v.renderamt = 0.;
                 edict.v.rendermode = 2; // texture
             }
-        } else {
-            if let Some(edict) = &mut ghost.edict {
-                edict.v.rendermode = 0; // normal
-            }
+        } else if let Some(edict) = &mut ghost.edict {
+            edict.v.rendermode = 0; // normal
         }
     });
 
@@ -269,6 +308,10 @@ static BXT_GHOST_STOP: Command = Command::new(
 );
 
 fn ghost_stop(marker: MainThreadMarker) {
+    if !can_play_ghost(marker) {
+        return;
+    }
+
     *STATE.borrow_mut(marker) = State::Stopped;
 
     // Reset timer?
@@ -306,9 +349,18 @@ pub fn free_ghost_cbase(marker: MainThreadMarker) {
 unsafe fn spawn(marker: MainThreadMarker, ghost: &mut BxtGhostInfo) {
     // Spawns ghost even if it is player.
     // Use renderamt to make the ghost disappear.
-    // if ghost.is_player {
-    //     return;
-    // }
+    // So we have to spawn regardless of what happens.
+    // if ghost.is_player { return; }
+
+    // If spawning in the middle of a play, this will do the job.
+    let mut state = STATE.borrow_mut(marker);
+    *state = State::Spawning;
+
+    // This means we will go back here again in the next tick if this is invoked while playing.
+    // So we need to stop ourselves from duplicating spawns
+    if ghost.edict.is_some() {
+        return;
+    }
 
     let entity_name = if ghost.is_spectable {
         "player"
@@ -322,6 +374,10 @@ unsafe fn spawn(marker: MainThreadMarker, ghost: &mut BxtGhostInfo) {
     // Just for convenience and obviousness
     let player = player_edict(marker).unwrap().as_ref();
     new_entity.modelindex = player.v.modelindex;
+    new_entity.sequence = 19; // starts with in air
+
+    new_entity.v_angle = [0., 0., 0.];
+    new_entity.angles = [0., 0., 0.];
 
     ghost.edict = Some(&mut *new_entity.pContainingEntity);
 }
@@ -329,7 +385,7 @@ unsafe fn spawn(marker: MainThreadMarker, ghost: &mut BxtGhostInfo) {
 static TIME: MainThreadCell<f64> = MainThreadCell::new(0.);
 
 pub fn update_ghosts(marker: MainThreadMarker) {
-    if !Ghost.is_enabled(marker) {
+    if !can_play_ghost(marker) {
         return;
     }
 
@@ -346,17 +402,23 @@ pub fn update_ghosts(marker: MainThreadMarker) {
         // Already returned from previous condition
         State::Idle => unreachable!(),
         State::Spawning => {
-            ghosts
-                .iter_mut()
-                .for_each(|ghost| unsafe { spawn(marker, ghost) });
+            // spawn() uses STATE so we need to drop it first here.
+            drop(state);
+
+            ghosts.iter_mut().for_each(|ghost| {
+                ghost.should_stop = false;
+                unsafe { spawn(marker, ghost) }
+            });
 
             // Done with spawning and start playing
-            *state = State::Playing;
+            *STATE.borrow_mut(marker) = State::Playing;
         }
         // Will update ghost even when in pause. The only difference is the timer update.
         State::Playing | State::Paused => {
             let passed_time = unsafe { *engine::host_frametime.get(marker) };
-            let passed_time = if matches!(*state, State::Playing) {
+            let is_engine_paused = unsafe { *engine::sv_paused.get(marker) };
+
+            let passed_time = if matches!(*state, State::Playing) && is_engine_paused != 1 {
                 passed_time * BXT_GHOST_SPEED.as_f32(marker) as f64
             } else {
                 0.
@@ -388,7 +450,9 @@ pub fn update_ghosts(marker: MainThreadMarker) {
 
                     if let Some(edict) = &mut ghost.edict {
                         (edict.v.origin).copy_from_slice(&frame.origin.to_array());
-                        (edict.v.v_angle).copy_from_slice(&frame.viewangles.to_array());
+                        // (edict.v.angles).copy_from_slice(&frame.viewangles.to_array());
+                        // only change yaw
+                        edict.v.angles[1] = frame.viewangles[1];
 
                         if ghost.is_transparent {
                             edict.v.rendermode = 5;
@@ -403,10 +467,64 @@ pub fn update_ghosts(marker: MainThreadMarker) {
                             edict.v.rendermode = 2; // texture
                         }
 
-                        edict.v.sequence = 4;
+                        edict.v.frame = (edict.v.frame + passed_time as f32) % 256.;
+
+                        // This is how spastic the animation is.
                         edict.v.framerate = 1.;
-                        edict.v.frame = (edict.v.frame + passed_time as f32 / 100.) % 256.;
-                        println!("frame is {}", edict.v.frame);
+
+                        // Inferred animation
+                        // Z changes and previously on ground
+                        if edict.v.origin[2] != ghost.last_origin[2]
+                            && matches!(ghost.curr_anim, Animation::OnGround)
+                        {
+                            edict.v.sequence = 6;
+                            edict.v.gaitsequence = 6; // ACT_HOP
+                            ghost.curr_anim = Animation::InAir;
+                            // edict.v.frame = 0.;
+                        } else if edict.v.origin[2] == ghost.last_origin[2]
+                            && matches!(ghost.curr_anim, Animation::InAir)
+                        {
+                            edict.v.sequence = 4;
+                            edict.v.gaitsequence = 4; // ACT_RUN
+                            ghost.curr_anim = Animation::OnGround;
+                            // edict.v.frame = 0.;
+                        }
+
+                        // Actual animation from a demo
+                        if let Some(anim) = frame.anim {
+                            // For some reasons, sequence doesn't work as intended.
+                            // if let Some(sequence) = anim.sequence {
+                            //     edict.v.sequence = sequence as i32;
+                            // }
+
+                            if let Some(frame) = anim.frame {
+                                edict.v.frame = frame;
+                            }
+
+                            if let Some(animtime) = anim.animtime {
+                                edict.v.animtime = animtime;
+                            }
+
+                            if let Some(gaitsequence) = anim.gaitsequence {
+                                // We don't have a way to attach weapon to a model so this is the
+                                // way. walk (3) will have the
+                                // player T-pose. So we make them run (4) instead.
+                                let gaitsequence = if gaitsequence == 3 { 4 } else { gaitsequence };
+
+                                edict.v.gaitsequence = gaitsequence;
+                                edict.v.sequence = gaitsequence;
+                            }
+
+                            edict.v.blending = anim.blending;
+                        }
+
+                        ghost.last_origin = edict.v.origin;
+                    }
+                } else {
+                    if let Some(edict) = &mut ghost.edict {
+                        // stop animation
+                        edict.v.framerate = 0.;
+                        ghost.should_stop = true;
                     }
                 }
             });
@@ -414,47 +532,42 @@ pub fn update_ghosts(marker: MainThreadMarker) {
             // If playing, will increase the timer.
             // If paused, will not increase the timer.
             // By doing this, we can seek ahead.
-
             TIME.set(marker, TIME.get(marker) + passed_time);
+
+            // Automatically set state to Stopped in case all ghosts are done.
+            // This is to avoid doing bxt_ghost_stop then bxt_ghost_play again.
+            let should_stop = ghosts.iter().all(|ghost| ghost.should_stop);
+            if should_stop {
+                *state = State::Stopped;
+            }
         }
         // Stopped, do nothing
         // Player's viewangles and origin are not updated so player can move around.
+        // Ideally, it should set TIME to 0. But preferrably the animation should freeze at the end.
+        // Frozen animation at the end looks better.
         State::Stopped => (),
     }
 }
 
-static BXT_TEST_WHAT: Command = Command::new(
-    b"bxt_test_what\0",
-    handler!(
-        "xxx <name>
+pub fn on_cl_disconnect(marker: MainThreadMarker) {
+    // Disconnecting will make it idling.
+    // With this, we can spawn the entities again if we start a new map.
+    // Otherwise, starting a new map will have State::Stop instead.
+    *STATE.borrow_mut(marker) = State::Idle;
+    TIME.set(marker, 0.);
+}
 
-xxx.",
-        test_what as fn(_, _)
-    ),
-);
-
-fn test_what(marker: MainThreadMarker, what: String) {
-    println!("received input {}", what);
-
-    unsafe {
-        let huh = &*engine::sv_player.get(marker);
-        println!("{:?}", huh.v);
-        // // let mut origin = (*engine::sv_player.get(marker)).v.origin;
-        // // origin[2] += 100.;
-
-        // let origin = [427.317352, -1069.668945, -1659.968750 + 100.];
-        // let viewangles = [0., 0., 0.];
-
-        // // let entity = CBaseEntity__Create.get(marker)(a, origin.as_mut_ptr(),
-        // // viewangles.as_mut_ptr(), null_mut()); let entity = get_entvars(entity);
-        // let entity = &mut *create_entity(marker, what, origin, viewangles);
-        // // println!("{:?}", entity as en);
-        // // println!("{:?}", entity);
-
-        // let player = player_edict(marker).unwrap().as_ref();
-
-        // entity.modelindex = player.v.modelindex;
+fn can_play_ghost(marker: MainThreadMarker) -> bool {
+    if !Ghost.is_enabled(marker) {
+        return false;
     }
+
+    // Not in a map
+    if unsafe { (*engine::cls.get(marker)).state != 5 } {
+        return false;
+    }
+
+    true
 }
 
 unsafe fn create_entity(

@@ -40,12 +40,9 @@ pub fn surf_gateway_ghost_parse(filename: &str) -> eyre::Result<GhostInfo> {
                 frametime: None,
                 origin: Vec3::from_array(ghost.origin),
                 viewangles: Vec3::from_array(ghost.viewangles),
-                sequence: None,
-                frame: None,
-                animtime: None,
                 buttons: ghost.buttons.into(),
+                anim: None,
             })
             .collect(),
-        ghost_anim_frame: 0.,
     })
 }

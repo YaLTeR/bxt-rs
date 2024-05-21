@@ -8,6 +8,7 @@ use nom::IResult;
 
 use super::*;
 
+#[allow(dead_code)]
 struct SimenGhostFrame {
     frame: GhostFrame,
     velocity: [f32; 3],
@@ -36,7 +37,6 @@ pub fn simen_ghost_parse(filename: &str) -> eyre::Result<GhostInfo> {
         |frames| GhostInfo {
             ghost_name: filename.to_owned(),
             frames,
-            ghost_anim_frame: 0.,
         },
     )(&file)
     {
@@ -72,10 +72,8 @@ fn simen_wrbot_line(i: &str) -> IResult<&str, SimenGhostFrame> {
                 frametime: None,
                 origin: Vec3::from_array([posx, posy, posz]),
                 viewangles: Vec3::from_array([pitch, yaw, 0.]),
-                sequence: None,
-                frame: None,
-                animtime: None,
                 buttons: buttons.into(),
+                anim: None,
             },
             velocity: [velx, vely, velz],
             buttons,
