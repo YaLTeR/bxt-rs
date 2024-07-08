@@ -3,6 +3,8 @@ use std::ptr::null_mut;
 use self::get_ghost::GhostInfo;
 use super::commands::Command;
 use super::cvars::CVar;
+use super::triangle_drawing::triangle_api::{Primitive, RenderMode};
+use super::triangle_drawing::TriangleApi;
 use super::Module;
 use crate::ffi::edict::{edict_s, entvars_s};
 use crate::handler;
@@ -15,6 +17,7 @@ mod get_ghost;
 mod misc;
 use alloc::ffi::CString;
 
+use bincode::options;
 use get_ghost::get_ghost;
 use libc::c_void;
 
@@ -47,6 +50,8 @@ impl Module for Ghost {
             &BXT_GHOST_FRAMETIME_OVERRIDE,
             &BXT_GHOST_PLAY_ON_CONNECT,
             &BXT_GHOST_SPEED,
+            &BXT_GHOST_PATH,
+            &BXT_GHOST_PATH_PROGRESSIVE,
         ];
         CVARS
     }
@@ -81,6 +86,8 @@ struct BxtGhostInfo<'a> {
     last_origin: [f32; 3],
     // To avoid calculation where a ghost is done playing.
     should_stop: bool,
+    // RGBA
+    path_color: [f32; 4],
 }
 
 #[derive(Debug)]
@@ -127,6 +134,7 @@ fn ghost_add(marker: MainThreadMarker, file_name: String, offset: f64) {
                 curr_anim: Animation::InAir,
                 last_origin: [0f32; 3],
                 should_stop: false,
+                path_color: [0., 1., 0., 1.],
             });
         }
         Err(err) => con_print(marker, &format!("Cannot read file.\n{}\n", err)),
@@ -144,7 +152,7 @@ fn ghost_show(marker: MainThreadMarker) {
 
     for (index, ghost) in ghosts.iter().enumerate() {
         s += &format!(
-            "{}: name {} offset {} {} {} {}\n",
+            "{}: name {} offset {} {} {} {} {:?}\n",
             index,
             ghost.ghost_info.ghost_name,
             ghost.offset,
@@ -154,7 +162,8 @@ fn ghost_show(marker: MainThreadMarker) {
             } else {
                 ""
             },
-            if ghost.is_spectable { "spectable" } else { "" }
+            if ghost.is_spectable { "spectable" } else { "" },
+            ghost.path_color
         );
     }
 
@@ -163,7 +172,18 @@ fn ghost_show(marker: MainThreadMarker) {
 
 static BXT_GHOST_OPTION: Command = Command::new(
     b"bxt_ghost_option\0",
-    handler!("Change ghost settings.", ghost_option as fn(_, _, _)),
+    handler!(
+        "\
+Change ghost settings.
+
+player: Mark the current ghost as main player (first person).
+transparent: Make the ghost transparent
+path_color <r> <g> <b> <a>: Change the color of the ghost path.
+<number>: change the offset of the ghost.
+
+Example: `bxt_ghost_option 0 player`",
+        ghost_option as fn(_, _, _)
+    ),
 );
 
 fn ghost_option(marker: MainThreadMarker, index: usize, option: String) {
@@ -183,9 +203,21 @@ fn ghost_option(marker: MainThreadMarker, index: usize, option: String) {
 
     let ghost = ghost.unwrap();
 
-    match option.as_str() {
+    let mut options = option.split_whitespace();
+
+    match options.next().unwrap() {
         "player" => ghost.is_player = !ghost.is_player,
         "transparent" => ghost.is_transparent = !ghost.is_transparent,
+        "path_color" => {
+            let colors = options
+                .filter_map(|s| s.parse::<f32>().ok())
+                .collect::<Vec<f32>>();
+            if colors.len() != 4 {
+                return;
+            }
+
+            ghost.path_color = [colors[0], colors[1], colors[2], colors[3]];
+        }
         maybe_float => {
             let maybe_float = maybe_float.parse::<f64>();
             if let Ok(float) = maybe_float {
@@ -382,7 +414,87 @@ unsafe fn spawn(marker: MainThreadMarker, ghost: &mut BxtGhostInfo) {
     ghost.edict = Some(&mut *new_entity.pContainingEntity);
 }
 
+static BXT_GHOST_PATH: CVar = CVar::new(
+    b"bxt_ghost_path\0",
+    b"0\0",
+    "Visualizes the path of a ghost",
+);
+
+static BXT_GHOST_PATH_PROGRESSIVE: CVar = CVar::new(
+    b"bxt_ghost_path_progressive\0",
+    b"0\0",
+    "Progressively draws the path of the ghost as the ghost is playing back.",
+);
+
 static TIME: MainThreadCell<f64> = MainThreadCell::new(0.);
+
+pub fn draw_ghost_path(marker: MainThreadMarker, tri: &TriangleApi) {
+    if !BXT_GHOST_PATH.as_bool(marker) {
+        return;
+    }
+
+    let gl = crate::gl::GL.borrow(marker);
+    if let Some(gl) = gl.as_ref() {
+        unsafe {
+            gl.LineWidth(2.);
+        }
+    }
+
+    tri.render_mode(RenderMode::TransColor);
+    tri.begin(Primitive::Lines);
+
+    if !BXT_GHOST_PATH_PROGRESSIVE.as_bool(marker) {
+        GHOSTS.borrow_mut(marker).iter().for_each(|ghost| {
+            ghost
+                .ghost_info
+                .frames
+                .iter()
+                .zip(ghost.ghost_info.frames.iter().skip(1))
+                .for_each(|(curr, next)| {
+                    tri.color(
+                        ghost.path_color[0],
+                        ghost.path_color[1],
+                        ghost.path_color[2],
+                        ghost.path_color[3],
+                    );
+                    tri.vertex(curr.origin);
+                    tri.vertex(next.origin);
+                });
+        });
+    } else {
+        let ghost_frametime = BXT_GHOST_FRAMETIME_OVERRIDE.as_f32(marker) as f64;
+        let frametime = if ghost_frametime == 0. {
+            None
+        } else {
+            Some(ghost_frametime)
+        };
+
+        GHOSTS.borrow_mut(marker).iter().for_each(|ghost| {
+            let stop_frame = ghost
+                .ghost_info
+                .get_frame_index(TIME.get(marker) + ghost.offset, frametime);
+
+            (0..(stop_frame - 1)).for_each(|frame_index| {
+                tri.color(
+                    ghost.path_color[0],
+                    ghost.path_color[1],
+                    ghost.path_color[2],
+                    ghost.path_color[3],
+                );
+                tri.vertex(ghost.ghost_info.frames[frame_index].origin);
+                tri.vertex(ghost.ghost_info.frames[frame_index + 1].origin);
+            });
+        });
+    }
+
+    tri.end();
+
+    if let Some(gl) = gl.as_ref() {
+        unsafe {
+            gl.LineWidth(1.);
+        }
+    }
+}
 
 pub fn update_ghosts(marker: MainThreadMarker) {
     if !can_play_ghost(marker) {

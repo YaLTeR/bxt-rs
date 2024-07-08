@@ -149,6 +149,34 @@ impl GhostInfo {
             anim: from_frame.anim.clone(),
         })
     }
+
+    /// Returns the frame index from a given time.
+    pub fn get_frame_index(&self, time: f64, frametime: Option<f64>) -> usize {
+        let mut to_time = 0f64;
+        let mut to_index = 0usize;
+
+        for (index, frame) in self.frames.iter().enumerate() {
+            let add_time = if let Some(frametime) = frametime {
+                frametime
+            } else {
+                frame.frametime.unwrap()
+            };
+
+            // only exit when greater means we are having the "to" frame
+            if to_time > time {
+                break;
+            }
+
+            to_time += add_time;
+            to_index = index;
+        }
+
+        if to_index == 0 {
+            return 0;
+        }
+
+        return to_index;
+    }
 }
 
 /// Difference between curr and next

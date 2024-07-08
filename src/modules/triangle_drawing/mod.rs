@@ -1,6 +1,6 @@
 //! Triangle drawing.
 
-use super::{tas_optimizer, tas_studio, Module};
+use super::{ghost, tas_optimizer, tas_studio, Module};
 use crate::hooks::engine::{self};
 use crate::utils::*;
 
@@ -33,6 +33,7 @@ pub unsafe fn on_draw_transparent_triangles(marker: MainThreadMarker) {
 
     tas_studio::draw(marker, &tri);
     tas_optimizer::draw(marker, &tri);
+    ghost::draw_ghost_path(marker, &tri);
 
     // Required for the WON DLLs.
     tri.render_mode(triangle_api::RenderMode::Normal);
