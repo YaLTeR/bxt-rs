@@ -275,6 +275,11 @@ pub fn play(marker: MainThreadMarker) {
         return;
     }
 
+    // reset just in case
+    ghosts.iter_mut().for_each(|ghost| {
+        ghost.should_stop = false;
+    });
+
     *state = match *state {
         State::Idle => State::Spawning,
         State::Playing => State::Paused,
