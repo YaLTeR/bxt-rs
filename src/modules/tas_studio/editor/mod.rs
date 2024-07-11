@@ -15,7 +15,7 @@ use hltas::types::{
     VectorialStrafingConstraints,
 };
 use hltas::HLTAS;
-use itertools::{izip, Itertools};
+use itertools::Itertools;
 use thiserror::Error;
 
 use self::db::{Action, ActionKind, Branch, Db};
@@ -4695,7 +4695,7 @@ fn smoothed_views(
 
         // Walk forward half an interval.
         middle_frame_half
-            .chain(izip!(
+            .chain(zip(
                 frames[i + 1..].iter().map(frame_time),
                 unwrapped[i + 1..].iter().copied(),
             ))
