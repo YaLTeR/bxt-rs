@@ -1816,7 +1816,7 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     let callbacks = Callbacks {
         enable_mouse_look: &|| enable_mouse_look(marker),
         disable_mouse_look: &|| disable_mouse_look(marker),
-        get_viewangles: &|| get_viewangles(marker),
+        get_viewangles: &|| unsafe { get_viewangles(marker) },
         change_view_origin: &|origin| change_view_origin(marker, origin),
     };
     if let Err(err) = editor.tick(
@@ -2198,10 +2198,10 @@ fn disable_mouse_look(marker: MainThreadMarker) {
     client::activate_mouse(marker, false);
 }
 
-fn get_viewangles(marker: MainThreadMarker) -> [f32; 3] {
+unsafe fn get_viewangles(marker: MainThreadMarker) -> [f32; 3] {
     let mut view_angles = [0.; 3];
 
-    unsafe { engine::hudGetViewAngles.get(marker)(&mut view_angles) };
+    engine::hudGetViewAngles.get(marker)(&mut view_angles);
 
     view_angles
 }

@@ -309,13 +309,8 @@ struct InsertCameraLineAdjustment {
     did_split: bool,
 }
 
-/// Camera view edit modes.
-///
-/// `CameraViewAdjustmentMode::Alt` adjusts differently for different kinds of line depending on
-/// implementation.
-///
-/// If target_yaw, result is velocity_lock.
-// More to come I guess
+/// `CameraViewAdjustmentMode::Alt` adjusts different things depending on the line type. For
+/// target_yaw lines, it adjusts the velocity_lock angle.
 #[derive(Debug, Clone, Copy)]
 pub enum CameraViewAdjustmentMode {
     Yaw,
@@ -1286,11 +1281,7 @@ impl Editor {
             if let Some(hovered_line_idx) = self.hovered_line_idx {
                 // For camera editor camera line editing.
                 if mouse.buttons.is_right_down() && !self.prev_mouse_state.buttons.is_right_down() {
-                    // Mouse was released last frame so the adjustment cannot be active.
                     assert!(self.camera_view_adjustment.is_none());
-
-                    // There are no other adjustments in the camera editor at the moment; and anyhow
-                    // when more are added, this condition should still be upheld.
                     assert!(!self.is_any_adjustment_active());
 
                     let line = &self.branch().branch.script.lines[hovered_line_idx];
