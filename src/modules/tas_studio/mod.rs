@@ -22,7 +22,7 @@ use hltas::HLTAS;
 use self::editor::operation::Key;
 use self::editor::toggle_auto_action::ToggleAutoActionTarget;
 use self::editor::utils::{bulk_and_first_frame_idx, FrameBulkExt};
-use self::editor::KeyboardState;
+use self::editor::{Callbacks, KeyboardState};
 use self::remote::{AccurateFrame, PlayRequest};
 use super::commands::{Command, Commands};
 use super::cvars::CVar;
@@ -38,6 +38,7 @@ use crate::handler;
 use crate::hooks::bxt::{OnTasPlaybackFrameData, BXT_IS_TAS_EDITOR_ACTIVE};
 use crate::hooks::engine::con_print;
 use crate::hooks::{bxt, client, engine, sdl};
+use crate::modules::tas_studio::editor::CameraViewAdjustmentMode;
 use crate::utils::*;
 
 pub struct TasStudio;
@@ -122,6 +123,7 @@ impl Module for TasStudio {
             && bxt::BXT_TAS_NEW.is_set(marker)
             && bxt::BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES.is_set(marker)
             && bxt::BXT_TAS_STUDIO_NOREFRESH_OVERRIDE.is_set(marker)
+            && bxt::BXT_TAS_STUDIO_FREECAM_SET_ORIGIN.is_set(marker)
             && TriangleDrawing.is_enabled(marker)
             && Commands.is_enabled(marker)
             && PlayerMovementTracing.is_enabled(marker)
@@ -1811,7 +1813,20 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     };
 
     let deadline = Instant::now() + Duration::from_millis(20);
-    if let Err(err) = editor.tick(&tracer, world_to_screen, mouse, keyboard, deadline) {
+    let callbacks = Callbacks {
+        enable_mouse_look: &|| enable_mouse_look(marker),
+        disable_mouse_look: &|| disable_mouse_look(marker),
+        get_viewangles: &|| unsafe { get_viewangles(marker) },
+        change_view_origin: &|origin| change_view_origin(marker, origin),
+    };
+    if let Err(err) = editor.tick(
+        &tracer,
+        world_to_screen,
+        mouse,
+        keyboard,
+        deadline,
+        callbacks,
+    ) {
         con_print(marker, &format!("Error ticking the TAS editor: {err}\n"));
         *state = State::Idle;
         return;
@@ -2033,6 +2048,20 @@ pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
     for line in text.split_inclusive(|c| *c == b'\0') {
         ml.line(line);
     }
+
+    if let Some(camera_view_adjustment) = editor.camera_view_adjustment() {
+        draw.string(
+            IVec2::new(
+                info.iWidth / 2 - info.iCharHeight * 3,
+                info.iHeight / 2 + info.iCharHeight * 2,
+            ),
+            match camera_view_adjustment.mode {
+                CameraViewAdjustmentMode::Yaw => b"Camera view change: Yaw\0",
+                CameraViewAdjustmentMode::Pitch => b"Camera view change: Pitch\0",
+                CameraViewAdjustmentMode::Alt => b"Camera view change: Alt\0",
+            },
+        );
+    }
 }
 
 fn add_hovered_frame_hud_lines(text: &mut Vec<u8>, frame_idx: usize, frame: &Frame) {
@@ -2157,4 +2186,26 @@ pub unsafe fn maybe_enable_freecam(marker: MainThreadMarker) {
         ENABLE_FREECAM_ON_CALCREFDEF.set(marker, false);
         engine::prepend_command(marker, "bxt_freecam 1\n");
     }
+}
+
+fn enable_mouse_look(marker: MainThreadMarker) {
+    sdl::set_relative_mouse_mode(marker, true);
+    client::activate_mouse(marker, true);
+}
+
+fn disable_mouse_look(marker: MainThreadMarker) {
+    sdl::set_relative_mouse_mode(marker, false);
+    client::activate_mouse(marker, false);
+}
+
+unsafe fn get_viewangles(marker: MainThreadMarker) -> [f32; 3] {
+    let mut view_angles = [0.; 3];
+
+    engine::hudGetViewAngles.get(marker)(&mut view_angles);
+
+    view_angles
+}
+
+fn change_view_origin(marker: MainThreadMarker, origin: Vec3) {
+    unsafe { bxt::BXT_TAS_STUDIO_FREECAM_SET_ORIGIN.get(marker)(origin.into()) };
 }
