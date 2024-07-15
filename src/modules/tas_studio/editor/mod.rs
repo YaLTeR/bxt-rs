@@ -478,6 +478,18 @@ impl Editor {
         self.hovered_frame_idx.map(|idx| &self.branch().frames[idx])
     }
 
+    pub fn has_all_accurate_frames(&self) -> bool {
+        let frame_count = self
+            .branch()
+            .branch
+            .script
+            .frame_bulks()
+            .map(|bulk| bulk.frame_count.get() as usize)
+            .sum::<usize>();
+
+        self.branch().first_predicted_frame == frame_count + 1
+    }
+
     pub fn undo_log_len(&self) -> usize {
         self.undo_log.len()
     }
@@ -2814,16 +2826,8 @@ impl Editor {
             return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
-        let frame_count = self
-            .branch()
-            .branch
-            .script
-            .frame_bulks()
-            .map(|bulk| bulk.frame_count.get() as usize)
-            .sum::<usize>();
-
         // Only smooth when we have all accurate frames.
-        if self.branch().first_predicted_frame != frame_count + 1 {
+        if !self.has_all_accurate_frames() {
             return Err(ManualOpError::UserError(
                 "all frames must be accurate (simulated by the \
                  second game) to apply global smoothing"

@@ -456,23 +456,38 @@ fn replay_views(marker: MainThreadMarker) {
             simulate_at,
             bridge,
         } => {
-            editor.cancel_ongoing_adjustments();
+            if !editor.has_all_accurate_frames() {
+                con_print(
+                    marker,
+                    "You need to have second game done simulating to playback views.\n",
+                );
 
-            sdl::set_relative_mouse_mode(marker, true);
-            client::activate_mouse(marker, true);
+                State::Editing {
+                    editor,
+                    last_generation,
+                    last_branch_idx,
+                    simulate_at,
+                    bridge,
+                }
+            } else {
+                editor.cancel_ongoing_adjustments();
 
-            // bxt_tas_norefresh_until_last_frames = 0 means 1 frame being played. Heh.
-            let start_frame = norefresh_until_stop_frame_frame_idx(marker, &editor);
+                sdl::set_relative_mouse_mode(marker, true);
+                client::activate_mouse(marker, true);
 
-            engine::prepend_command(marker, "bxt_hud 0; hud_draw 0\n");
+                // bxt_tas_norefresh_until_last_frames = 0 means 1 frame being played. Heh.
+                let start_frame = norefresh_until_stop_frame_frame_idx(marker, &editor);
 
-            State::PlayingViews {
-                editor,
-                last_generation,
-                last_branch_idx,
-                simulate_at,
-                bridge,
-                current_frame: start_frame,
+                engine::prepend_command(marker, "bxt_hud 0; hud_draw 0\n");
+
+                State::PlayingViews {
+                    editor,
+                    last_generation,
+                    last_branch_idx,
+                    simulate_at,
+                    bridge,
+                    current_frame: start_frame,
+                }
             }
         }
         // Press play view again to stop.
