@@ -497,7 +497,10 @@ fn replay_views(marker: MainThreadMarker) {
                 bridge,
             }
         }
-        other => other,
+        other => {
+            con_print(marker, "You need to be in the editor to playback views.\n");
+            other
+        }
     };
 }
 
@@ -1680,9 +1683,11 @@ pub fn tas_playback_rendered_views(marker: MainThreadMarker) {
                 let r_refdef_vieworg = unsafe { &mut *engine::r_refdef_vieworg.get(marker) };
                 let r_refdef_viewangles = unsafe { &mut *engine::r_refdef_viewangles.get(marker) };
 
-                r_refdef_vieworg[0] = editor.branch().frames[current_frame].state.player.pos[0];
-                r_refdef_vieworg[1] = editor.branch().frames[current_frame].state.player.pos[1];
-                r_refdef_vieworg[2] = editor.branch().frames[current_frame].state.player.pos[2];
+                let state = &editor.branch().frames[current_frame].state;
+
+                r_refdef_vieworg[0] = state.player.pos[0];
+                r_refdef_vieworg[1] = state.player.pos[1];
+                r_refdef_vieworg[2] = state.player.pos[2];
 
                 // We don't keep track of vieworg so just deduce it from here instead.
                 // It is not easy to keep track of vieworg because it isn't there to track.
@@ -1690,17 +1695,13 @@ pub fn tas_playback_rendered_views(marker: MainThreadMarker) {
                 // It is also funny how vieworg is calculated here,
                 // but viewangles is passed from BXT.
                 r_refdef_vieworg[2] += 28.;
-                if editor.branch().frames[current_frame].state.player.ducking {
+                if state.player.ducking {
                     r_refdef_vieworg[2] -= 16.;
                 }
 
-                r_refdef_viewangles[0] = editor.branch().frames[current_frame]
-                    .state
-                    .rendered_viewangles[0];
+                r_refdef_viewangles[0] = state.rendered_viewangles[0];
 
-                r_refdef_viewangles[1] = editor.branch().frames[current_frame]
-                    .state
-                    .rendered_viewangles[1];
+                r_refdef_viewangles[1] = state.rendered_viewangles[1];
 
                 State::PlayingViews {
                     editor,
@@ -1755,10 +1756,7 @@ pub unsafe fn on_tas_playback_frame(
             strafe_state.prev_frame_input.yaw = view_angles[1].to_radians();
         }
 
-        // Store the rendered viewangles
-        // Viewangles is always available. Same as origin.
-        // Vieworigin is something that is not available per player. It is calculated upon
-        // rendering.
+        // Store rendered viewangles.
         strafe_state.rendered_viewangles = data.rendered_viewangles.into();
 
         // We don't have a good way to extract real trace results from the movement code, so let's
