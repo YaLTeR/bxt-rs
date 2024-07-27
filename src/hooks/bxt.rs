@@ -9,9 +9,9 @@ use hltas::HLTAS;
 use crate::modules::tas_studio;
 use crate::utils::{abort_on_panic, MainThreadMarker, Pointer, PointerTrait};
 
-pub static BXT_ON_TAS_PLAYBACK_FRAME: Pointer<
+pub static BXT_ON_TAS_PLAYBACK_FRAME_V2: Pointer<
     *mut Option<unsafe extern "C" fn(OnTasPlaybackFrameData) -> c_int>,
-> = Pointer::empty(b"bxt_on_tas_playback_frame\0");
+> = Pointer::empty(b"bxt_on_tas_playback_frame_v2\0");
 pub static BXT_ON_TAS_PLAYBACK_STOPPED: Pointer<*mut Option<unsafe extern "C" fn()>> =
     Pointer::empty(b"bxt_on_tas_playback_stopped\0");
 pub static BXT_SIMULATION_IPC_IS_CLIENT_INITIALIZED: Pointer<unsafe extern "C" fn() -> c_int> =
@@ -31,7 +31,7 @@ pub static BXT_TAS_STUDIO_FREECAM_SET_ORIGIN: Pointer<unsafe extern "C" fn([c_fl
     Pointer::empty(b"bxt_tas_studio_freecam_set_origin\0");
 
 static POINTERS: &[&dyn PointerTrait] = &[
-    &BXT_ON_TAS_PLAYBACK_FRAME,
+    &BXT_ON_TAS_PLAYBACK_FRAME_V2,
     &BXT_ON_TAS_PLAYBACK_STOPPED,
     &BXT_SIMULATION_IPC_IS_CLIENT_INITIALIZED,
     &BXT_TAS_LOAD_SCRIPT_FROM_STRING,
@@ -79,7 +79,7 @@ pub unsafe fn find_pointers(marker: MainThreadMarker) {
 }
 
 fn set_callbacks(marker: MainThreadMarker) {
-    if let Some(bxt_on_tas_playback_frame) = BXT_ON_TAS_PLAYBACK_FRAME.get_opt(marker) {
+    if let Some(bxt_on_tas_playback_frame) = BXT_ON_TAS_PLAYBACK_FRAME_V2.get_opt(marker) {
         // SAFETY: this is a global variable in BXT which is accessed only from the main game thread
         // (which is the current thread as we have a marker).
         unsafe {

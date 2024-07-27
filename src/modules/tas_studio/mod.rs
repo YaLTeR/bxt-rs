@@ -38,8 +38,7 @@ use crate::handler;
 use crate::hooks::bxt::{OnTasPlaybackFrameData, BXT_IS_TAS_EDITOR_ACTIVE};
 use crate::hooks::engine::con_print;
 use crate::hooks::{bxt, client, engine, sdl};
-use crate::modules::tas_studio::editor::MaxAccelYawOffsetMode;
-use crate::modules::tas_studio::editor::CameraViewAdjustmentMode;
+use crate::modules::tas_studio::editor::{CameraViewAdjustmentMode, MaxAccelYawOffsetMode};
 use crate::utils::*;
 
 pub struct TasStudio;
@@ -120,7 +119,7 @@ impl Module for TasStudio {
             && sdl::SDL_GetMouseState.is_set(marker)
             && bxt::BXT_TAS_LOAD_SCRIPT_FROM_STRING.is_set(marker)
             && bxt::BXT_IS_TAS_EDITOR_ACTIVE.is_set(marker)
-            && bxt::BXT_ON_TAS_PLAYBACK_FRAME.is_set(marker)
+            && bxt::BXT_ON_TAS_PLAYBACK_FRAME_V2.is_set(marker)
             && bxt::BXT_ON_TAS_PLAYBACK_STOPPED.is_set(marker)
             && bxt::BXT_TAS_NEW.is_set(marker)
             && bxt::BXT_TAS_NOREFRESH_UNTIL_LAST_FRAMES.is_set(marker)
