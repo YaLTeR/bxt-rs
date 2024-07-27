@@ -144,6 +144,7 @@ pub struct OnTasPlaybackFrameData {
     pub strafe_cycle_frame_count: u32,
     pub prev_predicted_trace_fractions: [f32; 4],
     pub prev_predicted_trace_normal_zs: [f32; 4],
+    pub rendered_viewangles: [f32; 3],
 }
 
 unsafe extern "C" fn on_tas_playback_frame(data: OnTasPlaybackFrameData) -> c_int {

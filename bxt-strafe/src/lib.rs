@@ -133,6 +133,8 @@ pub struct State {
     // Number of frames for [`StrafeDir::LeftRight`] or [`StrafeDir::RightLeft`] which goes from
     // `0` to `count - 1`.
     pub strafe_cycle_frame_count: u32,
+    // In case of yaw and pitch override, this might be useful.
+    pub rendered_viewangles: Vec3,
 }
 
 impl State {
@@ -145,6 +147,7 @@ impl State {
             jumped: false,
             move_traces: ArrayVec::new(),
             strafe_cycle_frame_count: 0,
+            rendered_viewangles: Vec3::ZERO,
         };
 
         rv.update_place(tracer);
