@@ -350,7 +350,7 @@ impl<S: Step> Step for Strafe<S> {
                 frame_bulk.auto_actions.movement
             {
                 let theta = match type_ {
-                    StrafeType::MaxAccel => match dir {
+                    StrafeType::MaxAccel | StrafeType::MaxAccelYawOffset { .. } => match dir {
                         StrafeDir::Left => max_accel_theta(parameters, &state),
                         StrafeDir::Right => -max_accel_theta(parameters, &state),
                         StrafeDir::Yaw(yaw) => {
@@ -445,6 +445,18 @@ impl<S: Step> Step for Strafe<S> {
                     let entry = Vct::get().find_best((vel_yaw + theta) - camera_yaw);
 
                     (camera_yaw, entry)
+                };
+
+                let camera_yaw = if matches!(type_, StrafeType::MaxAccelYawOffset { .. }) {
+                    // theta < 0. = is right
+                    // If is right then we decreases yaw by offset.
+                    // Therefore, positive offset in framebulk mean going more on that side.
+                    let offset = state.max_accel_yaw_offset_value.to_radians();
+                    let offset = if theta < 0. { -offset } else { offset };
+
+                    camera_yaw + angle_mod_rad(offset)
+                } else {
+                    camera_yaw
                 };
 
                 input.yaw = camera_yaw;
@@ -543,6 +555,47 @@ impl<S: Step> Step for ResetFields<S> {
             }))
         ) {
             state.strafe_cycle_frame_count = 0;
+        }
+
+        // If we have some acceleration, then this kicks in.
+        // It will preserve the final value across split segments.
+        if let Some(AutoMovement::Strafe(StrafeSettings {
+            type_:
+                StrafeType::MaxAccelYawOffset {
+                    start,
+                    target,
+                    accel,
+                },
+            dir,
+        })) = frame_bulk.auto_actions.movement
+        {
+            let right = matches!(dir, StrafeDir::Right);
+
+            // Flip start and target when accel is negative.
+            state.max_accel_yaw_offset_value = (state.max_accel_yaw_offset_value + accel)
+                .max(start)
+                .min(target);
+
+            // Reset value if we have different inputs.
+            // This means that if we split a s5x bulk,
+            // there won't be any side effects.
+            if start != state.prev_max_accel_yaw_offset_start
+                || target != state.prev_max_accel_yaw_offset_target
+                || accel != state.prev_max_accel_yaw_offset_accel
+                || right != state.prev_max_accel_yaw_offset_right
+            {
+                state.max_accel_yaw_offset_value = if accel.is_sign_negative() {
+                    target
+                } else {
+                    start
+                };
+
+                // Update so next time we know what to compare against.
+                state.prev_max_accel_yaw_offset_start = start;
+                state.prev_max_accel_yaw_offset_target = target;
+                state.prev_max_accel_yaw_offset_accel = accel;
+                state.prev_max_accel_yaw_offset_right = right;
+            };
         }
 
         self.0

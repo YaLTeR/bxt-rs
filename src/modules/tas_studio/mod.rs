@@ -38,6 +38,7 @@ use crate::handler;
 use crate::hooks::bxt::{OnTasPlaybackFrameData, BXT_IS_TAS_EDITOR_ACTIVE};
 use crate::hooks::engine::con_print;
 use crate::hooks::{bxt, client, engine, sdl};
+use crate::modules::tas_studio::editor::MaxAccelYawOffsetMode;
 use crate::modules::tas_studio::editor::CameraViewAdjustmentMode;
 use crate::utils::*;
 
@@ -1137,6 +1138,8 @@ Values that you can toggle:
 - s07: right-left strafing
 - s40: constant turn rate to the left
 - s41: constant turn rate to the right
+- s50: accelerated turn to the left
+- s51: accelerated turn to the right
 - lgagst: makes autojump and ducktap trigger at optimal speed
 - autojump
 - ducktap
@@ -1213,6 +1216,22 @@ fn toggle(marker: MainThreadMarker, what: String) {
         "s41" => ToggleAutoActionTarget::Strafe {
             dir: StrafeDir::Right,
             type_: StrafeType::ConstYawspeed(210.),
+        },
+        "s50" => ToggleAutoActionTarget::Strafe {
+            dir: StrafeDir::Left,
+            type_: StrafeType::MaxAccelYawOffset {
+                start: 0.,
+                target: 0.,
+                accel: 0.,
+            },
+        },
+        "s51" => ToggleAutoActionTarget::Strafe {
+            dir: StrafeDir::Right,
+            type_: StrafeType::MaxAccelYawOffset {
+                start: 0.,
+                target: 0.,
+                accel: 0.,
+            },
         },
         "lgagst" => ToggleAutoActionTarget::LeaveGroundAtOptimalSpeed,
         "autojump" => ToggleAutoActionTarget::AutoJump,
@@ -1769,6 +1788,12 @@ pub unsafe fn on_tas_playback_frame(
         // TODO: prev_frame_input, which is not set here, is important.
         let mut strafe_state = bxt_strafe::State::new(&tracer, params, player);
         strafe_state.strafe_cycle_frame_count = data.strafe_cycle_frame_count;
+        strafe_state.max_accel_yaw_offset_value = data.max_accel_yaw_offset.value;
+        strafe_state.prev_max_accel_yaw_offset_start = data.max_accel_yaw_offset.start;
+        strafe_state.prev_max_accel_yaw_offset_target = data.max_accel_yaw_offset.target;
+        strafe_state.prev_max_accel_yaw_offset_accel = data.max_accel_yaw_offset.accel;
+        // LEFT = 0, RIGHT = 1. Very nice.
+        strafe_state.prev_max_accel_yaw_offset_right = data.max_accel_yaw_offset.dir == 1;
 
         // Get view angles for this frame.
         unsafe {
@@ -2062,6 +2087,14 @@ fn add_frame_bulk_hud_lines(text: &mut Vec<u8>, bulk: &FrameBulk) {
                 StrafeType::ConstYawspeed(yawspeed) => {
                     write!(text, "turn rate: {yawspeed:.0}").unwrap();
                 }
+                StrafeType::MaxAccelYawOffset {
+                    start,
+                    target,
+                    accel,
+                } => {
+                    // The values are so tiny that only this would make it sensible.
+                    write!(text, "{start:.4} {target:.4} {accel:.4}").unwrap();
+                }
             }
             text.extend(b")\0");
         }
@@ -2224,6 +2257,24 @@ pub fn draw_hud(marker: MainThreadMarker, draw: &hud::Draw) {
     let mut ml = draw.multi_line(IVec2::new(PADDING, 2 * info.iCharHeight + PADDING));
     for line in text.split_inclusive(|c| *c == b'\0') {
         ml.line(line);
+    }
+
+    if let Some(side_strafe_accelerated_yawspeed_adjustment) =
+        editor.side_strafe_accelerated_yawspeed_adjustment()
+    {
+        draw.string(
+            IVec2::new(
+                info.iWidth / 2 - info.iCharHeight * 3,
+                info.iHeight / 2 + info.iCharHeight * 2,
+            ),
+            match side_strafe_accelerated_yawspeed_adjustment.mode {
+                MaxAccelYawOffsetMode::StartAndTarget => b"Start and Target\0",
+                MaxAccelYawOffsetMode::Target => b"Target\0",
+                MaxAccelYawOffsetMode::Acceleration => b"Acceleration\0",
+                MaxAccelYawOffsetMode::Start => b"Start\0",
+                MaxAccelYawOffsetMode::StrafeDirYawField => b"Strafe Dir Yaw Field\0",
+            },
+        );
     }
 
     if let Some(camera_view_adjustment) = editor.camera_view_adjustment() {

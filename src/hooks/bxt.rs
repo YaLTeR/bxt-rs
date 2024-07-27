@@ -144,7 +144,18 @@ pub struct OnTasPlaybackFrameData {
     pub strafe_cycle_frame_count: u32,
     pub prev_predicted_trace_fractions: [f32; 4],
     pub prev_predicted_trace_normal_zs: [f32; 4],
+    pub max_accel_yaw_offset: OnTasPlaybackFrameMaxAccelYawOffset,
     pub rendered_viewangles: [f32; 3],
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct OnTasPlaybackFrameMaxAccelYawOffset {
+    pub value: f32,
+    pub start: f32,
+    pub target: f32,
+    pub accel: f32,
+    pub dir: u8,
 }
 
 unsafe extern "C" fn on_tas_playback_frame(data: OnTasPlaybackFrameData) -> c_int {
