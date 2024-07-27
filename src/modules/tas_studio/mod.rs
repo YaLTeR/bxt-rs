@@ -1656,7 +1656,12 @@ pub unsafe fn maybe_receive_messages_from_remote_server(marker: MainThreadMarker
             editor.recompute_extra_camera_frame_data_if_needed();
         }
         State::PreparingToPlayToEditor(_, _, _) => unreachable!(),
-        _ => (),
+        State::PlayingViews { .. } => {
+            // Do nothing
+            // While PlayingViews is happening, nothing else happens or will happen.
+            // Because PlayingViews only starts when all accurate frames are received.
+            // Meaning there is nothing second game could do anything to affect the state.
+        }
     }
 }
 
