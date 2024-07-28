@@ -484,6 +484,7 @@ pub static idum: Pointer<*mut c_int> = Pointer::empty(
     // Not a real symbol name.
     b"idum\0",
 );
+pub static listener_origin: Pointer<*mut [f32; 3]> = Pointer::empty(b"listener_origin\0");
 pub static Memory_Init: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
     Pointer::empty_patterns(
         b"Memory_Init\0",
@@ -685,6 +686,51 @@ pub static S_PaintChannels: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empt
     ]),
     my_S_PaintChannels as _,
 );
+pub static S_PrecacheSound: Pointer<unsafe extern "C" fn(*const c_char) -> *mut sfx_s> =
+    Pointer::empty_patterns(
+        b"S_PrecacheSound\0",
+        // To find, search for "Cannot continue without sound". You are in CL_PrecacheResources().
+        // The string will be inside a condition block. That condition block is also inside
+        // another condition block. There are 3 calls inside the outer conditon block. The
+        // second call with one argument will be S_PrecacheSound().
+        Patterns(&[
+            // 8684
+            pattern!(55 8B EC A1 ?? ?? ?? ?? 56 85 C0 74 ?? D9 05),
+        ]),
+        null_mut(),
+    );
+pub static S_Say: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"S_Say\0",
+    // To find, search for "Start profiling 10,000 calls to DSP".
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 81 EC 00 01 00 00 D9 05 ?? ?? ?? ?? D8 1D ?? ?? ?? ?? 53),
+    ]),
+    null_mut(),
+);
+pub static S_StartDynamicSound: Pointer<
+    unsafe extern "C" fn(c_int, c_int, *mut sfx_s, *const c_float, c_float, c_float, c_int, c_int),
+> = Pointer::empty_patterns(
+    b"S_StartDynamicSound\0",
+    // To find, search for "S_StartDynamicSound: ".
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 83 EC 48 A1 ?? ?? ?? ?? 53),
+    ]),
+    null_mut(),
+);
+pub static S_StopSound: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer::empty_patterns(
+    b"S_StopSound\0",
+    // To find, search for "Voice - compress: ". You are in Voice_Idle(). Look an else block with
+    // exactly 1 line of 1 call inside with `1` as an argument. That will be Voice_EndChannel().
+    // Inside Voice_EndChannel(), there will be an if block with eaxctly 1 line of 1 call with 1
+    // argument. That will be VoiceSE_EndChannel() and it is a wrapper for S_StopSound() call.
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC A1 ?? ?? ?? ?? 57 BF 04 00 00 00),
+    ]),
+    null_mut(),
+);
 pub static S_TransferStereo16: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
     b"S_TransferStereo16\0",
     // To find, find S_PaintChannels(), go into the last call before the while () condition in the
@@ -734,6 +780,14 @@ pub static SCR_DrawPause: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
 pub static scr_fov_value: Pointer<*mut c_float> = Pointer::empty(b"scr_fov_value\0");
 pub static shm: Pointer<*mut *mut dma_t> = Pointer::empty(b"shm\0");
 pub static sv: Pointer<*mut c_void> = Pointer::empty(b"sv\0");
+pub static sv_edicts: Pointer<*mut *mut edict_s> = Pointer::empty(
+    // Not a real symbol name.
+    b"sv_edicts\0",
+);
+pub static sv_num_edicts: Pointer<*mut c_int> = Pointer::empty(
+    // Not a real symbol name.
+    b"sv_num_edicts\0",
+);
 pub static svs: Pointer<*mut server_static_s> = Pointer::empty(b"svs\0");
 pub static sv_areanodes: Pointer<*mut c_void> = Pointer::empty(b"sv_areanodes\0");
 pub static SV_AddLinksToPM: Pointer<unsafe extern "C" fn(*mut c_void, *const [f32; 3])> =
@@ -795,6 +849,18 @@ pub static SV_RunCmd: Pointer<unsafe extern "C" fn(*mut usercmd_s, c_int)> =
         ]),
         null_mut(),
     );
+pub static SV_StartSound: Pointer<
+    unsafe extern "C" fn(c_int, *mut edict_s, c_int, *const c_char, c_int, c_float, c_int, c_int),
+> = Pointer::empty_patterns(
+    b"SV_StartSound\0",
+    // To find, search for "EMIT_SOUND: volume = ". You are in PF_sound_I(). The last call with `0`
+    // in its argument in that function will be SV_StartSound().
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 83 EC 0C 53 8B 5D ?? 56 57 33 C9),
+    ]),
+    null_mut(),
+);
 pub static Sys_VID_FlipScreen: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"_Z18Sys_VID_FlipScreenv\0",
     // To find, search for "Sys_InitLauncherInterface()". Go into function right after the one that
@@ -971,6 +1037,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &hudGetViewAngles,
     &idum,
     &movevars,
+    &listener_origin,
     &Memory_Init,
     &Mem_Free,
     &paintbuffer,
@@ -993,12 +1060,18 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &R_LoadSkys,
     &R_PreDrawViewModel,
     &S_PaintChannels,
+    &S_PrecacheSound,
+    &S_Say,
+    &S_StartDynamicSound,
+    &S_StopSound,
     &S_TransferStereo16,
     &SCR_DrawLoading,
     &SCR_DrawPause,
     &scr_fov_value,
     &shm,
     &sv,
+    &sv_edicts,
+    &sv_num_edicts,
     &svs,
     &sv_areanodes,
     &SV_AddLinksToPM,
@@ -1006,6 +1079,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &SV_ExecuteClientMessage,
     &SV_Frame,
     &SV_RunCmd,
+    &SV_StartSound,
     &Sys_VID_FlipScreen,
     &Sys_VID_FlipScreen_old,
     &tri,
@@ -1227,6 +1301,14 @@ pub struct ref_params_s {
     pub waterlevel: c_int,
 }
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct sfx_s {
+    pub name: [c_char; 64],
+    pub cache: *mut c_void,
+    pub servercount: c_int,
+}
+
 impl SCREENINFO {
     pub const fn zeroed() -> Self {
         Self {
@@ -1423,6 +1505,8 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
     r_refdef_vieworg.set(marker, r_refdef.offset(marker, 112));
     r_refdef_viewangles.set(marker, r_refdef_vieworg.offset(marker, 12));
     client_s_edict_offset.set(marker, Some(19076));
+    sv_edicts.set(marker, sv.offset(marker, 244824));
+    sv_num_edicts.set(marker, sv.offset(marker, 0x3bc50));
 
     for pointer in POINTERS {
         pointer.log(marker);
@@ -1627,12 +1711,16 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 6153
         Some(0) => {
             sv.set(marker, ptr.by_offset(marker, 19));
+            sv_edicts.set(marker, sv.offset(marker, 0x3bc60));
+            sv_num_edicts.set(marker, sv.offset(marker, 0x3bc58));
             cls.set(marker, ptr.by_offset(marker, 69));
             Con_Printf.set_if_empty(marker, ptr.by_relative_call(marker, 33));
         }
         // CoF-5936
         Some(1) => {
             sv.set(marker, ptr.by_offset(marker, 50));
+            sv_edicts.set(marker, sv.offset(marker, 0x52160));
+            sv_num_edicts.set(marker, sv.offset(marker, 0x52158));
             cls.set(marker, ptr.by_offset(marker, 105));
             Con_Printf.set_if_empty(marker, ptr.by_relative_call(marker, 34));
         }
@@ -1784,6 +1872,15 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(2) => {
             paintedtime.set(marker, ptr.by_offset(marker, 7));
             paintbuffer.set(marker, ptr.by_offset(marker, 78));
+        }
+        _ => (),
+    }
+
+    let ptr = &S_Say;
+    match ptr.pattern_index(marker) {
+        // 8684
+        Some(0) => {
+            listener_origin.set(marker, ptr.by_offset(marker, 335));
         }
         _ => (),
     }
