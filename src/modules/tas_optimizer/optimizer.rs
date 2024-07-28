@@ -430,6 +430,8 @@ impl Optimizer {
                 Line::Change(_) => (),
                 Line::TargetYawOverride(_) => (),
                 Line::RenderYawOverride(_) => (),
+                Line::PitchOverride(_) => (),
+                Line::RenderPitchOverride(_) => (),
             }
         }
 
@@ -537,9 +539,12 @@ fn mutate_single_frame_bulk<R: Rng>(change_pitch: bool, hltas: &mut HLTAS, rng: 
         frame_bulk.auto_actions.movement.as_mut()
     {
         // Mutate strafe type.
-        *type_ = if let StrafeType::ConstYawspeed(yawspeed) = *type_ {
+        *type_ = if let StrafeType::ConstYawspeed(_) = *type_ {
             // Constant yawspeed will not be selected unless specified in bulk.
-            StrafeType::ConstYawspeed(yawspeed)
+            *type_
+        } else if let StrafeType::MaxAccelYawOffset { .. } = *type_ {
+            // Max accel yaw offset will not be selected unless specified in bulk.
+            *type_
         } else {
             let p = rng.gen::<f32>();
             if p < 0.01 {
@@ -557,6 +562,17 @@ fn mutate_single_frame_bulk<R: Rng>(change_pitch: bool, hltas: &mut HLTAS, rng: 
             // Yawspeed is not allowed to be negative.
             *yawspeed = (*yawspeed + rng.gen_range(-1f32..1f32)).abs();
         };
+
+        if let StrafeType::MaxAccelYawOffset {
+            ref mut start,
+            ref mut target,
+            ref mut accel,
+        } = *type_
+        {
+            *start += rng.gen_range(-1f32..1f32);
+            *target += rng.gen_range(-1f32..1f32);
+            *accel += rng.gen_range(-1f32..1f32);
+        }
 
         // Mutate strafe direction.
         match dir {

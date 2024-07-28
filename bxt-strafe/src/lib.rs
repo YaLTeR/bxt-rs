@@ -133,6 +133,13 @@ pub struct State {
     // Number of frames for [`StrafeDir::LeftRight`] or [`StrafeDir::RightLeft`] which goes from
     // `0` to `count - 1`.
     pub strafe_cycle_frame_count: u32,
+    // Accelerated yaw speed specifics
+    pub max_accel_yaw_offset_value: f32,
+    // These values are to indicate whether we are in a "different" frame bulk.
+    pub prev_max_accel_yaw_offset_start: f32,
+    pub prev_max_accel_yaw_offset_target: f32,
+    pub prev_max_accel_yaw_offset_accel: f32,
+    pub prev_max_accel_yaw_offset_right: bool,
     // In case of yaw and pitch override, this might be useful.
     pub rendered_viewangles: Vec3,
 }
@@ -147,6 +154,11 @@ impl State {
             jumped: false,
             move_traces: ArrayVec::new(),
             strafe_cycle_frame_count: 0,
+            max_accel_yaw_offset_value: 0.,
+            prev_max_accel_yaw_offset_start: 0.,
+            prev_max_accel_yaw_offset_target: 0.,
+            prev_max_accel_yaw_offset_accel: 0.,
+            prev_max_accel_yaw_offset_right: false,
             rendered_viewangles: Vec3::ZERO,
         };
 

@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 bxt-strafe = { version = "0.1.0", path = "../bxt-strafe" }
-hltas = { version = "0.8.0", features = ["serde1"] }
+hltas = { version = "0.9.0", features = ["serde1"] }
 serde = { version = "1.0.174", features = ["derive"] }

@@ -9,7 +9,7 @@ use std::time::Instant;
 use bxt_ipc_types::Frame;
 use bxt_strafe::{Hull, Trace};
 use color_eyre::eyre::{self, ensure};
-use glam::{Vec2, Vec3};
+use glam::{IVec2, Vec2, Vec3};
 use hltas::types::{
     AutoMovement, Change, ChangeTarget, Line, StrafeDir, StrafeSettings, StrafeType,
     VectorialStrafingConstraints,
@@ -24,11 +24,12 @@ use self::toggle_auto_action::ToggleAutoActionTarget;
 use self::utils::{
     bulk_and_first_frame_idx, bulk_and_first_frame_idx_mut, bulk_idx_and_is_last,
     bulk_idx_and_repeat_at_frame, join_lines, line_first_frame_idx, line_idx_and_repeat_at_frame,
-    FrameBulkExt,
+    FrameBulkExt, MaxAccelOffsetValuesMut,
 };
 use super::remote::{AccurateFrame, PlayRequest};
 use crate::hooks::sdl::MouseState;
 use crate::modules::tas_optimizer::simulator::Simulator;
+use crate::modules::tas_studio::editor::utils::MaxAccelOffsetValues;
 use crate::modules::triangle_drawing::triangle_api::{Primitive, RenderMode};
 use crate::modules::triangle_drawing::TriangleApi;
 
@@ -127,6 +128,8 @@ pub struct Editor {
     ///
     /// Adjusts the yawspeed in the same way for all adjacent frame bulks with equal yawspeed.
     adjacent_side_strafe_yawspeed_adjustment: Option<AdjacentYawspeedAdjustment>,
+    /// Frame bulk max acceleration yaw offset adjustment.
+    max_accel_yaw_offset_adjustment: Option<MaxAccelYawOffsetAdjustment>,
 
     // ==============================================
     // Camera-editor-specific state.
@@ -298,6 +301,69 @@ struct AdjacentYawspeedAdjustment {
     bulk_count: usize,
 }
 
+/// Data for handling the side strafe accelerated yawspeed adjustment.
+#[derive(Debug, Clone, Copy)]
+pub struct MaxAccelYawOffsetAdjustment {
+    /// The mouse adjustment itself.
+    ///
+    /// (start, target, accel, yaw field value)
+    ///
+    /// Yaw field value here is the first value in the yaw field.
+    ///
+    /// It would be current yaw for yaw strafe or left-right count for left-right strafing.
+    mouse_adjustment: MouseAdjustment<MaxAccelYawOffsetMouseAdjustment>,
+    /// Indicates which change mode is in use.
+    ///
+    /// Left click while holding down right mouse button to switch change mode.
+    pub mode: MaxAccelYawOffsetMode,
+    /// Offset the mouse delta position when mode is switched.
+    mouse_offset: IVec2,
+    /// Skip Alt cycle if the mode is not available.
+    cycle_again: bool,
+}
+
+/// Modes of operation for maximum acceleration yaw offset adjustment.
+///
+/// Cycling by holding right mouse button and left click.
+#[derive(Debug, Clone, Copy)]
+pub enum MaxAccelYawOffsetMode {
+    StartAndTarget = 0,
+    Target,
+    Acceleration,
+    Start,
+    /// For adjusting the yaw field value of the strafe direction.
+    ///
+    /// That could be yaw value (Sx3), left right count (Sx6/Sx7),...
+    StrafeDirYawField,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MaxAccelYawOffsetMouseAdjustment {
+    pub start: f32,
+    pub target: f32,
+    pub accel: f32,
+    pub alt: MaxAccelYawOffsetYawField,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum MaxAccelYawOffsetYawField {
+    None,
+    Yaw(f32),
+    LeftRight(NonZeroU32),
+}
+
+impl MaxAccelYawOffsetMode {
+    fn cycle(&self) -> Self {
+        match self {
+            MaxAccelYawOffsetMode::StartAndTarget => MaxAccelYawOffsetMode::Target,
+            MaxAccelYawOffsetMode::Target => MaxAccelYawOffsetMode::Acceleration,
+            MaxAccelYawOffsetMode::Acceleration => MaxAccelYawOffsetMode::Start,
+            MaxAccelYawOffsetMode::Start => MaxAccelYawOffsetMode::StrafeDirYawField,
+            MaxAccelYawOffsetMode::StrafeDirYawField => MaxAccelYawOffsetMode::StartAndTarget,
+        }
+    }
+}
+
 /// Data for handling the insert-camera-line adjustment.
 #[derive(Debug, Clone, Copy)]
 struct InsertCameraLineAdjustment {
@@ -446,6 +512,7 @@ impl Editor {
             adjacent_left_right_count_adjustment: None,
             side_strafe_yawspeed_adjustment: None,
             adjacent_side_strafe_yawspeed_adjustment: None,
+            max_accel_yaw_offset_adjustment: None,
             in_camera_editor: false,
             auto_smoothing: false,
             show_player_bbox: false,
@@ -530,6 +597,12 @@ impl Editor {
 
     pub fn undo_log_len(&self) -> usize {
         self.undo_log.len()
+    }
+
+    pub fn side_strafe_accelerated_yawspeed_adjustment(
+        &self,
+    ) -> Option<MaxAccelYawOffsetAdjustment> {
+        self.max_accel_yaw_offset_adjustment
     }
 
     pub fn camera_view_adjustment(&self) -> Option<CameraViewAdjustment> {
@@ -782,6 +855,7 @@ impl Editor {
             || self.adjacent_left_right_count_adjustment.is_some()
             || self.side_strafe_yawspeed_adjustment.is_some()
             || self.adjacent_side_strafe_yawspeed_adjustment.is_some()
+            || self.max_accel_yaw_offset_adjustment.is_some()
             || self.insert_camera_line_adjustment.is_some()
             || self.camera_view_adjustment.is_some()
     }
@@ -795,7 +869,7 @@ impl Editor {
         keyboard: KeyboardState,
         deadline: Instant,
         callbacks: Callbacks,
-    ) -> eyre::Result<()> {
+    ) -> ManualOpResult<()> {
         let _span = info_span!("Editor::tick").entered();
 
         // Update ongoing adjustments.
@@ -807,6 +881,7 @@ impl Editor {
         self.tick_adjacent_left_right_count_adjustment(mouse, keyboard)?;
         self.tick_side_strafe_yawspeed_adjustment(mouse, keyboard)?;
         self.tick_adjacent_side_strafe_yawspeed_adjustment(mouse, keyboard)?;
+        self.tick_max_accel_yaw_offset_adjustment(mouse, keyboard, self.prev_mouse_state)?;
 
         self.tick_insert_camera_line_adjustment(mouse, keyboard)?;
         self.tick_camera_view_adjustment(mouse, self.prev_mouse_state, callbacks)?;
@@ -994,22 +1069,99 @@ impl Editor {
                         let a_screen = world_to_screen(pos + perp);
                         let b_screen = world_to_screen(pos - perp);
 
-                        let dir = match (a_screen, b_screen) {
+                        let adjustment_dir = match (a_screen, b_screen) {
                             (Some(a), Some(b)) => a - b,
                             // Presumably, one of the points is invisible, so just fall back.
                             _ => Vec2::X,
                         };
 
-                        if let Some(yaw) = bulk.yaw() {
-                            self.yaw_adjustment = Some(MouseAdjustment::new(*yaw, mouse_pos, dir));
+                        if let Some(MaxAccelOffsetValues {
+                            start,
+                            target,
+                            accel,
+                            ..
+                        }) = bulk.max_accel_yaw_offset()
+                        {
+                            // Mode to know which to switch to.
+                            // For left or right, it would be TargetAndEnd so we can turn better.
+                            // For left-right and yaw, it would be Alt where we can change the
+                            // first yaw field value.
+                            let (mode, adjustment_dir, alt) = if let Some(AutoMovement::Strafe(
+                                StrafeSettings { dir, .. },
+                            )) = bulk.auto_actions.movement
+                            {
+                                // Match StrafiDir so we can get adjustment mode and
+                                // adjustment_dir.
+                                // Then match StrafeType to get values for alt.
+                                match dir {
+                                    StrafeDir::Left | StrafeDir::Right | StrafeDir::Best => {
+                                        let adjustment_dir = if matches!(dir, StrafeDir::Right) {
+                                            -adjustment_dir
+                                        } else {
+                                            adjustment_dir
+                                        };
+
+                                        (
+                                            MaxAccelYawOffsetMode::StartAndTarget,
+                                            adjustment_dir,
+                                            MaxAccelYawOffsetYawField::None,
+                                        )
+                                    }
+                                    StrafeDir::Yaw(yaw) | StrafeDir::Line { yaw } => (
+                                        MaxAccelYawOffsetMode::StrafeDirYawField,
+                                        adjustment_dir,
+                                        MaxAccelYawOffsetYawField::Yaw(yaw),
+                                    ),
+                                    StrafeDir::LeftRight(count) | StrafeDir::RightLeft(count) => {
+                                        let adjustment_dir =
+                                            if matches!(dir, StrafeDir::RightLeft(_)) {
+                                                -adjustment_dir
+                                            } else {
+                                                adjustment_dir
+                                            };
+
+                                        (
+                                            MaxAccelYawOffsetMode::StrafeDirYawField,
+                                            adjustment_dir,
+                                            MaxAccelYawOffsetYawField::LeftRight(count),
+                                        )
+                                    }
+                                    _ => return Err(ManualOpError::UserError(
+                                        "Editor does not support current strafe dir for max accel yaw offset."
+                                            .to_owned(),
+                                    )),
+                                }
+                            } else {
+                                unreachable!()
+                            };
+
+                            self.max_accel_yaw_offset_adjustment =
+                                Some(MaxAccelYawOffsetAdjustment {
+                                    mouse_adjustment: MouseAdjustment::new(
+                                        MaxAccelYawOffsetMouseAdjustment {
+                                            start: *start,
+                                            target: *target,
+                                            accel: *accel,
+                                            alt,
+                                        },
+                                        mouse_pos,
+                                        adjustment_dir,
+                                    ),
+                                    mode,
+                                    mouse_offset: IVec2::ZERO,
+                                    cycle_again: false,
+                                });
+                        } else if let Some(yaw) = bulk.yaw() {
+                            self.yaw_adjustment =
+                                Some(MouseAdjustment::new(*yaw, mouse_pos, adjustment_dir));
                         } else if let Some(count) = bulk.left_right_count() {
                             // Make the adjustment face the expected way.
                             let dir = match bulk.auto_actions.movement {
                                 Some(AutoMovement::Strafe(StrafeSettings {
                                     dir: StrafeDir::RightLeft(_),
                                     ..
-                                })) => -dir,
-                                _ => dir,
+                                })) => -adjustment_dir,
+                                _ => adjustment_dir,
                             };
 
                             self.left_right_count_adjustment =
@@ -1020,8 +1172,8 @@ impl Editor {
                                 Some(AutoMovement::Strafe(StrafeSettings {
                                     dir: StrafeDir::Right,
                                     ..
-                                })) => -dir,
-                                _ => dir,
+                                })) => -adjustment_dir,
+                                _ => adjustment_dir,
                             };
 
                             self.side_strafe_yawspeed_adjustment =
@@ -1797,6 +1949,227 @@ impl Editor {
         Ok(())
     }
 
+    fn tick_max_accel_yaw_offset_adjustment(
+        &mut self,
+        mouse: MouseState,
+        keyboard: KeyboardState,
+        prev_mouse: MouseState,
+    ) -> eyre::Result<()> {
+        let Some(adjustment) = &mut self.max_accel_yaw_offset_adjustment else {
+            return Ok(());
+        };
+
+        let bulk_idx = self.selected_bulk_idx.unwrap();
+        let (bulk, first_frame_idx) =
+            bulk_and_first_frame_idx_mut(&mut self.branches[self.branch_idx].branch.script)
+                .nth(bulk_idx)
+                .unwrap();
+
+        let MaxAccelOffsetValuesMut {
+            start,
+            target,
+            accel,
+            mut yaw,
+            mut count,
+        } = bulk.max_accel_yaw_offset_mut().unwrap();
+
+        if !mouse.buttons.is_right_down() {
+            if !adjustment.mouse_adjustment.changed_once {
+                self.max_accel_yaw_offset_adjustment = None;
+                return Ok(());
+            }
+
+            let op = match adjustment.mode {
+                MaxAccelYawOffsetMode::StartAndTarget => {
+                    Operation::SetMaxAccelOffsetStartAndTarget {
+                        bulk_idx,
+                        from: (
+                            adjustment.mouse_adjustment.original_value.start,
+                            adjustment.mouse_adjustment.original_value.target,
+                        ),
+                        to: (*start, *target),
+                    }
+                }
+                MaxAccelYawOffsetMode::Start => Operation::SetMaxAccelOffsetStart {
+                    bulk_idx,
+                    from: adjustment.mouse_adjustment.original_value.start,
+                    to: *start,
+                },
+                MaxAccelYawOffsetMode::Target => Operation::SetMaxAccelOffsetTarget {
+                    bulk_idx,
+                    from: adjustment.mouse_adjustment.original_value.target,
+                    to: *target,
+                },
+                MaxAccelYawOffsetMode::Acceleration => Operation::SetMaxAccelOffsetAccel {
+                    bulk_idx,
+                    from: adjustment.mouse_adjustment.original_value.accel,
+                    to: *accel,
+                },
+                MaxAccelYawOffsetMode::StrafeDirYawField => {
+                    match adjustment.mouse_adjustment.original_value.alt {
+                        // Can't do anything.
+                        MaxAccelYawOffsetYawField::None => {
+                            self.max_accel_yaw_offset_adjustment = None;
+                            return Ok(());
+                        }
+                        MaxAccelYawOffsetYawField::Yaw(from) => Operation::SetYaw {
+                            bulk_idx,
+                            from,
+                            to: *yaw.unwrap(),
+                        },
+                        MaxAccelYawOffsetYawField::LeftRight(from) => {
+                            Operation::SetLeftRightCount {
+                                bulk_idx,
+                                from: from.get(),
+                                to: count.unwrap().get(),
+                            }
+                        }
+                    }
+                }
+            };
+
+            self.max_accel_yaw_offset_adjustment = None;
+            return self.store_operation(op);
+        }
+
+        let mut should_invalidate = false;
+
+        // Mouse left click to switch mode.
+        // This must happen before the delta calculation.
+        if (mouse.buttons.is_left_down() && !prev_mouse.buttons.is_left_down())
+            || adjustment.cycle_again
+        {
+            // Cycling
+            adjustment.mode = adjustment.mode.cycle();
+
+            // After switching mode, we have to reset all of the changes back to the original.
+            *start = adjustment.mouse_adjustment.original_value.start;
+            *target = adjustment.mouse_adjustment.original_value.target;
+            *accel = adjustment.mouse_adjustment.original_value.accel;
+
+            if let MaxAccelYawOffsetYawField::Yaw(original) =
+                adjustment.mouse_adjustment.original_value.alt
+            {
+                let binding = yaw.as_deref_mut();
+                *binding.unwrap() = original;
+            }
+
+            if let MaxAccelYawOffsetYawField::LeftRight(original) =
+                adjustment.mouse_adjustment.original_value.alt
+            {
+                let binding = count.as_deref_mut();
+                *binding.unwrap() = original;
+            }
+
+            adjustment.mouse_adjustment.changed_once = false;
+
+            // Change mouse position so that all of the delta for adjustment is reset.
+            adjustment.mouse_offset = mouse.pos
+                - IVec2::new(
+                    adjustment.mouse_adjustment.pressed_at.x as i32,
+                    adjustment.mouse_adjustment.pressed_at.y as i32,
+                );
+
+            should_invalidate = true;
+            adjustment.cycle_again = false;
+        }
+
+        let speed = keyboard.adjustment_speed();
+        let delta = adjustment
+            .mouse_adjustment
+            // Mouse offset is used here to reset "pressed_at".
+            .delta((mouse.pos - adjustment.mouse_offset).as_vec2())
+            / 50. // Yes
+            * speed;
+
+        match adjustment.mode {
+            MaxAccelYawOffsetMode::StartAndTarget => {
+                let new_start = adjustment.mouse_adjustment.original_value.start + delta;
+                let new_target = adjustment.mouse_adjustment.original_value.target + delta;
+
+                if *start != new_start {
+                    adjustment.mouse_adjustment.changed_once = true;
+                    *start = new_start;
+                    should_invalidate = true;
+                }
+
+                if *target != new_target {
+                    adjustment.mouse_adjustment.changed_once = true;
+                    *target = new_target;
+                    should_invalidate = true;
+                }
+            }
+            MaxAccelYawOffsetMode::Target => {
+                let new_target = adjustment.mouse_adjustment.original_value.target + delta;
+
+                if *target != new_target {
+                    adjustment.mouse_adjustment.changed_once = true;
+                    *target = new_target;
+                    should_invalidate = true;
+                }
+            }
+            MaxAccelYawOffsetMode::Acceleration => {
+                // Accel is very delicate. Need to tone it down.
+                let delta = delta / 20.;
+                let new_accel = adjustment.mouse_adjustment.original_value.accel + delta;
+
+                if *accel != new_accel {
+                    adjustment.mouse_adjustment.changed_once = true;
+                    *accel = new_accel;
+                    should_invalidate = true;
+                }
+            }
+            MaxAccelYawOffsetMode::Start => {
+                let new_start = adjustment.mouse_adjustment.original_value.start + delta;
+
+                if *start != new_start {
+                    adjustment.mouse_adjustment.changed_once = true;
+                    *start = new_start;
+                    should_invalidate = true;
+                }
+            }
+            MaxAccelYawOffsetMode::StrafeDirYawField => {
+                // Undo delta decrease so we can adjust yaw and left right count.
+                // * 0.1 to match the left-right and yaw adjustment.
+                let delta = delta * 50. * 0.1;
+
+                match adjustment.mouse_adjustment.original_value.alt {
+                    MaxAccelYawOffsetYawField::None => {
+                        adjustment.cycle_again = true;
+                    }
+                    MaxAccelYawOffsetYawField::Yaw(from) => {
+                        let new_yaw = from + delta;
+
+                        // We make sure the original_value.alt is correct.
+                        if *yaw.as_deref().unwrap() != new_yaw {
+                            adjustment.mouse_adjustment.changed_once = true;
+                            *yaw.unwrap() = new_yaw;
+                            should_invalidate = true;
+                        }
+                    }
+                    MaxAccelYawOffsetYawField::LeftRight(from) => {
+                        let new_count = from
+                            .get()
+                            .saturating_add_signed((delta).round() as i32)
+                            .max(1);
+
+                        if count.as_ref().unwrap().get() != new_count {
+                            adjustment.mouse_adjustment.changed_once = true;
+                            *count.unwrap() = NonZeroU32::new(new_count).unwrap();
+                            should_invalidate = true;
+                        }
+                    }
+                };
+            }
+        }
+
+        if should_invalidate {
+            self.invalidate(first_frame_idx);
+        }
+
+        Ok(())
+    }
+
     fn tick_insert_camera_line_adjustment(
         &mut self,
         mouse: MouseState,
@@ -2247,6 +2620,63 @@ impl Editor {
                 *yawspeed = original_value;
 
                 drop(bulks);
+                self.invalidate(first_frame_idx);
+            }
+        }
+
+        if let Some(adjustment) = self.max_accel_yaw_offset_adjustment.take() {
+            let original_value = adjustment.mouse_adjustment.original_value;
+
+            let bulk_idx = self.selected_bulk_idx.unwrap();
+            let (bulk, first_frame_idx) =
+                bulk_and_first_frame_idx_mut(&mut self.branch_mut().branch.script)
+                    .nth(bulk_idx)
+                    .unwrap();
+
+            let MaxAccelOffsetValuesMut {
+                start,
+                target,
+                accel,
+                yaw,
+                count,
+            } = bulk.max_accel_yaw_offset_mut().unwrap();
+            let mut should_invalidate = false;
+
+            if (*start, *target, *accel)
+                != (
+                    original_value.start,
+                    original_value.target,
+                    original_value.accel,
+                )
+            {
+                *start = original_value.start;
+                *target = original_value.target;
+                *accel = original_value.accel;
+
+                should_invalidate = true;
+            }
+
+            if let MaxAccelYawOffsetYawField::Yaw(original) =
+                adjustment.mouse_adjustment.original_value.alt
+            {
+                if *yaw.as_deref().unwrap() != original {
+                    *yaw.unwrap() = original;
+                }
+
+                should_invalidate = true;
+            }
+
+            if let MaxAccelYawOffsetYawField::LeftRight(original) =
+                adjustment.mouse_adjustment.original_value.alt
+            {
+                if *count.as_deref().unwrap() != original {
+                    *count.unwrap() = original;
+                }
+
+                should_invalidate = true;
+            }
+
+            if should_invalidate {
                 self.invalidate(first_frame_idx);
             }
         }
