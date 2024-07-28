@@ -37,6 +37,7 @@ impl Module for EmitSound {
             && engine::S_PrecacheSound.is_set(marker)
             && engine::listener_origin.is_set(marker)
             && engine::sv_edicts.is_set(marker)
+            && engine::sv_num_edicts.is_set(marker)
     }
 }
 
@@ -178,7 +179,7 @@ fn emit_sound_dynamic_full(marker: MainThreadMarker, info: SoundInfo) {
             // It does this to have the sound follow player's vieworg rather than origin.
             *engine::listener_origin.get(marker)
         } else {
-            if info.from >= *engine::sv_num_edicts.get(marker) {
+            if info.to >= *engine::sv_num_edicts.get(marker) {
                 return;
             }
 
