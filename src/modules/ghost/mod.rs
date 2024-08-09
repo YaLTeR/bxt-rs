@@ -96,9 +96,15 @@ static GHOSTS: MainThreadRefCell<Vec<BxtGhostInfo>> = MainThreadRefCell::new(vec
 static BXT_GHOST_ADD: Command = Command::new(
     b"bxt_ghost_add\0",
     handler!(
-        "xxx <name>
+        "bxt_ghost_add <path to ghost> <offset in seconds>
+Loads a ghost file relatively from Half-Life folder.
 
-xxx.",
+File extension will determine the parser for ghost file.
+
+.dem: Half-Life demo
+.sg.json: Surf Gateway
+.simen.txt: Simen KZ
+.rj.json: Romanian-Jumpers",
         ghost_add as fn(_, _, _)
     ),
 );
@@ -135,7 +141,13 @@ fn ghost_add(marker: MainThreadMarker, file_name: String, offset: f64) {
 
 static BXT_GHOST_SHOW: Command = Command::new(
     b"bxt_ghost_show\0",
-    handler!("Show current ghosts.", ghost_show as fn(_)),
+    handler!(
+        "bxt_ghost_show
+
+Shows list of current ghosts with some extra information.
+<index> <name> <offset> <player> <transparent> <spectable> <path color in RGBA>",
+        ghost_show as fn(_)
+    ),
 );
 
 fn ghost_show(marker: MainThreadMarker) {
@@ -165,13 +177,13 @@ fn ghost_show(marker: MainThreadMarker) {
 static BXT_GHOST_OPTION: Command = Command::new(
     b"bxt_ghost_option\0",
     handler!(
-        "\
-Change ghost settings.
+        "bxt_ghost option <index> <option>
+Toggles ghost settings.
 
-player: Mark the current ghost as main player (first person).
-transparent: Make the ghost transparent
-path_color <r> <g> <b> <a>: Change the color of the ghost path.
-<number>: change the offset of the ghost.
+\"player\": Marks the current ghost as main player (first person).
+\"transparent\": Makes the ghost transparent
+\"path_color <r> <g> <b> <a>\": Changes the color of the ghost path.
+\"<number>\": Changes the offset of the ghost.
 
 Example: `bxt_ghost_option 0 player`",
         ghost_option as fn(_, _, _)
@@ -181,13 +193,6 @@ Example: `bxt_ghost_option 0 player`",
 fn ghost_option(marker: MainThreadMarker, index: usize, option: String) {
     let mut ghosts = GHOSTS.borrow_mut(marker);
     let ghost = ghosts.get_mut(index);
-    // let is_spawned = matches!(*STATE.borrow_mut(marker), State::Paused | State::Playing);
-    // let cannot_change = || {
-    //     con_print(
-    //         marker,
-    //         "Entity is already spawned. Consider removing this ghost and try again.\n",
-    //     )
-    // };
 
     if ghost.is_none() {
         return;
@@ -230,7 +235,7 @@ static BXT_GHOST_FRAMETIME_OVERRIDE: CVar = CVar::new(
 static BXT_GHOST_PLAY_ON_CONNECT: CVar = CVar::new(
     b"bxt_ghost_play_on_connect\0",
     b"0\0",
-    "Load ghosts as soon as new server is started.",
+    "Plays ghosts as soon as new server is started.",
 );
 
 static BXT_GHOST_SPEED: CVar = CVar::new(b"bxt_ghost_speed\0", b"1\0", "Playback speed.");
@@ -333,7 +338,12 @@ pub fn play(marker: MainThreadMarker) {
 
 static BXT_GHOST_STOP: Command = Command::new(
     b"bxt_ghost_stop\0",
-    handler!("Stop playing ghosts.", ghost_stop as fn(_)),
+    handler!(
+        "bxt_ghost_stop
+
+Stops playing ghosts.",
+        ghost_stop as fn(_)
+    ),
 );
 
 fn ghost_stop(marker: MainThreadMarker) {
@@ -349,7 +359,12 @@ fn ghost_stop(marker: MainThreadMarker) {
 
 static BXT_GHOST_RESET: Command = Command::new(
     b"bxt_ghost_reset\0",
-    handler!("Reset all data related to ghost.", ghost_reset as fn(_)),
+    handler!(
+        "bxt_ghost_reset
+
+Resets all data related to ghost.",
+        ghost_reset as fn(_)
+    ),
 );
 
 fn ghost_reset(marker: MainThreadMarker) {
