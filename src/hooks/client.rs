@@ -36,41 +36,6 @@ pub static PostRunCmd: Pointer<
 > = Pointer::empty(b"PostRunCmd\0");
 pub static Shutdown: Pointer<unsafe extern "C" fn()> = Pointer::empty(b"Shutdown\0");
 
-#[cfg(unix)]
-fn open_library() -> Option<libloading::Library> {
-    use libc::{RTLD_NOLOAD, RTLD_NOW};
-
-    let library =
-        unsafe { libloading::os::unix::Library::open(Some("client.so"), RTLD_NOW | RTLD_NOLOAD) };
-    library.ok().map(libloading::Library::from)
-}
-
-#[cfg(windows)]
-fn open_library() -> Option<libloading::Library> {
-    libloading::os::windows::Library::open_already_loaded("BunnymodXT.dll")
-        .ok()
-        .map(libloading::Library::from)
-}
-
-#[instrument(name = "client::find_pointers", skip_all)]
-pub unsafe fn find_pointers(marker: MainThreadMarker) {
-    let Some(library) = open_library() else {
-        debug!("could not find client library");
-        return;
-    };
-
-    // for pointer in POINTERS {
-    //     let ptr = library
-    //         .get(pointer.symbol())
-    //         .ok()
-    //         .and_then(|sym| NonNull::new(*sym));
-    //     pointer.set(marker, ptr);
-    //     pointer.log(marker);
-    // }
-
-    // set_callbacks(marker);
-}
-
 /// Calls IN_ActivateMouse() or IN_DeactivateMouse() depending on the parameter.
 ///
 /// If the function is not present or has not been found yet, does nothing.

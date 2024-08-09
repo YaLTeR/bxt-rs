@@ -1,13 +1,6 @@
 use std::array::from_fn;
 use std::path::PathBuf;
 
-// use crate::demo_doer::get_ghost::romanian_jumpers::romanian_jumpers_ghost_parse;
-// use crate::{
-//     demo_doer::get_ghost::{
-//         demo::demo_ghost_parse, simen::simen_ghost_parse,
-// surf_gateway::surf_gateway_ghost_parse,     },
-//     open_demo,
-// };
 use color_eyre::eyre;
 use glam::Vec3;
 
@@ -40,14 +33,6 @@ pub fn get_ghost(filename: &str) -> eyre::Result<GhostInfo> {
         Err(eyre::eyre!("Unknown ghost file extension."))
     }
 }
-
-// Intentionally ignore errors for greater goods.
-// pub fn get_ghosts(others: &Vec<(String, f64)>) -> Vec<GhostInfo> {
-//     others
-//         .par_iter()
-//         .filter_map(|(filename, offset)| get_ghost(filename).ok())
-//         .collect()
-// }
 
 #[derive(Debug, Clone)]
 pub struct GhostFrame {

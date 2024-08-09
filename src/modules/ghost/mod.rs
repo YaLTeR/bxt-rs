@@ -9,8 +9,6 @@ use super::Module;
 use crate::ffi::edict::{edict_s, entvars_s};
 use crate::handler;
 use crate::hooks::engine::{self, con_print, create_entity, player_edict};
-use crate::hooks::server::{self, CBaseEntity__Create_Linux};
-use crate::hooks::utils::get_entvars;
 use crate::utils::*;
 
 mod get_ghost;
@@ -81,8 +79,6 @@ struct BxtGhostInfo<'a> {
     // The rest lies on implementation.
     // Option type is for when add the ghost for the first time.
     edict: Option<&'a mut edict_s>,
-    // Eh, good enough to free the CBaseEntity
-    _cbase_entity: Option<*mut c_void>,
     // Animation info
     curr_anim: Animation,
     last_origin: [f32; 3],
@@ -131,7 +127,6 @@ fn ghost_add(marker: MainThreadMarker, file_name: String, offset: f64) {
                 is_transparent: false,
                 is_spectable: false,
                 edict: None,
-                _cbase_entity: None,
                 // better to start in air so we can use the z diff
                 curr_anim: Animation::InAir,
                 last_origin: [0f32; 3],
@@ -378,9 +373,6 @@ pub fn free_ghost_cbase(marker: MainThreadMarker) {
     GHOSTS.borrow_mut(marker).iter_mut().for_each(|ghost| {
         if let Some(edict) = &mut ghost.edict {
             edict.free = 1;
-        }
-        if let Some(cbase) = ghost._cbase_entity {
-            unsafe { server::UTIL_Remove.get(marker)(cbase) };
         }
     });
 }
