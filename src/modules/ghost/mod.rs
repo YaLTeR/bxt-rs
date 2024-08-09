@@ -8,8 +8,8 @@ use super::triangle_drawing::TriangleApi;
 use super::Module;
 use crate::ffi::edict::{edict_s, entvars_s};
 use crate::handler;
-use crate::hooks::engine::{self, con_print, player_edict};
-use crate::hooks::server::{self, CBaseEntity__Create};
+use crate::hooks::engine::{self, con_print, create_entity, player_edict};
+use crate::hooks::server::{self, CBaseEntity__Create_Linux};
 use crate::hooks::utils::get_entvars;
 use crate::utils::*;
 
@@ -17,7 +17,6 @@ mod get_ghost;
 mod misc;
 use alloc::ffi::CString;
 
-use bincode::options;
 use get_ghost::get_ghost;
 use libc::c_void;
 
@@ -63,6 +62,9 @@ impl Module for Ghost {
         && engine::hudSetViewAngles.is_set(marker)
         && engine::sv_paused.is_set(marker)
         && engine::cls.is_set(marker)
+        && engine::CreateNamedEntity.is_set(marker)
+        && engine::gEntityInterface.is_set(marker)
+        && engine::gGlobalVariables.is_set(marker)
     }
 }
 
@@ -405,18 +407,18 @@ unsafe fn spawn(marker: MainThreadMarker, ghost: &mut BxtGhostInfo) {
         "info_target"
     };
 
-    let new_entity =
-        &mut *create_entity(marker, entity_name.to_owned(), [0., 0., 0.], [0., 0., 0.]);
+    let new_edict = create_entity(marker, entity_name, [0., 0., 0.]);
 
-    // Just for convenience and obviousness
-    let player = player_edict(marker).unwrap().as_ref();
-    new_entity.modelindex = player.v.modelindex;
-    new_entity.sequence = 19; // starts with in air
+    if let Some(new_edict) = new_edict {
+        let player = player_edict(marker).unwrap().as_ref();
 
-    new_entity.v_angle = [0., 0., 0.];
-    new_entity.angles = [0., 0., 0.];
+        (*new_edict).v.modelindex = player.v.modelindex;
+        (*new_edict).v.sequence = 19; // starts with in air
+        (*new_edict).v.v_angle = [0., 0., 0.];
+        (*new_edict).v.angles = [0., 0., 0.];
 
-    ghost.edict = Some(&mut *new_entity.pContainingEntity);
+        ghost.edict = Some(&mut *new_edict);
+    }
 }
 
 static BXT_GHOST_PATH: CVar = CVar::new(
@@ -685,21 +687,4 @@ fn can_play_ghost(marker: MainThreadMarker) -> bool {
     }
 
     true
-}
-
-unsafe fn create_entity(
-    marker: MainThreadMarker,
-    entity: String,
-    origin: [f32; 3],
-    viewangles: [f32; 3],
-) -> *mut entvars_s {
-    let s = CString::new(entity).unwrap();
-    let s = s.into_raw();
-    let entity = CBaseEntity__Create.get(marker)(
-        s,
-        origin.to_owned().as_mut_ptr(),
-        viewangles.to_owned().as_mut_ptr(),
-        null_mut(),
-    );
-    get_entvars(entity)
 }

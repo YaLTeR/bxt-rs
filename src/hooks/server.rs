@@ -3,8 +3,9 @@
 #![allow(non_snake_case, non_upper_case_globals)]
 
 use std::os::raw::*;
-use std::ptr::NonNull;
+use std::ptr::{null_mut, NonNull};
 
+use bxt_macros::pattern;
 use bxt_patterns::Patterns;
 
 use crate::ffi::edict::{edict_s, entvars_s};
@@ -21,6 +22,16 @@ pub static PM_Move: Pointer<unsafe extern "C" fn(*mut playermove_s, c_int)> =
 
 pub static CBaseEntity__Create: Pointer<
     unsafe extern "C" fn(*mut c_char, *mut c_float, *mut c_float, *mut c_void) -> *mut c_void,
+> = Pointer::empty_patterns(
+    b"CBaseEntity::Create\0",
+    Patterns(&[
+        // cstrike 8684
+        pattern!(A1 ?? ?? ?? ?? 56 8B 74 24 ?? 57 2B B0 ?? ?? ?? ?? 56 FF 15),
+    ]),
+    null_mut(),
+);
+pub static CBaseEntity__Create_Linux: Pointer<
+    unsafe extern "C" fn(*mut c_char, *mut c_float, *mut c_float, *mut c_void) -> *mut c_void,
 > = Pointer::empty(b"_ZN11CBaseEntity6CreateEPcRK6VectorS3_P7edict_s\0");
 pub static UTIL_Remove: Pointer<unsafe extern "C" fn(*mut c_void)> =
     Pointer::empty(b"_Z11UTIL_RemoveP11CBaseEntity\0");
@@ -31,6 +42,7 @@ pub static UTIL_Remove: Pointer<unsafe extern "C" fn(*mut c_void)> =
 
 static POINTERS: &[&dyn PointerTrait] = &[
     &CBaseEntity__Create,
+    &CBaseEntity__Create_Linux,
     &UTIL_Remove,
     // &CBasePlayer__TakeDamage,
 ];

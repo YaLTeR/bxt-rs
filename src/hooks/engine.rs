@@ -7,7 +7,7 @@ use std::fmt;
 use std::num::ParseIntError;
 use std::os::raw::*;
 use std::ptr::{null_mut, NonNull};
-use std::str::FromStr;
+use std::str::{from_utf8, FromStr};
 
 use bxt_macros::pattern;
 use bxt_patterns::Patterns;
@@ -250,6 +250,16 @@ pub static Cvar_RegisterVariable: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
         ]),
         null_mut(),
     );
+pub static CreateNamedEntity: Pointer<unsafe extern "C" fn(c_int) -> *mut edict_s> =
+    Pointer::empty_patterns(
+        b"CreateNamedEntity\0",
+        // To find, search for "Spawned a NULL entity!"
+        Patterns(&[
+            // 8684
+            pattern!(55 8B EC 53 56 57 8B 7D ?? 85 FF 75 ?? 68 ?? ?? ?? ?? E8 ?? ?? ?? ?? 83 C4 04),
+        ]),
+        null_mut(),
+    );
 pub static cvar_vars: Pointer<*mut *mut cvar_s> = Pointer::empty(b"cvar_vars\0");
 pub static Draw_FillRGBABlend: Pointer<
     unsafe extern "C" fn(c_int, c_int, c_int, c_int, c_int, c_int, c_int, c_int),
@@ -309,6 +319,7 @@ pub static GL_BeginRendering: Pointer<
     null_mut(),
 );
 pub static gEntityInterface: Pointer<*mut DllFunctions> = Pointer::empty(b"gEntityInterface\0");
+pub static gGlobalVariables: Pointer<*mut globalvars_s> = Pointer::empty(b"gGlobalVariables\0");
 pub static gLoadSky: Pointer<*mut c_int> = Pointer::empty(b"gLoadSky\0");
 pub static g_svmove: Pointer<*mut playermove_s> = Pointer::empty(b"g_svmove\0");
 pub static Key_Event: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer::empty_patterns(
@@ -489,7 +500,7 @@ pub static hudSetViewAngles: Pointer<unsafe extern "C" fn(*mut [c_float; 3])> =
         // yet does the exact opposite thing!
         Patterns(&[
             // 8684
-            // pattern!(55 8B EC 8D 45 ?? 50 FF 15 ?? ?? ?? ?? 8B 55),
+            pattern!(55 8B EC 8D 45 ?? 50 FF 15 ?? ?? ?? ?? 8B 55),
         ]),
         null_mut(),
     );
@@ -1034,6 +1045,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Con_ToggleConsole_f,
     &com_gamedir,
     &Cvar_RegisterVariable,
+    &CreateNamedEntity,
     &cvar_vars,
     &DrawCrosshair,
     &Draw_FillRGBABlend,
@@ -1041,6 +1053,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &frametime_remainder,
     &GL_BeginRendering,
     &gEntityInterface,
+    &gGlobalVariables,
     &gLoadSky,
     &g_svmove,
     &Key_Event,
@@ -1121,9 +1134,11 @@ static ORIGINAL_FUNCTIONS: MainThreadRefCell<Vec<*mut c_void>> = MainThreadRefCe
 
 #[repr(C)]
 pub struct DllFunctions {
-    _padding_1: [u8; 136],
+    _padding_1: [u8; 4],
+    pub spawn: Option<unsafe extern "C" fn(*mut edict_s) -> c_int>,
+    _padding_2: [u8; 128],
     pub pm_move: Option<unsafe extern "C" fn(*mut playermove_s, c_int)>,
-    _padding_2: [u8; 32],
+    _padding_3: [u8; 32],
     pub cmd_start: Option<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)>,
 }
 
@@ -1333,6 +1348,41 @@ pub struct sfx_s {
     pub servercount: c_int,
 }
 
+#[repr(C)]
+pub struct globalvars_s {
+    pub time: c_float,
+    pub frametime: c_float,
+    pub force_retouch: c_float,
+    pub mapname: c_uint,
+    pub startspot: c_uint,
+    pub deathmatch: c_float,
+    pub coop: c_float,
+    pub teamplay: c_float,
+    pub serverflags: c_float,
+    pub found_secrets: c_float,
+    pub v_forward: [c_float; 3],
+    pub v_up: [c_float; 3],
+    pub v_right: [c_float; 3],
+    pub trace_allsolid: c_float,
+    pub trace_startsolid: c_float,
+    pub trace_fraction: c_float,
+    pub trace_endpos: [c_float; 3],
+    pub trace_plane_normal: [c_float; 3],
+    pub trace_plane_dist: c_float,
+    pub trace_ent: *mut edict_s,
+    pub trace_inopen: c_float,
+    pub trace_inwater: c_float,
+    pub trace_hitgroup: c_int,
+    pub trace_flags: c_int,
+    pub msg_entity: c_int,
+    pub cdAudioTrack: c_int,
+    pub maxClients: c_int,
+    pub maxEntities: c_int,
+    pub pStringBase: *mut c_char,
+    pub pSaveData: *mut c_void,
+    pub vecLandmarkOffset: [c_float; 3],
+}
+
 impl SCREENINFO {
     pub const fn zeroed() -> Self {
         Self {
@@ -1482,6 +1532,56 @@ pub unsafe fn player_edict(marker: MainThreadMarker) -> Option<NonNull<edict_s>>
     } else {
         NonNull::new(*svs_.clients.add(offset).cast())
     }
+}
+
+pub unsafe fn get_global_string_from_offset(
+    marker: MainThreadMarker,
+    offset: usize,
+) -> Option<String> {
+    let p = (*gGlobalVariables.get(marker))
+        .pStringBase
+        .wrapping_add(offset);
+    let res = CString::from_raw(p);
+    res.to_str().map(|ok| ok.to_owned()).ok()
+}
+
+pub unsafe fn get_global_string_offset_from_string(marker: MainThreadMarker, s: &str) -> u32 {
+    // pro gamer move
+    let a = s.as_ptr();
+    let a = a as u64;
+    let offset0 = (*gGlobalVariables.get(marker)).pStringBase as u64;
+
+    (a.overflowing_sub(offset0)).0 as u32
+}
+
+pub unsafe fn create_entity(
+    marker: MainThreadMarker,
+    classname: &str,
+    origin: [f32; 3],
+) -> Option<*mut edict_s> {
+    // need to add null terminator
+    let classname = if classname.ends_with("\0") {
+        classname
+    } else {
+        &(classname.to_owned() + "\0")
+    };
+
+    let ent = CreateNamedEntity.get(marker)(
+        get_global_string_offset_from_string(marker, classname) as i32,
+    );
+
+    if ent.is_null() {
+        return None;
+    }
+
+    (*ent).v.origin = origin;
+    if let Some(spawn) = (*gEntityInterface.get(marker)).spawn {
+        spawn(ent);
+
+        return Some(ent);
+    }
+
+    None
 }
 
 /// # Safety
@@ -1752,9 +1852,6 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         _ => (),
     }
 
-    let ptr = &sv;
-    sv_paused.set(marker, ptr.by_offset(marker, 4));
-
     let ptr = &GL_BeginRendering;
     match ptr.pattern_index(marker) {
         // 6153
@@ -1962,6 +2059,11 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 6153
         Some(0) => {
             sv.set(marker, ptr.by_offset(marker, 1));
+            sv_paused.set(
+                marker,
+                ptr.by_offset(marker, 1)
+                    .and_then(|ptr| NonNull::new(ptr.as_ptr().add(4))),
+            );
             host_frametime.set(marker, ptr.by_offset(marker, 11));
         }
         // CoF-5936
