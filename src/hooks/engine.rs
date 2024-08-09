@@ -2094,6 +2094,19 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         _ => (),
     }
 
+    let ptr = &SCR_DrawPause;
+    match ptr.pattern_index(marker) {
+        // 8684
+        Some(0) => {
+            gGlobalVariables.set(
+                marker,
+                ptr.by_offset(marker, 48)
+                    .and_then(|ptr| NonNull::new(ptr.as_ptr().sub(12))),
+            );
+        }
+        _ => (),
+    }
+
     let ptr = &V_RenderView;
     match ptr.pattern_index(marker) {
         // 8684
