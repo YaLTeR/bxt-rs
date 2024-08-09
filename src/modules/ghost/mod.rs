@@ -1,22 +1,17 @@
-use std::ptr::null_mut;
-
 use self::get_ghost::GhostInfo;
 use super::commands::Command;
 use super::cvars::CVar;
 use super::triangle_drawing::triangle_api::{Primitive, RenderMode};
 use super::triangle_drawing::TriangleApi;
 use super::Module;
-use crate::ffi::edict::{edict_s, entvars_s};
+use crate::ffi::edict::{edict_s, Flags};
 use crate::handler;
 use crate::hooks::engine::{self, con_print, create_entity, player_edict};
 use crate::utils::*;
 
 mod get_ghost;
-mod misc;
-use alloc::ffi::CString;
 
 use get_ghost::get_ghost;
-use libc::c_void;
 
 extern crate alloc;
 
@@ -186,13 +181,13 @@ Example: `bxt_ghost_option 0 player`",
 fn ghost_option(marker: MainThreadMarker, index: usize, option: String) {
     let mut ghosts = GHOSTS.borrow_mut(marker);
     let ghost = ghosts.get_mut(index);
-    let is_spawned = matches!(*STATE.borrow_mut(marker), State::Paused | State::Playing);
-    let cannot_change = || {
-        con_print(
-            marker,
-            "Entity is already spawned. Consider removing this ghost and try again.\n",
-        )
-    };
+    // let is_spawned = matches!(*STATE.borrow_mut(marker), State::Paused | State::Playing);
+    // let cannot_change = || {
+    //     con_print(
+    //         marker,
+    //         "Entity is already spawned. Consider removing this ghost and try again.\n",
+    //     )
+    // };
 
     if ghost.is_none() {
         return;
@@ -372,7 +367,10 @@ fn ghost_reset(marker: MainThreadMarker) {
 pub fn free_ghost_cbase(marker: MainThreadMarker) {
     GHOSTS.borrow_mut(marker).iter_mut().for_each(|ghost| {
         if let Some(edict) = &mut ghost.edict {
+            // the only thing missing is update on remove
             edict.free = 1;
+            edict.v.flags |= Flags::FL_KILLME;
+            edict.v.targetname = 0;
         }
     });
 }
@@ -383,15 +381,11 @@ unsafe fn spawn(marker: MainThreadMarker, ghost: &mut BxtGhostInfo) {
     // So we have to spawn regardless of what happens.
     // if ghost.is_player { return; }
 
-    // If spawning in the middle of a play, this will do the job.
-    let mut state = STATE.borrow_mut(marker);
-    *state = State::Spawning;
-
-    // This means we will go back here again in the next tick if this is invoked while playing.
-    // So we need to stop ourselves from duplicating spawns
-    if ghost.edict.is_some() {
-        return;
-    }
+    // // This means we will go back here again in the next tick if this is invoked while playing.
+    // // So we need to stop ourselves from duplicating spawns
+    // if ghost.edict.is_some() {
+    //     return;
+    // }
 
     let entity_name = if ghost.is_spectable {
         "player"
@@ -500,18 +494,21 @@ pub fn update_ghosts(marker: MainThreadMarker) {
         return;
     }
 
-    // Will do something as long as it is not idling.
-    if matches!(*STATE.borrow_mut(marker), State::Idle) {
-        return;
+    let time = TIME.get(marker);
+
+    if time == 0.
+        && BXT_GHOST_PLAY_ON_CONNECT.as_bool(marker)
+        && unsafe { (*engine::cls.get(marker)).state == 5 }
+        && matches!(*STATE.borrow_mut(marker), State::Idle)
+    {
+        *STATE.borrow_mut(marker) = State::Spawning;
     }
 
     let mut state = STATE.borrow_mut(marker);
     let mut ghosts = GHOSTS.borrow_mut(marker);
-    let time = TIME.get(marker);
 
     match *state {
-        // Already returned from previous condition
-        State::Idle => unreachable!(),
+        State::Idle => (),
         State::Spawning => {
             // spawn() uses STATE so we need to drop it first here.
             drop(state);
@@ -631,12 +628,10 @@ pub fn update_ghosts(marker: MainThreadMarker) {
 
                         ghost.last_origin = edict.v.origin;
                     }
-                } else {
-                    if let Some(edict) = &mut ghost.edict {
-                        // stop animation
-                        edict.v.framerate = 0.;
-                        ghost.should_stop = true;
-                    }
+                } else if let Some(edict) = &mut ghost.edict {
+                    // stop animation
+                    edict.v.framerate = 0.;
+                    ghost.should_stop = true;
                 }
             });
 

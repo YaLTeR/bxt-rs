@@ -20,6 +20,8 @@ pub fn simen_ghost_parse(filename: &str) -> eyre::Result<GhostInfo> {
     let pathbuf = PathBuf::from(filename.to_owned());
     let file = std::fs::read_to_string(pathbuf)?;
 
+    // clippy is wrong
+    #[allow(clippy::let_and_return)]
     let res = match map(
         preceded(
             simen_wrbot_header,

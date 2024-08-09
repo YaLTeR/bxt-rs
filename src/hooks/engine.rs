@@ -7,7 +7,7 @@ use std::fmt;
 use std::num::ParseIntError;
 use std::os::raw::*;
 use std::ptr::{null_mut, NonNull};
-use std::str::{from_utf8, FromStr};
+use std::str::FromStr;
 
 use bxt_macros::pattern;
 use bxt_patterns::Patterns;

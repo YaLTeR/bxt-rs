@@ -130,7 +130,7 @@ impl GhostInfo {
             origin: new_origin,
             viewangles: new_viewangles,
             frametime: from_frame.frametime,
-            buttons: from_frame.buttons.clone(),
+            buttons: from_frame.buttons,
             anim: from_frame.anim.clone(),
         })
     }
@@ -160,7 +160,7 @@ impl GhostInfo {
             return 0;
         }
 
-        return to_index;
+        to_index
     }
 }
 

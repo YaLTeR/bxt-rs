@@ -3,12 +3,8 @@
 #![allow(non_snake_case, non_upper_case_globals)]
 
 use std::os::raw::*;
-use std::ptr::{null_mut, NonNull};
+use std::ptr::NonNull;
 
-use bxt_macros::pattern;
-use bxt_patterns::Patterns;
-
-use crate::ffi::edict::{edict_s, entvars_s};
 use crate::ffi::playermove::playermove_s;
 use crate::ffi::usercmd::usercmd_s;
 use crate::hooks::engine;

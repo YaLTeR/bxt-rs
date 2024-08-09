@@ -3,7 +3,7 @@ use std::io::Read;
 
 use dem::hldemo::{Demo, FrameData};
 use dem::types::{EngineMessage, NetMessage};
-use dem::{init_parse, parse_netmsg, Aux};
+use dem::{init_parse, parse_netmsg};
 
 use super::*;
 
@@ -22,8 +22,6 @@ pub fn demo_ghost_parse(filename: &str) -> eyre::Result<GhostInfo> {
     }
 
     let demo = demo.unwrap();
-
-    let aux = Aux::new();
 
     // Because player origin/viewangles and animation are on different frame, we have to sync it.
     // Order goes: players info > animation > player info > ...
