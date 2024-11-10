@@ -96,7 +96,21 @@ fn setup_logging_hooks() {
 
     #[cfg(feature = "tracing-tracy")]
     let tracy_layer = if env::var_os("BXT_RS_PROFILE_TRACY").is_some() {
-        Some(tracing_tracy::TracyLayer::new().with_formatter(only_message))
+        struct TracyLayerConfig<F>(F);
+
+        impl<F> tracing_tracy::Config for TracyLayerConfig<F>
+        where
+            F: for<'writer> tracing_subscriber::fmt::FormatFields<'writer> + 'static,
+        {
+            type Formatter = F;
+
+            fn formatter(&self) -> &Self::Formatter {
+                &self.0
+            }
+        }
+
+        let config = TracyLayerConfig(only_message);
+        Some(tracing_tracy::TracyLayer::new(config))
     } else {
         None
     };
