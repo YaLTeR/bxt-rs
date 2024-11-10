@@ -57,10 +57,11 @@ jobs:
     container: ${{ matrix.container }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           # We need the full history to find the tag
           fetch-depth: 0
+          show-progress: false
 
       # Containers have wrong permissions for the folder, so git freaks out.
       # https://github.com/actions/runner/issues/2033
@@ -109,7 +110,7 @@ jobs:
           !matrix.cross
         run: cargo test --all --target ${{ matrix.target }} ${{ matrix.release-flag }} -- --nocapture
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: matrix.rust == 'stable' && !matrix.cross
         with:
           name: bxt-rs-${{ runner.os }}-${{ matrix.configuration }}
@@ -124,7 +125,7 @@ jobs:
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/') && matrix.rust == 'stable' && matrix.configuration == 'release' && !matrix.cross
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: bxt-rs-${{ runner.os }}.7z
           draft: true
@@ -143,7 +144,7 @@ jobs:
           cargo run --target ${{ matrix.target }} --release --bin gen-wiki > temp_wiki_output/Features.md
 
       - name: Upload Wiki Page Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: >
           github.event_name == 'push' &&
           github.ref == 'refs/heads/master' &&
@@ -173,7 +174,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Install dependencies
         if: matrix.os == 'ubuntu-20.04'
@@ -196,7 +199,9 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Install Rust
         run: |
@@ -214,7 +219,7 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: wiki
           path: temp_wiki_output/
