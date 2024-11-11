@@ -1775,7 +1775,16 @@ pub unsafe fn on_tas_playback_frame(
         ..
     } = &mut *state
     {
-        let player = player_data(marker).unwrap();
+        let Some(player) = player_data(marker) else {
+            // This can happen when opening a .hltasproj for a missing map file from an
+            // already-loaded different map.
+            *state = State::Idle;
+            // This whole issue should be fixed in BXT (stop TAS playback there if no map loaded),
+            // but until it isn't, also try to fix up some state like norefresh.
+            engine::prepend_command(marker, "_bxt_norefresh 0\n");
+            return true;
+        };
+
         let new_next_frame_params = parameters(marker);
 
         // For the initial frame we don't have params, so just use the current ones.
