@@ -5,7 +5,7 @@ use byte_slice_cast::AsSliceOf;
 use super::commands::Command;
 use super::Module;
 use crate::handler;
-use crate::hooks::engine;
+use crate::hooks::{bxt, engine};
 use crate::modules::cvars::CVar;
 use crate::utils::*;
 
@@ -33,6 +33,9 @@ impl Module for SkyboxChange {
         engine::movevars.is_set(marker)
             && engine::R_LoadSkys.is_set(marker)
             && engine::gLoadSky.is_set(marker)
+            // BXT has the same functionality, so disable ours when BXT is present to avoid
+            // duplicate console command warnings.
+            && !bxt::BXT_TAS_LOAD_SCRIPT_FROM_STRING.is_set(marker)
     }
 }
 
