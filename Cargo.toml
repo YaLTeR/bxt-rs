@@ -19,6 +19,7 @@ bxt-strafe = { path = "bxt-strafe" }
 byte-slice-cast = "1.2.2"
 color-eyre = { version = "0.6.2", default-features = false }
 crossbeam-channel = "0.5.8"
+dem = { git = "https://github.com/khanghugo/dem.git" }
 git-version = "0.3.5"
 glam = "0.24.1"
 hltas = { version = "0.9.0", features = ["serde1"] }
