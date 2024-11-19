@@ -21,8 +21,6 @@ pub struct Branch {
     pub is_hidden: bool,
 
     pub script: HLTAS,
-    pub split_idx: Option<usize>,
-    pub full_script: HLTAS,
     pub stop_frame: u32,
 }
 
@@ -192,15 +190,11 @@ impl Db {
         let script = HLTAS::from_str(&buffer)
             .map_err(|err| eyre!("invalid script value, cannot parse: {err:?}"))?;
 
-        let full_script = script.clone();
-
         Ok(Branch {
             branch_id,
             name,
             is_hidden,
             script,
-            full_script,
-            split_idx: None,
             stop_frame,
         })
     }
@@ -226,16 +220,12 @@ impl Db {
             let script = HLTAS::from_str(&buffer)
                 .map_err(|err| eyre!("invalid script value, cannot parse: {err:?}"))?;
 
-            let full_script = script.clone();
-
             branches.push(Branch {
                 branch_id,
                 name,
                 is_hidden,
                 script,
                 stop_frame,
-                full_script,
-                split_idx: None,
             })
         }
         stmt.finalize()?;

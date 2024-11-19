@@ -11,7 +11,7 @@ use bxt_strafe::{Hull, Trace};
 use color_eyre::eyre::{self, ensure};
 use glam::{IVec2, Vec2, Vec3};
 use hltas::types::{
-    AutoMovement, Change, ChangeTarget, FrameBulk, Line, StrafeDir, StrafeSettings, StrafeType,
+    AutoMovement, Change, ChangeTarget, Line, StrafeDir, StrafeSettings, StrafeType,
     VectorialStrafingConstraints,
 };
 use hltas::HLTAS;
@@ -3460,7 +3460,6 @@ impl Editor {
             return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
-        // TODO: apply split modifications
         let script = self.script();
         if new_script == *script {
             return Ok(());
@@ -3661,19 +3660,12 @@ impl Editor {
             return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
-        let unhide = |editor: &mut Editor| {
-            editor.first_shown_frame_idx = 0;
-            let br = &mut editor.branch_mut().branch;
-            br.split_idx = None;
-            br.script = br.full_script.clone();
-        };
-
         match self.hovered_frame_idx {
-            None => unhide(self),
+            None => self.first_shown_frame_idx = 0,
             // If we're pressing hide again on the first visible frame, unhide instead. This is
             // nicer than struggling to look away to unhide.
             Some(frame_idx) if frame_idx == self.first_shown_frame_idx => {
-                unhide(self);
+                self.first_shown_frame_idx = 0;
             }
             Some(frame_idx) => {
                 let frame_count = self
@@ -3685,132 +3677,6 @@ impl Editor {
                     .sum::<usize>();
 
                 self.first_shown_frame_idx = min(frame_idx, frame_count.saturating_sub(1));
-
-                // find split
-                let mut split_found_cnt = 0usize;
-                let mut split_line_last_idx = 0; // line index that is split
-                let mut frame_count = 0usize;
-                let lines = &self.branch().branch.script.lines;
-                for (i, line) in lines.iter().enumerate() {
-                    match line {
-                        Line::Save(_) => todo!(),
-                        Line::Reset { non_shared_seed } => todo!(),
-                        Line::Comment(comment) => {
-                            if comment.trim() != "bxt-rs-split" {
-                                continue;
-                            }
-
-                            if i + 1 >= lines.len() {
-                                continue;
-                            }
-
-                            split_line_last_idx = i + 1;
-                            split_found_cnt += 1;
-                        }
-                        Line::FrameBulk(fb) => {
-                            let new_frame_count = frame_count + fb.frame_count.get() as usize;
-                            if new_frame_count > self.first_shown_frame_idx {
-                                break;
-                            }
-                            // to later determine if accurate frame has caught up with split
-                            // TODO: share save from remote to main
-                            frame_count = new_frame_count;
-                        }
-                        _ => (),
-                    }
-                }
-
-                // do we split? if no save is created then don't split, split later when the save is created at split
-                // TODO: split later logic impl
-                if split_found_cnt > 0
-                    && frame_count.saturating_sub(1) <= self.branch().first_predicted_frame
-                {
-                    let branch = &mut self.branch_mut().branch;
-
-                    const PADDING_LOAD_FRAMES: u32 = 10;
-
-                    let full_script_split = match branch.split_idx {
-                        Some(split_idx) => {
-                            if split_idx < split_line_last_idx {
-                                // previous split is before current split index, so we can just trim some frames off script
-                                let mut after_padded_idx = 0usize;
-                                let mut padded_count = PADDING_LOAD_FRAMES;
-                                for (i, line) in branch.script.lines.iter().enumerate() {
-                                    let Line::FrameBulk(fb) = line else {
-                                        continue;
-                                    };
-
-                                    let fb_count = fb.frame_count.get();
-                                    if fb_count > padded_count {
-                                        // split this framebulk, since padding is too big
-                                        let mut fb_split = fb.clone();
-                                        fb_split.frame_count =
-                                            NonZeroU32::new(fb_count - padded_count).unwrap();
-                                        branch
-                                            .script
-                                            .lines
-                                            .insert(i + 1, Line::FrameBulk(fb_split));
-                                        after_padded_idx = i + 1;
-                                        break;
-                                    } else {
-                                        padded_count -= fb_count;
-                                        if padded_count == 0 {
-                                            after_padded_idx = i + 1;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                for _ in 0..split_line_last_idx - split_idx {
-                                    // remove contents after the padding frames, which are the actual lines we're interested in
-                                    branch.script.lines.remove(after_padded_idx);
-                                }
-                                false
-                            } else {
-                                true
-                            }
-                        }
-                        None => true,
-                    };
-
-                    // start new split from full script
-                    if full_script_split {
-                        branch.script.lines =
-                            branch.full_script.lines[split_line_last_idx..].to_owned();
-                        let last_fb = branch.full_script.lines[..split_line_last_idx]
-                            .iter()
-                            .rev()
-                            .filter_map(Line::frame_bulk)
-                            .next()
-                            .unwrap();
-                        let mut empty_fb = FrameBulk::with_frame_time(last_fb.frame_time.clone());
-                        empty_fb.frame_count = (PADDING_LOAD_FRAMES - 1).try_into().unwrap();
-                        branch.script.lines.insert(0, Line::FrameBulk(empty_fb));
-
-                        // requires 1 frame from when save command is ran
-                        let mut last_fb = last_fb.clone();
-                        last_fb.frame_count = NonZeroU32::new(1).unwrap();
-                        branch.script.lines.insert(1, Line::FrameBulk(last_fb));
-                    }
-
-                    // always a fb
-                    let Line::FrameBulk(fb) = &mut branch.script.lines[1] else {
-                        unreachable!();
-                    };
-                    match &mut fb.console_command {
-                        Some(command) => command.push_str(";unpause"),
-                        None => fb.console_command = Some("unpause".to_owned()),
-                    }
-
-                    // TODO: what is the save name
-                    // TODO: detect and remove previous loads, or just clear load command? is there a good reason to keep commands
-                    branch.script.properties.load_command =
-                        Some("_bxt_load split;bxt_autopause 1".to_owned());
-
-                    // TODO: insert save in file on split sections
-
-                    branch.split_idx = Some(split_line_last_idx);
-                }
 
                 // Check if we need to unselect or unhover anything now hidden.
                 let hovered_frame_bulk_idx =
@@ -5280,56 +5146,5 @@ mod tests {
             op.apply(&mut old_script);
             prop_assert_eq!(old_script, new_script);
         }
-    }
-
-    #[test]
-    fn hide_and_split() {
-        let original_script = HLTAS::from_str(
-            "version 1\nframes\n\
-                ----------|------|------|0.002|-|-|10\n\
-                // bxt-rs-split\n\
-                ----------|------|------|0.001|-|-|10",
-        )
-        .unwrap();
-        let mut editor = Editor::create_in_memory(&original_script).unwrap();
-
-        // right before split
-        editor.hovered_frame_idx = Some(9);
-        editor.hide_frames_up_to_hovered().unwrap();
-
-        let br = &editor.branch().branch;
-        assert_eq!(br.script, original_script);
-        assert_eq!(br.full_script, original_script);
-
-        // right on split
-        editor.hovered_frame_idx = Some(10);
-        editor.branch_mut().first_predicted_frame = 20;
-        editor.hide_frames_up_to_hovered().unwrap();
-
-        let script = HLTAS::from_str(
-            "version 1\n\
-                load_command _bxt_load split;bxt_autopause 1\n\
-                frames\n\
-                ----------|------|------|0.002|-|-|9\n\
-                ----------|------|------|0.002|-|-|1|unpause\n\
-                ----------|------|------|0.001|-|-|10",
-        )
-        .unwrap();
-
-        let br = &editor.branch().branch;
-        assert_eq!(br.script, script);
-
-        // after split, but already split
-        editor.hovered_frame_idx = Some(11);
-        editor.hide_frames_up_to_hovered().unwrap();
-
-        let br = &editor.branch().branch;
-        assert_eq!(br.script, script);
-
-        // unhide (undo split)
-        editor.hide_frames_up_to_hovered().unwrap();
-
-        let br = &editor.branch().branch;
-        assert_eq!(br.script, original_script);
     }
 }
