@@ -1,9 +1,10 @@
-use std::fmt;
 use std::path::Path;
+use std::{collections::HashSet, fmt};
 
 use bincode::Options;
 use color_eyre::eyre::{self, ensure, eyre};
-use hltas::HLTAS;
+use hltas::{types::Line, HLTAS};
+use nom::FindSubstring;
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +22,9 @@ pub struct Branch {
     pub is_hidden: bool,
 
     pub script: HLTAS,
+    pub splits: Vec<SplitInfo>,
+    pub split_idx: Option<usize>,
+    pub full_script: HLTAS,
     pub stop_frame: u32,
 }
 
@@ -32,6 +36,141 @@ impl fmt::Debug for Branch {
             .field("is_hidden", &self.is_hidden)
             .field("stop_frame", &self.stop_frame)
             .finish()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SplitInfo {
+    // start_idx is very literal on where it starts from
+    // meaning, there could be anything after this split, framebulk, special property line, etc
+    pub start_idx: usize,
+    // a split could have no name
+    // this could also be duplicate names, which becomes `None`
+    pub name: Option<String>,
+    pub split_type: SplitType,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SplitType {
+    Comment,
+    Reset,
+    Save,
+}
+
+impl SplitInfo {
+    pub fn split_hltas(hltas: &HLTAS) -> Vec<Self> {
+        if hltas.lines.is_empty() {
+            return Vec::new();
+        }
+
+        let mut splits = Vec::new();
+
+        let mut i = 0usize;
+        // skip till there's at least 1 framebulk
+        while i < hltas.lines.len() {
+            if matches!(hltas.lines[i], Line::FrameBulk(_)) {
+                break;
+            }
+
+            i += 1;
+        }
+
+        while i < hltas.lines.len() {
+            // this is correct, previous search would place i on the framebulk
+            // so we are only interested on what comes after for the first split
+            i += 1;
+
+            let line = &hltas.lines[i];
+
+            const SPLIT_MARKER: &str = "bxt-rs-split";
+
+            let name;
+            let start_idx;
+            let split_type;
+            let no_framebulks_left = |i| {
+                for line in hltas.lines[i..].iter() {
+                    if matches!(line, Line::FrameBulk(_)) {
+                        return false;
+                    }
+                }
+                true
+            };
+
+            match line {
+                // TODO: save name;load name console
+                // TODO: handle setting shared rng, and what property lines do i bring over?
+                // TODO: handle completely invalid back to back splits
+                Line::Save(save_name) => {
+                    i += 1;
+                    if no_framebulks_left(i) {
+                        break;
+                    }
+
+                    name = Some(save_name.to_owned());
+                    start_idx = i;
+                    split_type = SplitType::Save;
+                }
+                // this reset doesn't have a name, one with comment attached is handled below
+                Line::Reset { .. } => {
+                    i += 1;
+                    if no_framebulks_left(i) {
+                        break;
+                    }
+
+                    name = None;
+                    start_idx = i;
+                    split_type = SplitType::Reset;
+                }
+                Line::Comment(comment) => {
+                    let comment = comment.trim();
+
+                    if !comment.starts_with(SPLIT_MARKER) {
+                        continue;
+                    }
+
+                    let comment = &comment[SPLIT_MARKER.len()..];
+
+                    if !comment.is_empty() && !comment.chars().next().unwrap().is_whitespace() {
+                        continue;
+                    }
+
+                    i += 1;
+
+                    // linked to reset?
+                    split_type =
+                        if i < hltas.lines.len() && matches!(hltas.lines[i], Line::Reset { .. }) {
+                            i += 1;
+                            if no_framebulks_left(i) {
+                                break;
+                            }
+
+                            SplitType::Reset
+                        } else {
+                            if no_framebulks_left(i) {
+                                break;
+                            }
+
+                            SplitType::Comment
+                        };
+                    start_idx = i;
+                    let comment = comment.trim_start();
+                    if comment.is_empty() {
+                        name = None;
+                    } else {
+                        name = Some(comment.to_owned());
+                    }
+                }
+                _ => continue,
+            }
+
+            splits.push(SplitInfo {
+                start_idx,
+                name,
+                split_type,
+            });
+        }
+
+        splits
     }
 }
 
@@ -190,11 +329,17 @@ impl Db {
         let script = HLTAS::from_str(&buffer)
             .map_err(|err| eyre!("invalid script value, cannot parse: {err:?}"))?;
 
+        let full_script = script.clone();
+        let splits = SplitInfo::split_hltas(&full_script);
+
         Ok(Branch {
             branch_id,
             name,
             is_hidden,
             script,
+            full_script,
+            split_idx: None,
+            splits,
             stop_frame,
         })
     }
@@ -220,12 +365,18 @@ impl Db {
             let script = HLTAS::from_str(&buffer)
                 .map_err(|err| eyre!("invalid script value, cannot parse: {err:?}"))?;
 
+            let full_script = script.clone();
+            let splits = SplitInfo::split_hltas(&full_script);
+
             branches.push(Branch {
                 branch_id,
                 name,
                 is_hidden,
                 script,
                 stop_frame,
+                full_script,
+                split_idx: None,
+                splits,
             })
         }
         stmt.finalize()?;
@@ -505,4 +656,78 @@ fn update_branch(conn: &Connection, branch: &Branch) -> eyre::Result<()> {
     )?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use hltas::HLTAS;
+
+    use crate::modules::tas_studio::editor::db::{SplitInfo, SplitType};
+
+    #[test]
+    fn split_by_markers() {
+        // TODO: complete, duplicate names
+        let script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.001|-|-|10\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.002|-|-|10\n\
+                ----------|------|------|0.002|-|-|10\n\
+                // bxt-rs-split\n\
+                ----------|------|------|0.003|-|-|10\n\
+                ----------|------|------|0.003|-|-|10\n\
+                ----------|------|------|0.003|-|-|10\n\
+                save name2
+                ----------|------|------|0.004|-|-|10\n\
+                ----------|------|------|0.004|-|-|10\n\
+                ----------|------|------|0.004|-|-|10\n\
+                ----------|------|------|0.004|-|-|10\n\
+                reset 0
+                ----------|------|------|0.005|-|-|10\n\
+                ----------|------|------|0.005|-|-|10\n\
+                ----------|------|------|0.005|-|-|10\n\
+                ----------|------|------|0.005|-|-|10\n\
+                ----------|------|------|0.005|-|-|10\n\
+                // bxt-rs-split name4
+                reset 1
+                ----------|------|------|0.006|-|-|10\n\
+                ----------|------|------|0.006|-|-|10\n\
+                ----------|------|------|0.006|-|-|10\n\
+                ----------|------|------|0.006|-|-|10\n\
+                ----------|------|------|0.006|-|-|10\n\
+                ----------|------|------|0.006|-|-|10\n",
+        )
+        .unwrap();
+
+        let splits = SplitInfo::split_hltas(&script);
+        let expected = vec![
+            SplitInfo {
+                start_idx: 2,
+                name: Some("name".to_string()),
+                split_type: SplitType::Comment,
+            },
+            SplitInfo {
+                start_idx: 5,
+                name: None,
+                split_type: SplitType::Comment,
+            },
+            SplitInfo {
+                start_idx: 9,
+                name: Some("name2".to_string()),
+                split_type: SplitType::Save,
+            },
+            SplitInfo {
+                start_idx: 14,
+                name: Some("name3".to_string()),
+                split_type: SplitType::Reset,
+            },
+            SplitInfo {
+                start_idx: 21,
+                name: Some("name4".to_string()),
+                split_type: SplitType::Comment,
+            },
+        ];
+
+        assert_eq!(splits, expected);
+    }
 }
