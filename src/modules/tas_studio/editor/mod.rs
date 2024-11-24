@@ -9,6 +9,7 @@ use std::time::Instant;
 use bxt_ipc_types::Frame;
 use bxt_strafe::{Hull, Trace};
 use color_eyre::eyre::{self, ensure};
+use db::SplitInfo;
 use glam::{IVec2, Vec2, Vec3};
 use hltas::types::{
     AutoMovement, Change, ChangeTarget, Line, StrafeDir, StrafeSettings, StrafeType,
@@ -3308,13 +3309,49 @@ impl Editor {
         let mut buffer = Vec::new();
         hltas::write::gen_lines(&mut buffer, to)
             .expect("writing to an in-memory buffer should never fail");
-        let to = String::from_utf8(buffer)
+        let to_str = String::from_utf8(buffer)
             .expect("Line serialization should never produce invalid UTF-8");
+
+        // if modified before or on split idx, it is invalid
+        // simply find the first split that is covered
+        // TODO: test
+        let splits = &mut self.branch_mut().branch.splits;
+        let last_line_idx = first_line_idx + count - 1;
+        let invalid_split_idx =
+            splits.partition_point(|s| s.start_idx < first_line_idx && s.start_idx > last_line_idx);
+
+        // offsets are applied for after the last_line_idx range
+        let offset_split_idx =
+            splits[invalid_split_idx..].partition_point(|s| s.start_idx < last_line_idx);
+        // TODO: unlikely, but what to do if overflow, or count is too big
+        let split_offset_cnt = isize::try_from(to_str.len())
+            .expect("Length of the replacement line is too huge to be isize")
+            - isize::try_from(count).expect("Number of lines to replace is too huge to be isize");
+        for split in splits[offset_split_idx..].iter_mut() {
+            split
+                .start_idx
+                .checked_add_signed(split_offset_cnt)
+                .expect("Split marker index is out of range to be usable, which shouldn't happen");
+        }
+
+        // handle `to` lines split info
+        // TODO: test
+        let to_splits = SplitInfo::split_lines_with_stop(
+            to.iter()
+                .chain(self.script().lines[offset_split_idx..].iter()),
+            to.len(),
+        );
+        let splits = &mut self.branch_mut().branch.splits;
+        for (i, split) in to_splits.into_iter().enumerate() {
+            let mut split = split;
+            split.start_idx += first_line_idx;
+            splits.insert(invalid_split_idx + i, split);
+        }
 
         let op = Operation::ReplaceMultiple {
             first_line_idx,
             from,
-            to,
+            to: to_str,
         };
         self.apply_operation(op)
     }
@@ -3460,7 +3497,8 @@ impl Editor {
             return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
-        let script = self.script();
+        let branch = &mut self.branch_mut().branch;
+        let script = &branch.script;
         if new_script == *script {
             return Ok(());
         }
@@ -3470,6 +3508,8 @@ impl Editor {
             self.replace_multiple(first_line_idx, count, to)?;
             return Ok(());
         }
+
+        branch.splits = SplitInfo::split_lines(new_script.lines.iter());
 
         let mut buffer = Vec::new();
         script
