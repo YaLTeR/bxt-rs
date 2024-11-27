@@ -1,5 +1,6 @@
-use std::fmt;
+use std::ffi::CStr;
 use std::path::Path;
+use std::{collections::HashSet, fmt};
 
 use bincode::Options;
 use color_eyre::eyre::{self, ensure, eyre};
@@ -7,6 +8,9 @@ use hltas::{types::Line, HLTAS};
 use itertools::{Itertools, MultiPeek};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
+
+use crate::hooks::engine;
+use crate::utils::MainThreadMarker;
 
 use super::operation::Operation;
 
@@ -46,6 +50,7 @@ pub struct SplitInfo {
     pub bulk_idx: usize,
     // a split could have no name
     // this could also be duplicate names, which becomes `None`
+    // TODO: could probably get away with &str
     pub name: Option<String>,
     pub split_type: SplitType,
     // ready as in, there's a save created, and lines before and including start_idx is still unchanged
@@ -93,6 +98,8 @@ impl SplitInfo {
             }
         }
 
+        let mut used_save_names = HashSet::new();
+
         while let Some(line) = lines.next() {
             // this is correct, if FrameBulk is at index 0, we are searching from index 1
             line_idx += 1;
@@ -116,7 +123,7 @@ impl SplitInfo {
                     }
                     line_idx += 1;
 
-                    name = Some(save_name.to_owned());
+                    name = Some(save_name.as_str());
                     start_idx = line_idx;
                     split_type = SplitType::Save;
                 }
@@ -167,7 +174,7 @@ impl SplitInfo {
                     if comment.is_empty() {
                         name = None;
                     } else {
-                        name = Some(comment.to_owned());
+                        name = Some(comment);
                     }
                 }
                 Line::FrameBulk(_) => {
@@ -176,6 +183,17 @@ impl SplitInfo {
                 }
                 _ => continue,
             }
+
+            let name = if let Some(name) = name {
+                if used_save_names.contains(name) {
+                    None
+                } else {
+                    used_save_names.insert(name.to_owned());
+                    Some(name.to_owned())
+                }
+            } else {
+                None
+            };
 
             splits.push(SplitInfo {
                 start_idx,
@@ -196,6 +214,22 @@ impl SplitInfo {
             }
         }
         true
+    }
+
+    pub fn validate_all_by_saves(splits: &mut Vec<SplitInfo>, marker: MainThreadMarker) {
+        for split in splits {
+            let Some(name) = &split.name else {
+                return;
+            };
+
+            let game_dir = Path::new(
+                unsafe { CStr::from_ptr(engine::com_gamedir.get(marker).cast()) }
+                    .to_str()
+                    .unwrap(),
+            );
+            let save_path = game_dir.join("SAVE").join(name);
+            split.ready = save_path.is_file();
+        }
     }
 }
 
@@ -354,7 +388,11 @@ impl Db {
         let script = HLTAS::from_str(&buffer)
             .map_err(|err| eyre!("invalid script value, cannot parse: {err:?}"))?;
 
-        let splits = SplitInfo::split_lines(script.lines.iter());
+        let mut splits = SplitInfo::split_lines(script.lines.iter());
+        // TODO: is this fine? not sure how else to get MainThreadMarker for game directory
+        unsafe {
+            SplitInfo::validate_all_by_saves(&mut splits, MainThreadMarker::new());
+        }
 
         Ok(Branch {
             branch_id,
@@ -387,7 +425,11 @@ impl Db {
             let script = HLTAS::from_str(&buffer)
                 .map_err(|err| eyre!("invalid script value, cannot parse: {err:?}"))?;
 
-            let splits = SplitInfo::split_lines(script.lines.iter());
+            let mut splits = SplitInfo::split_lines(script.lines.iter());
+            // TODO: is this fine? not sure how else to get MainThreadMarker for game directory
+            unsafe {
+                SplitInfo::validate_all_by_saves(&mut splits, MainThreadMarker::new());
+            }
 
             branches.push(Branch {
                 branch_id,

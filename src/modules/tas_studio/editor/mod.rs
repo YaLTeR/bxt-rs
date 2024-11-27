@@ -3533,6 +3533,7 @@ impl Editor {
             return Ok(());
         }
 
+        // don't validate by checking save file, its a rewrite
         branch.splits = SplitInfo::split_lines(new_script.lines.iter());
 
         let mut buffer = Vec::new();
