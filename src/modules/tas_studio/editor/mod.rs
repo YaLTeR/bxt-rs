@@ -3824,7 +3824,16 @@ impl Editor {
             return None;
         }
 
-        branch.first_predicted_frame = max(frame.frame_idx + 1, branch.first_predicted_frame);
+        if frame.frame_idx + 1 > branch.first_predicted_frame {
+            branch.first_predicted_frame = frame.frame_idx + 1;
+
+            let splits = &mut branch.branch.splits;
+            let split_valid_to =
+                splits.partition_point(|s| s.bulk_idx >= branch.first_predicted_frame);
+            for split in splits[..split_valid_to].iter_mut() {
+                split.ready = true;
+            }
+        }
 
         if branch.frames.len() == frame.frame_idx {
             branch.frames.push(frame.frame);
@@ -4627,17 +4636,23 @@ impl Editor {
 
     /// Invalidates split markers with a framebulk index
     pub fn invalidate_splits_fb_idx(&mut self, fb_idx: usize) {
-        let invalid_split_idx = self.invalid_split_idx_from_fb_idx(fb_idx);
+        let invalid_split_idx = self.split_idx_from_fb_idx(fb_idx);
         let splits = self.split_markers_mut();
         for split in splits[invalid_split_idx..].iter_mut() {
             split.ready = false;
         }
     }
 
-    fn invalid_split_idx_from_fb_idx(&self, fb_idx: usize) -> usize {
-        // splits are invalid if bulk_idx is equals to fb_idx or higher
+    /// Gets the split index equals or higher than fb_idx
+    fn split_idx_from_fb_idx(&self, fb_idx: usize) -> usize {
         self.split_markers()
             .partition_point(|s| s.bulk_idx < fb_idx)
+    }
+
+    /// Gets the split index before fb_idx
+    fn split_idx_before_fb_idx(&self, fb_idx: usize) -> usize {
+        self.split_markers()
+            .partition_point(|s| s.bulk_idx >= fb_idx)
     }
 }
 
