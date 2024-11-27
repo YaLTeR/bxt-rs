@@ -227,7 +227,7 @@ impl SplitInfo {
                     .to_str()
                     .unwrap(),
             );
-            let save_path = game_dir.join("SAVE").join(name);
+            let save_path = game_dir.join("SAVE").join(format!("{name}.sav"));
             split.ready = save_path.is_file();
         }
     }
