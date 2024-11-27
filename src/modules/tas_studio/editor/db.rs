@@ -23,7 +23,6 @@ pub struct Branch {
 
     pub script: HLTAS,
     pub splits: Vec<SplitInfo>,
-    pub full_script: HLTAS,
     pub stop_frame: u32,
 }
 
@@ -43,6 +42,8 @@ pub struct SplitInfo {
     // this is 1 index right after the split marker
     // it is guaranteed to have a framebulk somewhere after this
     pub start_idx: usize,
+    // for the sake of easier searching, the last framebulk index is stored
+    pub bulk_idx: usize,
     // a split could have no name
     // this could also be duplicate names, which becomes `None`
     pub name: Option<String>,
@@ -78,23 +79,24 @@ impl SplitInfo {
 
         let mut splits = Vec::new();
 
-        let mut i = 0usize;
+        let mut line_idx = 0usize;
+        let mut bulk_idx = 1usize;
         // skip till there's at least 1 framebulk
         for line in lines.by_ref() {
             if matches!(line, Line::FrameBulk(_)) {
                 break;
             }
 
-            i += 1;
-            if i >= stop_idx {
+            line_idx += 1;
+            if line_idx >= stop_idx {
                 return splits;
             }
         }
 
         while let Some(line) = lines.next() {
             // this is correct, if FrameBulk is at index 0, we are searching from index 1
-            i += 1;
-            if i >= stop_idx {
+            line_idx += 1;
+            if line_idx >= stop_idx {
                 return splits;
             }
 
@@ -112,10 +114,10 @@ impl SplitInfo {
                     if Self::no_framebulks_left(&mut lines) {
                         break;
                     }
-                    i += 1;
+                    line_idx += 1;
 
                     name = Some(save_name.to_owned());
-                    start_idx = i;
+                    start_idx = line_idx;
                     split_type = SplitType::Save;
                 }
                 // this reset doesn't have a name, one with comment attached is handled below
@@ -123,10 +125,10 @@ impl SplitInfo {
                     if Self::no_framebulks_left(&mut lines) {
                         break;
                     }
-                    i += 1;
+                    line_idx += 1;
 
                     name = None;
-                    start_idx = i;
+                    start_idx = line_idx;
                     split_type = SplitType::Reset;
                 }
                 Line::Comment(comment) => {
@@ -148,7 +150,7 @@ impl SplitInfo {
                         if Self::no_framebulks_left(&mut lines) {
                             break;
                         }
-                        i += 1;
+                        line_idx += 1;
 
                         SplitType::Reset
                     } else {
@@ -158,15 +160,19 @@ impl SplitInfo {
 
                         SplitType::Comment
                     };
-                    i += 1;
+                    line_idx += 1;
 
-                    start_idx = i;
+                    start_idx = line_idx;
                     let comment = comment.trim_start();
                     if comment.is_empty() {
                         name = None;
                     } else {
                         name = Some(comment.to_owned());
                     }
+                }
+                Line::FrameBulk(_) => {
+                    bulk_idx += 1;
+                    continue;
                 }
                 _ => continue,
             }
@@ -175,6 +181,7 @@ impl SplitInfo {
                 start_idx,
                 name,
                 split_type,
+                bulk_idx,
                 ready: false,
             });
         }
@@ -347,15 +354,13 @@ impl Db {
         let script = HLTAS::from_str(&buffer)
             .map_err(|err| eyre!("invalid script value, cannot parse: {err:?}"))?;
 
-        let full_script = script.clone();
-        let splits = SplitInfo::split_lines(full_script.lines.iter());
+        let splits = SplitInfo::split_lines(script.lines.iter());
 
         Ok(Branch {
             branch_id,
             name,
             is_hidden,
             script,
-            full_script,
             splits,
             stop_frame,
         })
@@ -382,8 +387,7 @@ impl Db {
             let script = HLTAS::from_str(&buffer)
                 .map_err(|err| eyre!("invalid script value, cannot parse: {err:?}"))?;
 
-            let full_script = script.clone();
-            let splits = SplitInfo::split_lines(full_script.lines.iter());
+            let splits = SplitInfo::split_lines(script.lines.iter());
 
             branches.push(Branch {
                 branch_id,
@@ -391,7 +395,6 @@ impl Db {
                 is_hidden,
                 script,
                 stop_frame,
-                full_script,
                 splits,
             })
         }
@@ -719,30 +722,35 @@ mod tests {
         let expected = vec![
             SplitInfo {
                 start_idx: 2,
+                bulk_idx: 1,
                 name: Some("name".to_string()),
                 split_type: SplitType::Comment,
                 ready: false,
             },
             SplitInfo {
                 start_idx: 5,
+                bulk_idx: 3,
                 name: None,
                 split_type: SplitType::Comment,
                 ready: false,
             },
             SplitInfo {
                 start_idx: 9,
+                bulk_idx: 6,
                 name: Some("name2".to_string()),
                 split_type: SplitType::Save,
                 ready: false,
             },
             SplitInfo {
                 start_idx: 14,
+                bulk_idx: 10,
                 name: Some("name3".to_string()),
                 split_type: SplitType::Reset,
                 ready: false,
             },
             SplitInfo {
                 start_idx: 21,
+                bulk_idx: 15,
                 name: Some("name4".to_string()),
                 split_type: SplitType::Comment,
                 ready: false,

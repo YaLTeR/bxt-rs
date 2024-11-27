@@ -673,6 +673,8 @@ impl Editor {
         self.recompute_extra_camera_frame_data_if_needed();
 
         self.generation = self.generation.wrapping_add(1);
+
+        self.invalidate_splits_fb_idx(frame_idx);
     }
 
     pub fn recompute_extra_camera_frame_data_if_needed(&mut self) {
@@ -3315,7 +3317,7 @@ impl Editor {
         // if modified before or on split idx, it is invalid
         // simply find the first split that is covered
         // TODO: test
-        let splits = &mut self.branch_mut().branch.splits;
+        let splits = self.split_markers();
         let last_line_idx = first_line_idx + count - 1;
         let invalid_split_idx =
             splits.partition_point(|s| s.start_idx < first_line_idx && s.start_idx > last_line_idx);
@@ -3323,15 +3325,37 @@ impl Editor {
         // offsets are applied for after the last_line_idx range
         let offset_split_idx =
             splits[invalid_split_idx..].partition_point(|s| s.start_idx < last_line_idx);
-        // TODO: unlikely, but what to do if overflow, or count is too big
-        let split_offset_cnt = isize::try_from(to_str.len())
-            .expect("Length of the replacement line is too huge to be isize")
-            - isize::try_from(count).expect("Number of lines to replace is too huge to be isize");
-        for split in splits[offset_split_idx..].iter_mut() {
-            split
-                .start_idx
-                .checked_add_signed(split_offset_cnt)
-                .expect("Split marker index is out of range to be usable, which shouldn't happen");
+        if offset_split_idx < splits.len() {
+            let split_offset_cnt = isize::try_from(to.len())
+                .expect("Length of the replacement line is too huge to be isize")
+                - isize::try_from(count)
+                    .expect("Number of lines to replace is too huge to be isize");
+            // same thing as above, but for framebulks
+            let fb_to_cnt = to
+                .iter()
+                .filter(|l| matches!(l, Line::FrameBulk(_)))
+                .count();
+            let fb_count_cnt = from_lines
+                .iter()
+                .filter(|l| matches!(l, Line::FrameBulk(_)))
+                .count();
+            let bulk_offset_cnt = isize::try_from(fb_to_cnt)
+                .expect("Index of framebulk is too large for calculating as isize")
+                - isize::try_from(fb_count_cnt)
+                    .expect("Index of framebulk is too large for calculating as isize");
+
+            // apply offsets
+            let splits = self.split_markers_mut();
+            for split in splits[offset_split_idx..].iter_mut() {
+                split
+                    .start_idx
+                    .checked_add_signed(split_offset_cnt)
+                    .expect("Split marker index is out of range");
+                split
+                    .bulk_idx
+                    .checked_add_signed(bulk_offset_cnt)
+                    .expect("Split marker framebulk index is out of range");
+            }
         }
 
         // handle `to` lines split info
@@ -3341,7 +3365,7 @@ impl Editor {
                 .chain(self.script().lines[offset_split_idx..].iter()),
             to.len(),
         );
-        let splits = &mut self.branch_mut().branch.splits;
+        let splits = self.split_markers_mut();
         for (i, split) in to_splits.into_iter().enumerate() {
             let mut split = split;
             split.start_idx += first_line_idx;
@@ -4591,6 +4615,29 @@ impl Editor {
         });
 
         tri.end();
+    }
+
+    pub fn split_markers(&self) -> &[SplitInfo] {
+        &self.branch().branch.splits
+    }
+
+    pub fn split_markers_mut(&mut self) -> &mut Vec<SplitInfo> {
+        &mut self.branch_mut().branch.splits
+    }
+
+    /// Invalidates split markers with a framebulk index
+    pub fn invalidate_splits_fb_idx(&mut self, fb_idx: usize) {
+        let invalid_split_idx = self.invalid_split_idx_from_fb_idx(fb_idx);
+        let splits = self.split_markers_mut();
+        for split in splits[invalid_split_idx..].iter_mut() {
+            split.ready = false;
+        }
+    }
+
+    fn invalid_split_idx_from_fb_idx(&self, fb_idx: usize) -> usize {
+        // splits are invalid if bulk_idx is equals to fb_idx or higher
+        self.split_markers()
+            .partition_point(|s| s.bulk_idx < fb_idx)
     }
 }
 
