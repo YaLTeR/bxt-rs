@@ -1,9 +1,11 @@
 use std::ffi::CStr;
+use std::num::NonZeroU32;
 use std::path::Path;
 use std::{collections::HashSet, fmt};
 
 use bincode::Options;
 use color_eyre::eyre::{self, ensure, eyre};
+use hltas::types::FrameBulk;
 use hltas::{types::Line, HLTAS};
 use itertools::{Itertools, MultiPeek};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
@@ -230,6 +232,59 @@ impl SplitInfo {
             let save_path = game_dir.join("SAVE").join(format!("{name}.sav"));
             split.ready = save_path.is_file();
         }
+    }
+
+    pub fn split_hltas_for_remote_use(splits: &[SplitInfo], hltas: &HLTAS, fb_idx: usize) -> HLTAS {
+        let Some(split) = splits
+            .iter()
+            .rev()
+            .find(|s| s.bulk_idx < fb_idx && s.name.is_some())
+        else {
+            // Cow could be used if return doesn't need to be owned
+            return hltas.clone();
+        };
+
+        split.split_hltas(hltas)
+    }
+
+    // TODO: test
+    fn split_hltas(&self, hltas: &HLTAS) -> HLTAS {
+        let properties = hltas.properties.clone();
+        let lines = hltas.lines[self.start_idx..].to_owned();
+
+        let frame_time = lines
+            .iter()
+            .find_map(|l| {
+                if let Line::FrameBulk(b) = l {
+                    Some(&b.frame_time)
+                } else {
+                    None
+                }
+            })
+            .expect("There is a frame bulk after a split marker, this should never happen")
+            .clone();
+
+        let mut hltas = HLTAS { properties, lines };
+        // TODO: apply shared rng, properties, etc, which would be stored in split info
+        // TODO: if reset or no autopause with manual save load, do not enable autopause
+        hltas.properties.load_command = Some(format!(
+            "bxt_autopause 1; _bxt_load \"{}\"",
+            self.name.as_ref().unwrap()
+        ));
+
+        // TODO: could the loading frames be figured out
+        let padding = FrameBulk {
+            auto_actions: Default::default(),
+            movement_keys: Default::default(),
+            action_keys: Default::default(),
+            frame_time,
+            pitch: Default::default(),
+            frame_count: NonZeroU32::try_from(15).unwrap(),
+            console_command: Default::default(),
+        };
+        hltas.lines.insert(0, Line::FrameBulk(padding));
+
+        todo!()
     }
 }
 
