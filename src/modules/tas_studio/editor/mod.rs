@@ -1,5 +1,7 @@
-use std::cmp::{max, min};
+use std::cmp::min;
+use std::ffi::CStr;
 use std::fmt::Write;
+use std::fs;
 use std::iter::{self, zip};
 use std::num::NonZeroU32;
 use std::ops::ControlFlow;
@@ -28,6 +30,8 @@ use self::utils::{
     FrameBulkExt, MaxAccelOffsetValuesMut,
 };
 use super::remote::{AccurateFrame, PlayRequest};
+use super::MainThreadMarker;
+use crate::hooks::engine;
 use crate::hooks::sdl::MouseState;
 use crate::modules::tas_optimizer::simulator::Simulator;
 use crate::modules::tas_studio::editor::utils::MaxAccelOffsetValues;
@@ -674,7 +678,12 @@ impl Editor {
 
         self.generation = self.generation.wrapping_add(1);
 
-        self.invalidate_splits_fb_idx(frame_idx);
+        // TODO: is this fine
+        unsafe {
+            let marker = MainThreadMarker::new();
+            self.invalidate_splits_fb_idx(frame_idx, marker);
+            self.update_split_hltas(marker);
+        }
     }
 
     pub fn recompute_extra_camera_frame_data_if_needed(&mut self) {
@@ -3778,8 +3787,10 @@ impl Editor {
             return None;
         }
 
+        let split_frame_idx = self.split_hltas().map(|split| split.1).unwrap_or_default();
+        let actual_frame_idx = frame.frame_idx + split_frame_idx;
         // TODO: make this nicer somehow maybe?
-        if frame.frame_idx == 0 {
+        if actual_frame_idx == 0 {
             // Initial frame is the same for all branches and between smoothed/unsmoothed.
             for branch_idx in 0..self.branches.len() {
                 let branch = &mut self.branches[branch_idx];
@@ -3800,7 +3811,7 @@ impl Editor {
 
         let branch = &mut self.branches[frame.branch_idx];
 
-        if frame.frame_idx > branch.first_predicted_frame {
+        if actual_frame_idx > branch.first_predicted_frame {
             // TODO: we can still use newer frames.
             return None;
         }
@@ -3812,21 +3823,21 @@ impl Editor {
 
             let frames = &mut branch.auto_smoothing.frames;
 
-            if frames.len() == frame.frame_idx {
+            if frames.len() == actual_frame_idx {
                 frames.push(frame.frame);
             } else {
-                let current_frame = &mut frames[frame.frame_idx];
+                let current_frame = &mut frames[actual_frame_idx];
                 if *current_frame != frame.frame {
                     *current_frame = frame.frame;
-                    frames.truncate(frame.frame_idx + 1);
+                    frames.truncate(actual_frame_idx + 1);
                 }
             }
 
             return None;
         }
 
-        if frame.frame_idx + 1 > branch.first_predicted_frame {
-            branch.first_predicted_frame = frame.frame_idx + 1;
+        if actual_frame_idx + 1 > branch.first_predicted_frame {
+            branch.first_predicted_frame = actual_frame_idx + 1;
 
             let splits = &mut branch.branch.splits;
             let split_valid_to =
@@ -3836,20 +3847,20 @@ impl Editor {
             }
         }
 
-        if branch.frames.len() == frame.frame_idx {
+        if branch.frames.len() == actual_frame_idx {
             branch.frames.push(frame.frame);
             branch.extra_cam.clear();
         } else {
-            let current_frame = &mut branch.frames[frame.frame_idx];
+            let current_frame = &mut branch.frames[actual_frame_idx];
             if *current_frame != frame.frame {
                 *current_frame = frame.frame;
 
                 branch.first_predicted_frame =
-                    min(branch.first_predicted_frame, frame.frame_idx + 1);
+                    min(branch.first_predicted_frame, actual_frame_idx + 1);
                 branch.extra_cam.clear();
 
                 if truncate_on_mismatch {
-                    branch.frames.truncate(frame.frame_idx + 1);
+                    branch.frames.truncate(actual_frame_idx + 1);
                 }
             }
         }
@@ -3863,8 +3874,18 @@ impl Editor {
                 .map(|bulk| bulk.frame_count.get() as usize)
                 .sum::<usize>();
 
-            if frame.frame_idx + 1 == frame_count {
-                let mut smoothed_script = branch.branch.script.clone();
+            if actual_frame_idx + 1 == frame_count {
+                unsafe {
+                    self.update_split_hltas(MainThreadMarker::new());
+                }
+
+                let branch = &mut self.branches[frame.branch_idx];
+                let mut smoothed_script = branch
+                    .branch
+                    .split
+                    .as_ref()
+                    .map(|split| split.0.clone())
+                    .unwrap_or_else(|| branch.branch.script.clone());
 
                 // Enable vectorial strafing if it wasn't enabled.
                 smoothed_script
@@ -3923,6 +3944,10 @@ impl Editor {
                 }
 
                 branch.auto_smoothing.script = Some(smoothed_script.clone());
+                if let Some(split) = &branch.branch.split {
+                    branch.branch.split = Some((smoothed_script.clone(), split.1));
+                }
+
                 return Some(PlayRequest {
                     script: smoothed_script,
                     generation: self.generation,
@@ -4636,12 +4661,68 @@ impl Editor {
     }
 
     /// Invalidates split markers with a framebulk index
-    pub fn invalidate_splits_fb_idx(&mut self, fb_idx: usize) {
+    pub fn invalidate_splits_fb_idx(&mut self, fb_idx: usize, _marker: MainThreadMarker) {
         let invalid_split_idx = self.split_idx_from_fb_idx(fb_idx);
         let splits = self.split_markers_mut();
+
+        #[cfg(not(test))]
+        let game_dir = Path::new(
+            unsafe { CStr::from_ptr(engine::com_gamedir.get(_marker).cast()) }
+                .to_str()
+                .unwrap(),
+        );
+
         for split in splits[invalid_split_idx..].iter_mut() {
             split.ready = false;
+
+            #[cfg(not(test))]
+            {
+                let Some(save_path) = split.save_path(game_dir) else {
+                    continue;
+                };
+                // TODO: propagate error, print outside.
+                if let Err(err) = fs::remove_file(save_path) {
+                    error!("error receiving request from server: {err:?}");
+                }
+            }
         }
+    }
+
+    // TODO: test
+    /// Updates split state
+    pub fn update_split_hltas(&mut self, _marker: MainThreadMarker) {
+        #[cfg(not(test))]
+        let game_dir = Path::new(
+            unsafe { CStr::from_ptr(engine::com_gamedir.get(_marker).cast()) }
+                .to_str()
+                .unwrap(),
+        );
+
+        let mut split_found = None;
+        let fb_idx = self.branch().first_predicted_frame;
+
+        for (i, split) in self.split_markers_mut().iter_mut().enumerate().rev() {
+            // uses >= comparison because, if first predicted frame is passed in and it is 0
+            // it could match with a split where there's 1 framebulk before split (bulk_idx is 0)
+            if split.bulk_idx >= fb_idx {
+                continue;
+            }
+            #[cfg(not(test))]
+            split.validate(game_dir);
+            if split.ready {
+                split_found = Some(i);
+                break;
+            }
+        }
+
+        let Some(split) = split_found else {
+            self.branch_mut().branch.split = None;
+            return;
+        };
+        let split = &self.split_markers()[split];
+
+        let split_script = split.split_hltas(self.script());
+        self.branch_mut().branch.split = Some((split_script, fb_idx));
     }
 
     /// Gets the split index equals or higher than fb_idx
@@ -4654,6 +4735,10 @@ impl Editor {
     fn split_idx_before_fb_idx(&self, fb_idx: usize) -> usize {
         self.split_markers()
             .partition_point(|s| s.bulk_idx >= fb_idx)
+    }
+
+    pub fn split_hltas(&self) -> Option<&(HLTAS, usize)> {
+        self.branch().branch.split.as_ref()
     }
 }
 

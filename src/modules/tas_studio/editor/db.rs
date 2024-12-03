@@ -1,6 +1,6 @@
 use std::ffi::CStr;
 use std::num::NonZeroU32;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{collections::HashSet, fmt};
 
 use bincode::Options;
@@ -29,6 +29,8 @@ pub struct Branch {
 
     pub script: HLTAS,
     pub splits: Vec<SplitInfo>,
+    // actual split script, with frame index of where it is
+    pub split: Option<(HLTAS, usize)>,
     pub stop_frame: u32,
 }
 
@@ -84,10 +86,8 @@ impl SplitInfo {
             return Vec::new();
         }
 
-        let mut splits = Vec::new();
-
         let mut line_idx = 0usize;
-        let mut bulk_idx = 1usize;
+        let mut bulk_idx = 0usize;
         // skip till there's at least 1 framebulk
         for line in lines.by_ref() {
             if matches!(line, Line::FrameBulk(_)) {
@@ -96,10 +96,11 @@ impl SplitInfo {
 
             line_idx += 1;
             if line_idx >= stop_idx {
-                return splits;
+                return Vec::new();
             }
         }
 
+        let mut splits = Vec::new();
         let mut used_save_names = HashSet::new();
 
         while let Some(line) = lines.next() {
@@ -123,10 +124,9 @@ impl SplitInfo {
                     if Self::no_framebulks_left(&mut lines) {
                         break;
                     }
-                    line_idx += 1;
 
                     name = Some(save_name.as_str());
-                    start_idx = line_idx;
+                    start_idx = line_idx + 1;
                     split_type = SplitType::Save;
                 }
                 // this reset doesn't have a name, one with comment attached is handled below
@@ -134,10 +134,9 @@ impl SplitInfo {
                     if Self::no_framebulks_left(&mut lines) {
                         break;
                     }
-                    line_idx += 1;
 
                     name = None;
-                    start_idx = line_idx;
+                    start_idx = line_idx + 1;
                     split_type = SplitType::Reset;
                 }
                 Line::Comment(comment) => {
@@ -156,10 +155,10 @@ impl SplitInfo {
                     // linked to reset?
                     split_type = if matches!(lines.peek(), Some(Line::Reset { .. })) {
                         lines.next(); // consume reset
+                        line_idx += 1;
                         if Self::no_framebulks_left(&mut lines) {
                             break;
                         }
-                        line_idx += 1;
 
                         SplitType::Reset
                     } else {
@@ -169,9 +168,8 @@ impl SplitInfo {
 
                         SplitType::Comment
                     };
-                    line_idx += 1;
 
-                    start_idx = line_idx;
+                    start_idx = line_idx + 1;
                     let comment = comment.trim_start();
                     if comment.is_empty() {
                         name = None;
@@ -218,37 +216,34 @@ impl SplitInfo {
         true
     }
 
-    pub fn validate_all_by_saves(splits: &mut Vec<SplitInfo>, marker: MainThreadMarker) {
+    #[cfg(test)]
+    pub fn validate_all_by_saves(splits: &mut Vec<SplitInfo>, _marker: MainThreadMarker) {
         for split in splits {
-            let Some(name) = &split.name else {
-                return;
-            };
-
-            let game_dir = Path::new(
-                unsafe { CStr::from_ptr(engine::com_gamedir.get(marker).cast()) }
-                    .to_str()
-                    .unwrap(),
-            );
-            let save_path = game_dir.join("SAVE").join(format!("{name}.sav"));
-            split.ready = save_path.is_file();
+            split.ready = false;
         }
     }
 
-    pub fn split_hltas_for_remote_use(splits: &[SplitInfo], hltas: &HLTAS, fb_idx: usize) -> HLTAS {
-        let Some(split) = splits
-            .iter()
-            .rev()
-            .find(|s| s.bulk_idx < fb_idx && s.name.is_some())
-        else {
-            // Cow could be used if return doesn't need to be owned
-            return hltas.clone();
-        };
+    #[cfg(not(test))]
+    pub fn validate_all_by_saves(splits: &mut Vec<SplitInfo>, marker: MainThreadMarker) {
+        let game_dir = Path::new(
+            unsafe { CStr::from_ptr(engine::com_gamedir.get(marker).cast()) }
+                .to_str()
+                .unwrap(),
+        );
 
-        split.split_hltas(hltas)
+        for split in splits {
+            split.validate(game_dir);
+        }
+    }
+
+    pub fn save_path(&self, game_dir: &Path) -> Option<PathBuf> {
+        self.name
+            .as_ref()
+            .map(|name| game_dir.join("SAVE").join(format!("{name}.sav")))
     }
 
     // TODO: test
-    fn split_hltas(&self, hltas: &HLTAS) -> HLTAS {
+    pub fn split_hltas(&self, hltas: &HLTAS) -> HLTAS {
         let properties = hltas.properties.clone();
         let lines = hltas.lines[self.start_idx..].to_owned();
 
@@ -284,7 +279,15 @@ impl SplitInfo {
         };
         hltas.lines.insert(0, Line::FrameBulk(padding));
 
-        todo!()
+        hltas
+    }
+
+    pub fn validate(&mut self, game_dir: &Path) {
+        // TODO: what should i do with unnamed / invalid names
+        self.ready = self
+            .save_path(game_dir)
+            .map(|save_path| save_path.is_file())
+            .unwrap_or(false);
     }
 }
 
@@ -456,6 +459,7 @@ impl Db {
             script,
             splits,
             stop_frame,
+            split: None,
         })
     }
 
@@ -493,6 +497,7 @@ impl Db {
                 script,
                 stop_frame,
                 splits,
+                split: None,
             })
         }
         stmt.finalize()?;
@@ -819,37 +824,37 @@ mod tests {
         let expected = vec![
             SplitInfo {
                 start_idx: 2,
-                bulk_idx: 1,
+                bulk_idx: 0,
                 name: Some("name".to_string()),
                 split_type: SplitType::Comment,
                 ready: false,
             },
             SplitInfo {
                 start_idx: 5,
-                bulk_idx: 3,
+                bulk_idx: 2,
                 name: None,
                 split_type: SplitType::Comment,
                 ready: false,
             },
             SplitInfo {
                 start_idx: 9,
-                bulk_idx: 6,
+                bulk_idx: 5,
                 name: Some("name2".to_string()),
                 split_type: SplitType::Save,
                 ready: false,
             },
             SplitInfo {
                 start_idx: 14,
-                bulk_idx: 10,
-                name: Some("name3".to_string()),
+                bulk_idx: 9,
+                name: None,
                 split_type: SplitType::Reset,
                 ready: false,
             },
             SplitInfo {
                 start_idx: 21,
-                bulk_idx: 15,
+                bulk_idx: 14,
                 name: Some("name4".to_string()),
-                split_type: SplitType::Comment,
+                split_type: SplitType::Reset,
                 ready: false,
             },
         ];

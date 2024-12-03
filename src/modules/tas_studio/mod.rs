@@ -2041,8 +2041,12 @@ pub fn draw(marker: MainThreadMarker, tri: &TriangleApi) {
     if let Some(at) = *simulate_at {
         if Instant::now() > at {
             *simulate_at = None;
+            editor.update_split_hltas(marker);
             remote::maybe_send_request_to_client(PlayRequest {
-                script: editor.script().clone(),
+                script: editor
+                    .split_hltas()
+                    .map(|split| split.0.clone())
+                    .unwrap_or_else(|| editor.script().clone()),
                 generation: *last_generation,
                 branch_idx: *last_branch_idx,
                 is_smoothed: false,
