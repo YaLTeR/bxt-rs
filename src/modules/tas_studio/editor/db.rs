@@ -223,7 +223,6 @@ impl SplitInfo {
         game_dir.join("SAVE").join(format!("{}.sav", self.name))
     }
 
-    // TODO: test
     pub fn split_hltas(&self, hltas: &HLTAS) -> HLTAS {
         let properties = hltas.properties.clone();
         let lines = hltas.lines[self.start_idx..].to_owned();
@@ -247,13 +246,28 @@ impl SplitInfo {
             console_command: Default::default(),
         };
         hltas.lines.insert(0, Line::FrameBulk(padding));
-        let mut last_fb = last_fb.clone();
-        last_fb.frame_count = NonZeroU32::MIN;
-        last_fb.console_command = match last_fb.console_command {
-            Some(console_command) => Some(format!("{console_command};unpause")),
-            None => Some("unpause".to_owned()),
-        };
-        hltas.lines.insert(1, Line::FrameBulk(last_fb));
+        if matches!(self.split_type, SplitType::Reset) {
+            // TODO: for reset, its same as doing save load without autopause, is this correct
+            // TODO: this exists because I don't know how to generate load time frames
+            let padding = FrameBulk {
+                auto_actions: Default::default(),
+                movement_keys: Default::default(),
+                action_keys: Default::default(),
+                frame_time: last_fb.frame_time.to_owned(),
+                pitch: Default::default(),
+                frame_count: NonZeroU32::MIN,
+                console_command: Some("unpause".to_owned()),
+            };
+            hltas.lines.insert(1, Line::FrameBulk(padding));
+        } else {
+            let mut last_fb = last_fb.clone();
+            last_fb.frame_count = NonZeroU32::MIN;
+            last_fb.console_command = match last_fb.console_command {
+                Some(console_command) => Some(format!("{console_command};unpause")),
+                None => Some("unpause".to_owned()),
+            };
+            hltas.lines.insert(1, Line::FrameBulk(last_fb));
+        }
 
         hltas
     }
@@ -876,7 +890,7 @@ mod tests {
 
         let script = HLTAS::from_str(
             "version 1\nframes\n\
-                ----------|------|------|0.005|-|-|10\n\
+                ----------|------|------|0.005|90|-|10\n\
                 // bxt-rs-split name3
                 reset 1
                 ----------|------|------|0.006|-|-|10\n",
@@ -886,10 +900,10 @@ mod tests {
         let split = splits[0].split_hltas(&script);
         let script = HLTAS::from_str(
             "version 1\n\
-                load_command _bxt_load \"name3\"\n\
+                load_command bxt_autopause 1;_bxt_load \"name3\"\n\
                 frames\n\
                 ----------|------|------|0.005|-|-|14\n\
-                ----------|------|------|0.005|-|-|1\n\
+                ----------|------|------|0.005|-|-|1|unpause\n\
                 ----------|------|------|0.006|-|-|10\n",
         )
         .unwrap();
