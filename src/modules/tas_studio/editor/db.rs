@@ -70,6 +70,7 @@ pub enum SplitType {
 
 impl SplitInfo {
     #[must_use]
+    #[inline(always)]
     pub fn split_lines<'a, T: Iterator<Item = &'a Line>>(lines: T) -> Vec<Self> {
         Self::split_lines_with_stop(lines, usize::MAX)
     }
@@ -162,6 +163,7 @@ impl SplitInfo {
 
                         SplitType::Reset
                     } else {
+                        lines.reset_peek();
                         if Self::no_framebulks_left(&mut lines) {
                             break;
                         }
@@ -787,7 +789,6 @@ mod tests {
 
     #[test]
     fn split_by_markers() {
-        // TODO: complete, duplicate names
         let script = HLTAS::from_str(
             "version 1\nframes\n\
                 ----------|------|------|0.001|-|-|10\n\
@@ -809,14 +810,18 @@ mod tests {
                 ----------|------|------|0.005|-|-|10\n\
                 ----------|------|------|0.005|-|-|10\n\
                 ----------|------|------|0.005|-|-|10\n\
-                // bxt-rs-split name4
+                // bxt-rs-split name3
                 reset 1
                 ----------|------|------|0.006|-|-|10\n\
                 ----------|------|------|0.006|-|-|10\n\
                 ----------|------|------|0.006|-|-|10\n\
                 ----------|------|------|0.006|-|-|10\n\
                 ----------|------|------|0.006|-|-|10\n\
-                ----------|------|------|0.006|-|-|10\n",
+                ----------|------|------|0.006|-|-|10\n
+                // bxt-rs-split name4
+                ----------|------|------|0.007|-|-|10\n\
+                // bxt-rs-split name4
+                ----------|------|------|0.008|-|-|10\n",
         )
         .unwrap();
 
@@ -853,8 +858,22 @@ mod tests {
             SplitInfo {
                 start_idx: 21,
                 bulk_idx: 14,
-                name: Some("name4".to_string()),
+                name: Some("name3".to_string()),
                 split_type: SplitType::Reset,
+                ready: false,
+            },
+            SplitInfo {
+                start_idx: 28,
+                bulk_idx: 20,
+                name: Some("name4".to_string()),
+                split_type: SplitType::Comment,
+                ready: false,
+            },
+            SplitInfo {
+                start_idx: 30,
+                bulk_idx: 21,
+                name: None,
+                split_type: SplitType::Comment,
                 ready: false,
             },
         ];
