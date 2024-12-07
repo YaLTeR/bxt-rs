@@ -52,10 +52,8 @@ pub struct SplitInfo {
     pub start_idx: usize,
     // for the sake of easier searching, the last framebulk index is stored
     pub bulk_idx: usize,
-    // a split could have no name
-    // this could also be duplicate names, which becomes `None`
     // TODO: could probably get away with &str
-    pub name: Option<String>,
+    pub name: String,
     pub split_type: SplitType,
     // ready as in, there's a save created, and lines before and including start_idx is still unchanged
     pub ready: bool,
@@ -126,19 +124,9 @@ impl SplitInfo {
                         break;
                     }
 
-                    name = Some(save_name.as_str());
+                    name = save_name.as_str();
                     start_idx = line_idx + 1;
                     split_type = SplitType::Save;
-                }
-                // this reset doesn't have a name, one with comment attached is handled below
-                Line::Reset { .. } => {
-                    if Self::no_framebulks_left(&mut lines) {
-                        break;
-                    }
-
-                    name = None;
-                    start_idx = line_idx + 1;
-                    split_type = SplitType::Reset;
                 }
                 Line::Comment(comment) => {
                     let comment = comment.trim();
@@ -174,10 +162,9 @@ impl SplitInfo {
                     start_idx = line_idx + 1;
                     let comment = comment.trim_start();
                     if comment.is_empty() {
-                        name = None;
-                    } else {
-                        name = Some(comment);
+                        continue;
                     }
+                    name = comment;
                 }
                 Line::FrameBulk(_) => {
                     bulk_idx += 1;
@@ -186,20 +173,14 @@ impl SplitInfo {
                 _ => continue,
             }
 
-            let name = if let Some(name) = name {
-                if used_save_names.contains(name) {
-                    None
-                } else {
-                    used_save_names.insert(name.to_owned());
-                    Some(name.to_owned())
-                }
-            } else {
-                None
-            };
+            if used_save_names.contains(name) {
+                continue;
+            }
+            used_save_names.insert(name);
 
             splits.push(SplitInfo {
                 start_idx,
-                name,
+                name: name.to_owned(),
                 split_type,
                 bulk_idx,
                 ready: false,
@@ -238,10 +219,8 @@ impl SplitInfo {
         }
     }
 
-    pub fn save_path(&self, game_dir: &Path) -> Option<PathBuf> {
-        self.name
-            .as_ref()
-            .map(|name| game_dir.join("SAVE").join(format!("{name}.sav")))
+    pub fn save_path(&self, game_dir: &Path) -> PathBuf {
+        game_dir.join("SAVE").join(format!("{}.sav", self.name))
     }
 
     // TODO: test
@@ -249,47 +228,38 @@ impl SplitInfo {
         let properties = hltas.properties.clone();
         let lines = hltas.lines[self.start_idx..].to_owned();
 
-        let frame_time = lines
-            .iter()
-            .find_map(|l| {
-                if let Line::FrameBulk(b) = l {
-                    Some(&b.frame_time)
-                } else {
-                    None
-                }
-            })
-            .expect("There is a frame bulk after a split marker, this should never happen")
-            .clone();
+        let last_fb = hltas.lines[self.bulk_idx].frame_bulk().unwrap();
 
         let mut hltas = HLTAS { properties, lines };
         // TODO: apply shared rng, properties, etc, which would be stored in split info
         // TODO: if reset or no autopause with manual save load, do not enable autopause
-        hltas.properties.load_command = Some(format!(
-            "bxt_autopause 1; _bxt_load \"{}\"",
-            self.name.as_ref().unwrap()
-        ));
+        hltas.properties.load_command =
+            Some(format!("bxt_autopause 1;_bxt_load \"{}\"", self.name));
 
         // TODO: could the loading frames be figured out
         let padding = FrameBulk {
             auto_actions: Default::default(),
             movement_keys: Default::default(),
             action_keys: Default::default(),
-            frame_time,
+            frame_time: last_fb.frame_time.to_owned(),
             pitch: Default::default(),
-            frame_count: NonZeroU32::try_from(15).unwrap(),
+            frame_count: NonZeroU32::try_from(14).unwrap(),
             console_command: Default::default(),
         };
         hltas.lines.insert(0, Line::FrameBulk(padding));
+        let mut last_fb = last_fb.clone();
+        last_fb.frame_count = NonZeroU32::MIN;
+        last_fb.console_command = match last_fb.console_command {
+            Some(console_command) => Some(format!("{console_command};unpause")),
+            None => Some("unpause".to_owned()),
+        };
+        hltas.lines.insert(1, Line::FrameBulk(last_fb));
 
         hltas
     }
 
     pub fn validate(&mut self, game_dir: &Path) {
-        // TODO: what should i do with unnamed / invalid names
-        self.ready = self
-            .save_path(game_dir)
-            .map(|save_path| save_path.is_file())
-            .unwrap_or(false);
+        self.ready = self.save_path(game_dir).is_file();
     }
 }
 
@@ -788,7 +758,7 @@ mod tests {
     use crate::modules::tas_studio::editor::db::{SplitInfo, SplitType};
 
     #[test]
-    fn split_by_markers() {
+    fn markers_from_hltas() {
         let script = HLTAS::from_str(
             "version 1\nframes\n\
                 ----------|------|------|0.001|-|-|10\n\
@@ -830,54 +800,99 @@ mod tests {
             SplitInfo {
                 start_idx: 2,
                 bulk_idx: 0,
-                name: Some("name".to_string()),
-                split_type: SplitType::Comment,
-                ready: false,
-            },
-            SplitInfo {
-                start_idx: 5,
-                bulk_idx: 2,
-                name: None,
+                name: "name".to_string(),
                 split_type: SplitType::Comment,
                 ready: false,
             },
             SplitInfo {
                 start_idx: 9,
                 bulk_idx: 5,
-                name: Some("name2".to_string()),
+                name: "name2".to_string(),
                 split_type: SplitType::Save,
-                ready: false,
-            },
-            SplitInfo {
-                start_idx: 14,
-                bulk_idx: 9,
-                name: None,
-                split_type: SplitType::Reset,
                 ready: false,
             },
             SplitInfo {
                 start_idx: 21,
                 bulk_idx: 14,
-                name: Some("name3".to_string()),
+                name: "name3".to_string(),
                 split_type: SplitType::Reset,
                 ready: false,
             },
             SplitInfo {
                 start_idx: 28,
                 bulk_idx: 20,
-                name: Some("name4".to_string()),
-                split_type: SplitType::Comment,
-                ready: false,
-            },
-            SplitInfo {
-                start_idx: 30,
-                bulk_idx: 21,
-                name: None,
+                name: "name4".to_string(),
                 split_type: SplitType::Comment,
                 ready: false,
             },
         ];
 
         assert_eq!(splits, expected);
+    }
+
+    #[test]
+    fn split_by_markers() {
+        let script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.001|-|-|10\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.002|-|-|10\n",
+        )
+        .unwrap();
+        let splits = SplitInfo::split_lines(script.lines.iter());
+        let split = splits[0].split_hltas(&script);
+        let script = HLTAS::from_str(
+            "version 1\n\
+                load_command bxt_autopause 1;_bxt_load \"name\"\n\
+                frames\n\
+                ----------|------|------|0.001|-|-|14\n\
+                ----------|------|------|0.001|-|-|1|unpause\n\
+                ----------|------|------|0.002|-|-|10\n",
+        )
+        .unwrap();
+        assert_eq!(script, split);
+
+        // TODO: idk save load timing for `save` command
+        // let script = HLTAS::from_str(
+        //     "version 1\nframes\n\
+        //         ----------|------|------|0.003|180|15|15|echo foo\n\
+        //         save name2
+        //         ----------|------|------|0.004|-|-|10\n\
+        //         ----------|------|------|0.004|-|-|10\n",
+        // )
+        // .unwrap();
+        // let split = splits[0].split_hltas(&script);
+        // let script = HLTAS::from_str(
+        //     "version 1\n\
+        //         load_command bxt_autopause 1;_bxt_load \"name2\"\n\
+        //         frames\n\
+        //         ----------|------|------|0.003|-|-|14\n\
+        //         ----------|------|------|0.003|180|15|1|echo foo;unpause\n\
+        //         ----------|------|------|0.004|-|-|10\n\
+        //         ----------|------|------|0.004|-|-|10\n",
+        // )
+        // .unwrap();
+        // assert_eq!(script, split);
+
+        let script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.005|-|-|10\n\
+                // bxt-rs-split name3
+                reset 1
+                ----------|------|------|0.006|-|-|10\n",
+        )
+        .unwrap();
+        let splits = SplitInfo::split_lines(script.lines.iter());
+        let split = splits[0].split_hltas(&script);
+        let script = HLTAS::from_str(
+            "version 1\n\
+                load_command _bxt_load \"name3\"\n\
+                frames\n\
+                ----------|------|------|0.005|-|-|14\n\
+                ----------|------|------|0.005|-|-|1\n\
+                ----------|------|------|0.006|-|-|10\n",
+        )
+        .unwrap();
+        assert_eq!(script, split);
     }
 }

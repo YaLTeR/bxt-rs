@@ -4677,9 +4677,7 @@ impl Editor {
 
             #[cfg(not(test))]
             {
-                let Some(save_path) = split.save_path(game_dir) else {
-                    continue;
-                };
+                let save_path = split.save_path(game_dir);
                 // TODO: propagate error, print outside.
                 if let Err(err) = fs::remove_file(save_path) {
                     error!("error receiving request from server: {err:?}");
