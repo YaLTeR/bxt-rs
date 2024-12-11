@@ -1,5 +1,7 @@
 use std::ffi::CStr;
+use std::fs;
 use std::num::NonZeroU32;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::{collections::HashSet, fmt};
 
@@ -47,9 +49,11 @@ impl fmt::Debug for Branch {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SplitInfo {
-    // this is 1 index right after the split marker
-    // it is guaranteed to have a framebulk somewhere after this
-    pub start_idx: usize,
+    // must guarantee to have framebulk before and after this
+    /// range of split marker
+    /// - starts from 1 line after previous framebulk
+    /// - ends before next framebulk
+    pub split_range: Range<usize>,
     // for the sake of easier searching, the last framebulk index is stored
     pub bulk_idx: usize,
     // TODO: could probably get away with &str
@@ -99,6 +103,10 @@ impl SplitInfo {
             }
         }
 
+        // for split marker range
+        // TODO: check for more unrelated things
+        let mut split_start_idx = line_idx + 1;
+
         let mut splits = Vec::new();
         let mut used_save_names = HashSet::new();
 
@@ -112,7 +120,7 @@ impl SplitInfo {
             const SPLIT_MARKER: &str = "bxt-rs-split";
 
             let name;
-            let start_idx;
+            let split_range;
             let split_type;
 
             match line {
@@ -125,19 +133,21 @@ impl SplitInfo {
                     }
 
                     name = save_name.as_str();
-                    start_idx = line_idx + 1;
+                    split_range = line_idx..line_idx + 1;
                     split_type = SplitType::Save;
                 }
                 Line::Comment(comment) => {
                     let comment = comment.trim();
 
                     if !comment.starts_with(SPLIT_MARKER) {
+                        split_start_idx = line_idx + 1;
                         continue;
                     }
 
-                    let comment = &comment[SPLIT_MARKER.len()..];
+                    let comment = &comment[SPLIT_MARKER.len()..].trim();
 
-                    if !comment.is_empty() && !comment.chars().next().unwrap().is_whitespace() {
+                    if comment.is_empty() {
+                        split_start_idx = line_idx + 1;
                         continue;
                     }
 
@@ -148,10 +158,9 @@ impl SplitInfo {
                         if Self::no_framebulks_left(&mut lines) {
                             break;
                         }
-
                         SplitType::Reset
                     } else {
-                        lines.reset_peek();
+                        lines.reset_peek(); // used peek to check reset
                         if Self::no_framebulks_left(&mut lines) {
                             break;
                         }
@@ -159,27 +168,25 @@ impl SplitInfo {
                         SplitType::Comment
                     };
 
-                    start_idx = line_idx + 1;
-                    let comment = comment.trim_start();
-                    if comment.is_empty() {
-                        continue;
-                    }
-                    name = comment;
+                    split_range = split_start_idx..line_idx + 1;
+                    name = comment.trim_start();
                 }
                 Line::FrameBulk(_) => {
                     bulk_idx += 1;
+                    split_start_idx = line_idx + 1;
                     continue;
                 }
                 _ => continue,
             }
 
             if used_save_names.contains(name) {
+                split_start_idx = line_idx + 1;
                 continue;
             }
             used_save_names.insert(name);
 
             splits.push(SplitInfo {
-                start_idx,
+                split_range,
                 name: name.to_owned(),
                 split_type,
                 bulk_idx,
@@ -225,7 +232,7 @@ impl SplitInfo {
 
     pub fn split_hltas(&self, hltas: &HLTAS) -> HLTAS {
         let properties = hltas.properties.clone();
-        let lines = hltas.lines[self.start_idx..].to_owned();
+        let lines = hltas.lines[self.split_range.end..].to_owned();
 
         let last_fb = hltas.lines[self.bulk_idx].frame_bulk().unwrap();
 
@@ -274,6 +281,12 @@ impl SplitInfo {
 
     pub fn validate(&mut self, game_dir: &Path) {
         self.ready = self.save_path(game_dir).is_file();
+    }
+
+    #[cfg(not(test))]
+    pub fn invalidate(&mut self, game_dir: &Path) -> std::io::Result<()> {
+        self.ready = false;
+        fs::remove_file(self.save_path(game_dir))
     }
 }
 
@@ -812,28 +825,28 @@ mod tests {
         let splits = SplitInfo::split_lines(script.lines.iter());
         let expected = vec![
             SplitInfo {
-                start_idx: 2,
+                split_range: 1..2,
                 bulk_idx: 0,
                 name: "name".to_string(),
                 split_type: SplitType::Comment,
                 ready: false,
             },
             SplitInfo {
-                start_idx: 9,
+                split_range: 8..9,
                 bulk_idx: 5,
                 name: "name2".to_string(),
                 split_type: SplitType::Save,
                 ready: false,
             },
             SplitInfo {
-                start_idx: 21,
+                split_range: 19..21,
                 bulk_idx: 14,
                 name: "name3".to_string(),
                 split_type: SplitType::Reset,
                 ready: false,
             },
             SplitInfo {
-                start_idx: 28,
+                split_range: 27..28,
                 bulk_idx: 20,
                 name: "name4".to_string(),
                 split_type: SplitType::Comment,

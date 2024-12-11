@@ -1,7 +1,6 @@
 use std::cmp::min;
 use std::ffi::CStr;
 use std::fmt::Write;
-use std::fs;
 use std::iter::{self, zip};
 use std::num::NonZeroU32;
 use std::ops::ControlFlow;
@@ -10,7 +9,7 @@ use std::time::Instant;
 
 use bxt_ipc_types::Frame;
 use bxt_strafe::{Hull, Trace};
-use color_eyre::eyre::{self, ensure};
+use color_eyre::eyre::{self, ensure, Context};
 use db::SplitInfo;
 use glam::{IVec2, Vec2, Vec3};
 use hltas::types::{
@@ -3323,62 +3322,65 @@ impl Editor {
         let to_str = String::from_utf8(buffer)
             .expect("Line serialization should never produce invalid UTF-8");
 
-        // if modified before or on split idx, it is invalid
-        // simply find the first split that is covered
-        // TODO: test
-        let splits = self.split_markers();
-        let last_line_idx = first_line_idx + count - 1;
-        let invalid_split_idx =
-            splits.partition_point(|s| s.start_idx < first_line_idx && s.start_idx > last_line_idx);
+        // remove split covered by `count`
+        self.split_markers_mut().retain(|s| {
+            s.split_range.end <= first_line_idx || s.split_range.start > first_line_idx + count - 1
+        });
 
-        // offsets are applied for after the last_line_idx range
-        let offset_split_idx =
-            splits[invalid_split_idx..].partition_point(|s| s.start_idx < last_line_idx);
-        if offset_split_idx < splits.len() {
-            let split_offset_cnt = isize::try_from(to.len())
-                .expect("Length of the replacement line is too huge to be isize")
-                - isize::try_from(count)
-                    .expect("Number of lines to replace is too huge to be isize");
-            // same thing as above, but for framebulks
-            let fb_to_cnt = to
-                .iter()
-                .filter(|l| matches!(l, Line::FrameBulk(_)))
-                .count();
-            let fb_count_cnt = from_lines
-                .iter()
-                .filter(|l| matches!(l, Line::FrameBulk(_)))
-                .count();
-            let bulk_offset_cnt = isize::try_from(fb_to_cnt)
-                .expect("Index of framebulk is too large for calculating as isize")
-                - isize::try_from(fb_count_cnt)
-                    .expect("Index of framebulk is too large for calculating as isize");
+        // generate splits in `to`
 
-            // apply offsets
-            let splits = self.split_markers_mut();
-            for split in splits[offset_split_idx..].iter_mut() {
-                split
-                    .start_idx
-                    .checked_add_signed(split_offset_cnt)
-                    .expect("Split marker index is out of range");
-                split
-                    .bulk_idx
-                    .checked_add_signed(bulk_offset_cnt)
-                    .expect("Split marker framebulk index is out of range");
+        // if the first split in `to` is at index 0, and previous framebulk exists before `to` lines in the final script, the split marker generation wouldn't pick this up
+        // to get around this issue, we just include the lines before `to` up to the framebulk
+        let mut prev_script_start_idx = 0usize;
+        let lines = &self.script().lines;
+        for (i, line) in lines[..first_line_idx].iter().enumerate().rev() {
+            if matches!(line, Line::FrameBulk(_)) {
+                prev_script_start_idx = i;
+                break;
             }
         }
+        let to_for_splits = lines[prev_script_start_idx..first_line_idx]
+            .iter()
+            .chain(to)
+            .chain(&lines[first_line_idx + count..]);
 
-        // handle `to` lines split info
-        // TODO: test
-        let to_splits = SplitInfo::split_lines_with_stop(
-            to.iter()
-                .chain(self.script().lines[offset_split_idx..].iter()),
-            to.len(),
-        );
-        let splits = self.split_markers_mut();
-        for (i, split) in to_splits.into_iter().enumerate() {
-            let mut split = split;
-            split.start_idx += first_line_idx;
-            splits.insert(invalid_split_idx + i, split);
+        let mut to_splits = SplitInfo::split_lines_with_stop(to_for_splits, count);
+        let offset_from = if !to_splits.is_empty() {
+            for split in to_splits.iter_mut() {
+                // offset to make up for the missing count
+                split.bulk_idx += prev_script_start_idx;
+                split.split_range.start += prev_script_start_idx;
+                split.split_range.end += prev_script_start_idx;
+            }
+            let splits = self.split_markers_mut();
+            let insert_idx = splits
+                .iter()
+                .position(|s| to_splits[0].split_range.start > s.split_range.start)
+                .map(|i| i + 1)
+                .unwrap_or(splits.len());
+            let offset_from = insert_idx + to_splits.len();
+            for (i, split) in to_splits.into_iter().enumerate() {
+                splits.insert(insert_idx + i, split);
+            }
+            offset_from
+        } else {
+            let splits = self.split_markers();
+            splits
+                .iter()
+                .position(|s| s.split_range.end >= first_line_idx)
+                .map(|i| i + 1)
+                .unwrap_or(splits.len())
+        };
+
+        // offset after `to` splits
+        let offset = isize::try_from(to.len())
+            .expect("length of `to` cannot be represented as isize")
+            - isize::try_from(count).expect("`count` cannot be represented as isize");
+        for split in self.split_markers_mut()[offset_from..].iter_mut() {
+            // shouldn't panic
+            split.bulk_idx = split.bulk_idx.checked_add_signed(offset).unwrap();
+            split.split_range.start = split.split_range.start.checked_add_signed(offset).unwrap();
+            split.split_range.end = split.split_range.end.checked_add_signed(offset).unwrap();
         }
 
         let op = Operation::ReplaceMultiple {
@@ -3544,6 +3546,23 @@ impl Editor {
 
         // don't validate by checking save file, its a rewrite
         branch.splits = SplitInfo::split_lines(new_script.lines.iter());
+
+        #[cfg(not(test))]
+        {
+            // TODO: is this fine to do
+            let game_dir = Path::new(
+                unsafe { CStr::from_ptr(engine::com_gamedir.get(MainThreadMarker::new()).cast()) }
+                    .to_str()
+                    .unwrap(),
+            );
+
+            // removes all corresponding saves so a game reload won't use wrong saves
+            for split in branch.splits.iter_mut() {
+                split
+                    .invalidate(game_dir)
+                    .wrap_err("Failed to delete save file linked to split")?;
+            }
+        }
 
         let mut buffer = Vec::new();
         script
@@ -4673,15 +4692,15 @@ impl Editor {
         );
 
         for split in splits[invalid_split_idx..].iter_mut() {
-            split.ready = false;
-
-            #[cfg(not(test))]
+            #[cfg(test)]
             {
-                let save_path = split.save_path(game_dir);
-                // TODO: propagate error, print outside.
-                if let Err(err) = fs::remove_file(save_path) {
-                    error!("error receiving request from server: {err:?}");
-                }
+                split.ready = false;
+            }
+
+            // TODO: propagate error, print outside.
+            #[cfg(not(test))]
+            if let Err(err) = split.invalidate(game_dir) {
+                error!("error receiving request from server: {err:?}");
             }
         }
     }
@@ -5288,6 +5307,95 @@ mod tests {
                     -0.9,
                 ]
             "#]],
+        );
+    }
+
+    #[test]
+    fn rewrite_split_check() {
+        let script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|0|-|6\n\
+                ----------|------|------|0.004|10|-|6\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.004|20|-|6\n\
+                ----------|------|------|0.004|30|-|6",
+        )
+        .unwrap();
+        let mut editor = Editor::create_in_memory(&script).unwrap();
+
+        let new_script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|0|-|6\n\
+                ----------|------|------|0.004|10|-|6\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.004|30|-|6",
+        )
+        .unwrap();
+        editor.rewrite(new_script).unwrap();
+        assert_eq!(
+            &[SplitInfo {
+                split_range: 2..3,
+                bulk_idx: 1,
+                name: "name".to_string(),
+                split_type: db::SplitType::Comment,
+                ready: false
+            }],
+            editor.split_markers()
+        );
+
+        let new_script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|0|-|6\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.004|30|-|6",
+        )
+        .unwrap();
+        editor.rewrite(new_script).unwrap();
+        assert_eq!(
+            &[SplitInfo {
+                split_range: 1..2,
+                bulk_idx: 0,
+                name: "name".to_string(),
+                split_type: db::SplitType::Comment,
+                ready: false
+            }],
+            editor.split_markers()
+        );
+
+        let script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|10|-|6\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.004|20|-|6",
+        )
+        .unwrap();
+        let mut editor = Editor::create_in_memory(&script).unwrap();
+
+        let new_script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|20|-|6",
+        )
+        .unwrap();
+        editor.rewrite(new_script).unwrap();
+        assert!(editor.split_markers().is_empty());
+
+        let new_script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|20|-|6\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.004|10|-|6",
+        )
+        .unwrap();
+        editor.rewrite(new_script).unwrap();
+        assert_eq!(
+            vec![SplitInfo {
+                split_range: 1..2,
+                bulk_idx: 0,
+                name: "name".to_owned(),
+                split_type: db::SplitType::Comment,
+                ready: false
+            }],
+            editor.split_markers()
         );
     }
 
