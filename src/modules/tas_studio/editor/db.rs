@@ -128,7 +128,7 @@ impl SplitInfo {
                 // TODO: handle setting shared rng, and what property lines do i bring over?
                 // TODO: handle completely invalid back to back splits
                 Line::Save(save_name) => {
-                    if Self::no_framebulks_left(&mut lines) {
+                    if Self::no_framebulks_left(&mut lines, line_idx + 1, stop_idx) {
                         break;
                     }
 
@@ -155,13 +155,13 @@ impl SplitInfo {
                     split_type = if matches!(lines.peek(), Some(Line::Reset { .. })) {
                         lines.next(); // consume reset
                         line_idx += 1;
-                        if Self::no_framebulks_left(&mut lines) {
+                        if Self::no_framebulks_left(&mut lines, line_idx, stop_idx) {
                             break;
                         }
                         SplitType::Reset
                     } else {
                         lines.reset_peek(); // used peek to check reset
-                        if Self::no_framebulks_left(&mut lines) {
+                        if Self::no_framebulks_left(&mut lines, line_idx, stop_idx) {
                             break;
                         }
 
@@ -197,11 +197,21 @@ impl SplitInfo {
         splits
     }
 
-    fn no_framebulks_left<'a, T: Iterator<Item = &'a Line>>(lines: &mut MultiPeek<T>) -> bool {
+    fn no_framebulks_left<'a, T: Iterator<Item = &'a Line>>(
+        lines: &mut MultiPeek<T>,
+        mut line_idx: usize,
+        stop_idx: usize,
+    ) -> bool {
         while let Some(line) = lines.peek() {
+            if line_idx >= stop_idx {
+                return true;
+            }
+
             if matches!(line, Line::FrameBulk(_)) {
                 return false;
             }
+
+            line_idx += 1;
         }
         true
     }

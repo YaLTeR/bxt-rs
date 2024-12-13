@@ -3323,9 +3323,18 @@ impl Editor {
             .expect("Line serialization should never produce invalid UTF-8");
 
         // remove split covered by `count`
-        self.split_markers_mut().retain(|s| {
-            s.split_range.end <= first_line_idx || s.split_range.start > first_line_idx + count - 1
-        });
+        if count == 0 {
+            // inserts lines, check if `to` inserts into split range
+            self.split_markers_mut().retain(|s| {
+                s.split_range.start > first_line_idx || s.split_range.end <= first_line_idx
+            });
+        } else {
+            self.split_markers_mut().retain(|s| {
+                s.split_range.start >= first_line_idx + count
+                    || (s.split_range.start < first_line_idx
+                        && s.split_range.end <= first_line_idx + count)
+            });
+        }
 
         // generate splits in `to`
 
@@ -3344,7 +3353,10 @@ impl Editor {
             .chain(to)
             .chain(&lines[first_line_idx + count..]);
 
-        let mut to_splits = SplitInfo::split_lines_with_stop(to_for_splits, count);
+        let mut to_splits = SplitInfo::split_lines_with_stop(
+            to_for_splits,
+            to.len() + (first_line_idx - prev_script_start_idx),
+        );
         let offset_from = if !to_splits.is_empty() {
             for split in to_splits.iter_mut() {
                 // offset to make up for the missing count
@@ -3367,8 +3379,7 @@ impl Editor {
             let splits = self.split_markers();
             splits
                 .iter()
-                .position(|s| s.split_range.end >= first_line_idx)
-                .map(|i| i + 1)
+                .position(|s| s.split_range.start >= first_line_idx)
                 .unwrap_or(splits.len())
         };
 
@@ -5390,6 +5401,26 @@ mod tests {
         assert_eq!(
             vec![SplitInfo {
                 split_range: 1..2,
+                bulk_idx: 0,
+                name: "name".to_owned(),
+                split_type: db::SplitType::Comment,
+                ready: false
+            }],
+            editor.split_markers()
+        );
+
+        let new_script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|20|-|6\n\
+                seed 0\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.004|10|-|6",
+        )
+        .unwrap();
+        editor.rewrite(new_script).unwrap();
+        assert_eq!(
+            vec![SplitInfo {
+                split_range: 1..3,
                 bulk_idx: 0,
                 name: "name".to_owned(),
                 split_type: db::SplitType::Comment,
