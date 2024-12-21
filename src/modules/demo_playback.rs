@@ -34,7 +34,7 @@ impl Module for DemoPlayback {
     }
 }
 
-static DEMOS: MainThreadRefCell<Vec<Vec<u8>>> = MainThreadRefCell::new(Vec::new());
+pub static DEMOS: MainThreadRefCell<Vec<Vec<u8>>> = MainThreadRefCell::new(Vec::new());
 
 static BXT_PLAY_RUN: Command = Command::new(
     b"bxt_play_run\0",
