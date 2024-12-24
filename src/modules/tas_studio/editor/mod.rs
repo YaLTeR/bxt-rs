@@ -3353,10 +3353,21 @@ impl Editor {
             .chain(to)
             .chain(&lines[first_line_idx + count..]);
 
-        let mut to_splits = SplitInfo::split_lines_with_stop(
-            to_for_splits,
-            to.len() + (first_line_idx - prev_script_start_idx),
-        );
+        let mut to_splits_stop = lines[first_line_idx + count..].iter();
+        let to_splits_stop = if first_line_idx < lines.len()
+            && matches!(&lines[first_line_idx], Line::FrameBulk(_))
+            && to.len().saturating_sub(count) == 0
+        {
+            // doesn't need to regenerate split, go before fb
+            to_splits_stop
+                .take_while(|t| !matches!(t, Line::FrameBulk(_)))
+                .count()
+        } else {
+            to_splits_stop
+                .take_while_inclusive(|t| !matches!(t, Line::FrameBulk(_)))
+                .count()
+        } + to.len();
+        let mut to_splits = SplitInfo::split_lines_with_stop(to_for_splits, to_splits_stop);
         let offset_from = if !to_splits.is_empty() {
             for split in to_splits.iter_mut() {
                 // offset to make up for the missing count
