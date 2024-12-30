@@ -3597,7 +3597,7 @@ impl Editor {
             self.smooth_small_window_multiplier,
             &frames[start..=end],
             yaws,
-            &ignore_smoothing_frames.as_slice(),
+            &ignore_smoothing_frames.as_slice()[start..=end],
         );
 
         // Skip the first frame because it is the initial frame before the start of the TAS.
