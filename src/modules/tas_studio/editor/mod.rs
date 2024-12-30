@@ -5360,7 +5360,9 @@ mod tests {
                 bulk_idx: 1,
                 name: "name".to_string(),
                 split_type: db::SplitType::Comment,
-                ready: false
+                ready: false,
+                non_shared_rng: None,
+                shared_rng: None,
             }],
             editor.split_markers()
         );
@@ -5379,7 +5381,9 @@ mod tests {
                 bulk_idx: 0,
                 name: "name".to_string(),
                 split_type: db::SplitType::Comment,
-                ready: false
+                ready: false,
+                non_shared_rng: None,
+                shared_rng: None,
             }],
             editor.split_markers()
         );
@@ -5415,7 +5419,9 @@ mod tests {
                 bulk_idx: 0,
                 name: "name".to_owned(),
                 split_type: db::SplitType::Comment,
-                ready: false
+                ready: false,
+                non_shared_rng: None,
+                shared_rng: None,
             }],
             editor.split_markers()
         );
@@ -5435,7 +5441,9 @@ mod tests {
                 bulk_idx: 0,
                 name: "name".to_owned(),
                 split_type: db::SplitType::Comment,
-                ready: false
+                ready: false,
+                non_shared_rng: None,
+                shared_rng: Some(u32::wrapping_neg(14)),
             }],
             editor.split_markers()
         );

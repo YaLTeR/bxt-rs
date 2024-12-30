@@ -9,11 +9,11 @@ use bincode::Options;
 use color_eyre::eyre::{self, ensure, eyre};
 use hltas::types::FrameBulk;
 use hltas::{types::Line, HLTAS};
-use itertools::{Itertools, MultiPeek};
+use itertools::{Either, Itertools, MultiPeek};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::hooks::engine;
+use crate::hooks::engine::{self, RngState};
 use crate::utils::MainThreadMarker;
 
 use super::operation::Operation;
@@ -61,7 +61,14 @@ pub struct SplitInfo {
     pub split_type: SplitType,
     // ready as in, there's a save created, and lines before and including start_idx is still unchanged
     pub ready: bool,
+    // TODO: timing on grabbing rng values
+    // TODO: how do i get shared rng from engine?
+    // TODO: i most likely need to add this information being sent from a sim client, how can this be done in a clean way
+    pub shared_rng: Option<u32>,
+    pub non_shared_rng: Option<Either<i64, RngState>>, // TODO: what if the sim client is using no_refresh, would post restart rng state be "valid"
 }
+
+const SPLIT_LOAD_FRAMES: u32 = 15;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SplitType {
@@ -77,7 +84,6 @@ impl SplitInfo {
         Self::split_lines_with_stop(lines, usize::MAX)
     }
 
-    // TODO: test stop_idx
     #[must_use]
     pub fn split_lines_with_stop<'a, T: Iterator<Item = &'a Line>>(
         lines: T,
@@ -106,6 +112,7 @@ impl SplitInfo {
         // for split marker range
         // TODO: check for more unrelated things
         let mut split_start_idx = line_idx + 1;
+        let mut prev_seed_set = None;
 
         let mut splits = Vec::new();
         let mut used_save_names = HashSet::new();
@@ -122,10 +129,10 @@ impl SplitInfo {
             let name;
             let split_range;
             let split_type;
+            let non_shared_rng;
 
             match line {
                 // TODO: save name;load name console
-                // TODO: handle setting shared rng, and what property lines do i bring over?
                 // TODO: handle completely invalid back to back splits
                 Line::Save(save_name) => {
                     if Self::no_framebulks_left(&mut lines, line_idx + 1, stop_idx) {
@@ -133,8 +140,9 @@ impl SplitInfo {
                     }
 
                     name = save_name.as_str();
-                    split_range = line_idx..line_idx + 1;
+                    split_range = split_start_idx..line_idx + 1;
                     split_type = SplitType::Save;
+                    non_shared_rng = None;
                 }
                 Line::Comment(comment) => {
                     let comment = comment.trim();
@@ -152,12 +160,13 @@ impl SplitInfo {
                     }
 
                     // linked to reset?
-                    split_type = if matches!(lines.peek(), Some(Line::Reset { .. })) {
+                    split_type = if let Some(Line::Reset { non_shared_seed }) = lines.peek() {
                         lines.next(); // consume reset
                         line_idx += 1;
                         if Self::no_framebulks_left(&mut lines, line_idx, stop_idx) {
                             break;
                         }
+                        non_shared_rng = Some(Either::Left(*non_shared_seed));
                         SplitType::Reset
                     } else {
                         lines.reset_peek(); // used peek to check reset
@@ -165,6 +174,7 @@ impl SplitInfo {
                             break;
                         }
 
+                        non_shared_rng = None;
                         SplitType::Comment
                     };
 
@@ -174,6 +184,11 @@ impl SplitInfo {
                 Line::FrameBulk(_) => {
                     bulk_idx += 1;
                     split_start_idx = line_idx + 1;
+                    prev_seed_set = None;
+                    continue;
+                }
+                Line::SharedSeed(seed) => {
+                    prev_seed_set = Some(*seed);
                     continue;
                 }
                 _ => continue,
@@ -185,12 +200,16 @@ impl SplitInfo {
             }
             used_save_names.insert(name);
 
+            let shared_rng = prev_seed_set.map(|seed| seed.wrapping_sub(SPLIT_LOAD_FRAMES - 1));
+
             splits.push(SplitInfo {
                 split_range,
                 name: name.to_owned(),
                 split_type,
                 bulk_idx,
                 ready: false,
+                non_shared_rng,
+                shared_rng,
             });
         }
 
@@ -259,7 +278,7 @@ impl SplitInfo {
             action_keys: Default::default(),
             frame_time: last_fb.frame_time.to_owned(),
             pitch: Default::default(),
-            frame_count: NonZeroU32::try_from(14).unwrap(),
+            frame_count: NonZeroU32::try_from(SPLIT_LOAD_FRAMES - 1).unwrap(),
             console_command: Default::default(),
         };
         hltas.lines.insert(0, Line::FrameBulk(padding));
@@ -791,6 +810,7 @@ fn update_branch(conn: &Connection, branch: &Branch) -> eyre::Result<()> {
 #[cfg(test)]
 mod tests {
     use hltas::HLTAS;
+    use itertools::Either;
 
     use crate::modules::tas_studio::editor::db::{SplitInfo, SplitType};
 
@@ -806,6 +826,7 @@ mod tests {
                 ----------|------|------|0.003|-|-|10\n\
                 ----------|------|------|0.003|-|-|10\n\
                 ----------|------|------|0.003|-|-|10\n\
+                seed 123
                 save name2
                 ----------|------|------|0.004|-|-|10\n\
                 ----------|------|------|0.004|-|-|10\n\
@@ -840,27 +861,35 @@ mod tests {
                 name: "name".to_string(),
                 split_type: SplitType::Comment,
                 ready: false,
+                non_shared_rng: None,
+                shared_rng: None,
             },
             SplitInfo {
-                split_range: 8..9,
+                split_range: 8..10,
                 bulk_idx: 5,
                 name: "name2".to_string(),
                 split_type: SplitType::Save,
                 ready: false,
+                non_shared_rng: None,
+                shared_rng: Some(123 - 14),
             },
             SplitInfo {
-                split_range: 19..21,
+                split_range: 20..22,
                 bulk_idx: 14,
                 name: "name3".to_string(),
                 split_type: SplitType::Reset,
                 ready: false,
+                non_shared_rng: Some(Either::Left(1)),
+                shared_rng: None,
             },
             SplitInfo {
-                split_range: 27..28,
+                split_range: 28..29,
                 bulk_idx: 20,
                 name: "name4".to_string(),
                 split_type: SplitType::Comment,
                 ready: false,
+                non_shared_rng: None,
+                shared_rng: None,
             },
         ];
 
