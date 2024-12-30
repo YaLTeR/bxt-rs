@@ -1,5 +1,6 @@
 use std::iter;
 use std::num::NonZeroU32;
+use std::ops::Range;
 
 use hltas::types::{AutoMovement, FrameBulk, Line, StrafeDir, StrafeSettings, StrafeType};
 use hltas::HLTAS;
@@ -303,4 +304,46 @@ pub fn join_lines(prev: &mut Line, next: &Line) {
     assert!(equal, "frame bulks are not equal");
 
     prev_bulk.frame_count = NonZeroU32::new(temp.get() + next_bulk.frame_count.get()).unwrap();
+}
+
+pub fn get_ignore_smoothing_frames(hltas: &HLTAS, frame_count: usize) -> Vec<bool> {
+    let line_first_frame_iter = line_first_frame_idx_and_frame_count(hltas).collect::<Vec<usize>>();
+
+    let mut numbers = vec![];
+    let mut get_next = false;
+
+    for (idx, line) in hltas.lines.iter().enumerate() {
+        // if matches `ignore_smoothing`, takes the immediate line or at the least calculate
+        // its affecting frame bulk
+        if matches!(line, Line::IgnoreSmoothing) && !get_next {
+            get_next = true;
+            numbers.push(idx);
+            continue;
+        }
+
+        // taking a framebulk immediately after `ignore_smoothing`
+        if matches!(line, Line::FrameBulk(_)) && get_next {
+            get_next = false;
+            numbers.push(idx);
+            continue;
+        }
+    }
+
+    let ranges = numbers
+        // by the end of this, we have
+        // is line idx -> framebulk idx -> is line idx -> framebulk idx
+        .chunks(2)
+        // chunking by 2 will have us range of (start..end) based on line idx and bulk idx
+        .map(|arr| {
+            // .nth `line_first_frame_iter` to get the actual frame number
+            // need to add 1 always to the line number just because
+            (line_first_frame_iter[arr[0] + 1])..(line_first_frame_iter[arr[1] + 1])
+        })
+        .collect::<Vec<Range<usize>>>();
+
+    let contains = |idx| ranges.iter().any(|range| range.contains(&idx));
+
+    (0..frame_count)
+        .map(|frame_idx| if contains(frame_idx) { true } else { false })
+        .collect::<Vec<bool>>()
 }
