@@ -14,6 +14,8 @@ use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
 use crate::hooks::engine::{self, RngState};
+use crate::modules::rng_set::RngSet;
+use crate::modules::Module;
 use crate::utils::MainThreadMarker;
 
 use super::operation::Operation;
@@ -270,6 +272,10 @@ impl SplitInfo {
         // TODO: if reset or no autopause with manual save load, do not enable autopause
         hltas.properties.load_command =
             Some(format!("bxt_autopause 1;_bxt_load \"{}\"", self.name));
+        hltas.properties.seeds = Some(hltas::types::Seeds {
+            shared: self.shared_rng.unwrap(), // TODO: is this applied? I recall it being able to
+            non_shared: 0, // not used, it is applied below if reset is supposed to be used
+        });
 
         // TODO: could the loading frames be figured out
         let padding = FrameBulk {
@@ -285,6 +291,10 @@ impl SplitInfo {
         if matches!(self.split_type, SplitType::Reset) {
             // TODO: for reset, its same as doing save load without autopause, is this correct
             // TODO: this exists because I don't know how to generate load time frames
+
+            // this should not fail if split state is tracked correctly, as splitting hltas is done if its valid
+            let non_shared_rng = self.non_shared_rng.unwrap().unwrap_right();
+
             let padding = FrameBulk {
                 auto_actions: Default::default(),
                 movement_keys: Default::default(),
@@ -292,7 +302,7 @@ impl SplitInfo {
                 frame_time: last_fb.frame_time.to_owned(),
                 pitch: Default::default(),
                 frame_count: NonZeroU32::MIN,
-                console_command: Some("unpause".to_owned()),
+                console_command: Some(format!("unpause;{} {non_shared_rng}", RngSet.name())),
             };
             hltas.lines.insert(1, Line::FrameBulk(padding));
         } else {
