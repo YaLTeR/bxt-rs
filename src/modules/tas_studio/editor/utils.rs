@@ -329,6 +329,17 @@ pub fn get_ignore_smoothing_frames(hltas: &HLTAS, frame_count: usize) -> Vec<boo
         }
     }
 
+    // just to make sure
+    let numbers = if numbers.len() % 2 == 0 {
+        numbers
+    } else {
+        let mut numbers = numbers;
+
+        numbers.push(hltas.lines.len() - 1);
+
+        numbers
+    };
+
     let ranges = numbers
         // by the end of this, we have
         // is line idx -> framebulk idx -> is line idx -> framebulk idx
