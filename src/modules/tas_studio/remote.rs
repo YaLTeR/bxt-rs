@@ -14,6 +14,7 @@ use ipc_channel::ipc::{IpcOneShotServer, IpcReceiver, IpcSender};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
+use crate::hooks::engine::RngState;
 use crate::hooks::{bxt, engine};
 use crate::modules::remote_forbid;
 use crate::utils::{MainThreadCell, MainThreadMarker, PointerTrait};
@@ -43,6 +44,8 @@ pub struct AccurateFrame {
     pub branch_idx: usize,
     /// Whether we're playing through the smoothed version of the script.
     pub is_smoothed: bool,
+    pub random_seed: u32,
+    pub rng_state: RngState,
 }
 
 impl fmt::Debug for AccurateFrame {
