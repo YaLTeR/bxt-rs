@@ -17,7 +17,7 @@ use hltas::types::{
     VectorialStrafingConstraints,
 };
 use hltas::HLTAS;
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 use thiserror::Error;
 
 use self::db::{Action, ActionKind, Branch, Db};
@@ -30,8 +30,9 @@ use self::utils::{
 };
 use super::remote::{AccurateFrame, PlayRequest};
 use super::MainThreadMarker;
-use crate::hooks::engine;
+use crate::hooks::engine::{self, rng_state};
 use crate::hooks::sdl::MouseState;
+use crate::hooks::server::RANDOM_SEED;
 use crate::modules::tas_optimizer::simulator::Simulator;
 use crate::modules::tas_studio::editor::utils::MaxAccelOffsetValues;
 use crate::modules::triangle_drawing::triangle_api::{Primitive, RenderMode};
@@ -3828,6 +3829,7 @@ impl Editor {
             return None;
         }
 
+        // TODO: test
         let split_frame_idx = self.split_hltas().map(|split| split.1).unwrap_or_default();
         let actual_frame_idx = frame.frame_idx + split_frame_idx;
         // TODO: make this nicer somehow maybe?
@@ -3880,11 +3882,22 @@ impl Editor {
         if actual_frame_idx + 1 > branch.first_predicted_frame {
             branch.first_predicted_frame = actual_frame_idx + 1;
 
+            // TODO: test
             let splits = &mut branch.branch.splits;
             let split_valid_to =
                 splits.partition_point(|s| s.bulk_idx >= branch.first_predicted_frame);
             for split in splits[..split_valid_to].iter_mut() {
                 split.ready = true;
+            }
+
+            // just in case
+            // TODO: test
+            if split_valid_to <= splits.len() {
+                let split = &mut splits[split_valid_to - 1];
+
+                // TODO: test if rng is accurate
+                split.shared_rng = Some(frame.random_seed);
+                split.non_shared_rng = Some(Either::Right(frame.rng_state));
             }
         }
 
@@ -3916,6 +3929,7 @@ impl Editor {
                 .sum::<usize>();
 
             if actual_frame_idx + 1 == frame_count {
+                // TODO: test
                 unsafe {
                     self.update_split_hltas(MainThreadMarker::new());
                 }
@@ -3985,6 +3999,7 @@ impl Editor {
                 }
 
                 branch.auto_smoothing.script = Some(smoothed_script.clone());
+                // TODO: test
                 if let Some(split) = &branch.branch.split {
                     branch.branch.split = Some((smoothed_script.clone(), split.1));
                 }

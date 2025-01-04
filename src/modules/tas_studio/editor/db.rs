@@ -63,9 +63,6 @@ pub struct SplitInfo {
     pub split_type: SplitType,
     // ready as in, there's a save created, and lines before and including start_idx is still unchanged
     pub ready: bool,
-    // TODO: timing on grabbing rng values
-    // TODO: how do i get shared rng from engine?
-    // TODO: i most likely need to add this information being sent from a sim client, how can this be done in a clean way
     pub shared_rng: Option<u32>,
     pub non_shared_rng: Option<Either<i64, RngState>>, // TODO: what if the sim client is using no_refresh, would post restart rng state be "valid"
 }
