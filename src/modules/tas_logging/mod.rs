@@ -8,8 +8,7 @@ use git_version::git_version;
 
 use super::Module;
 use crate::ffi::edict;
-use crate::ffi::playermove::playermove_s;
-use crate::ffi::usercmd::usercmd_s;
+use crate::ffi::playermove::{playermove_s, usercmd_s};
 use crate::handler;
 use crate::hooks::engine::{self, con_print, RngState};
 use crate::hooks::server;

@@ -33,7 +33,7 @@ use super::triangle_drawing::{TriangleApi, TriangleDrawing};
 use super::{hud, Module};
 use crate::ffi::buttons::Buttons;
 use crate::ffi::cvar::cvar_s;
-use crate::ffi::usercmd::usercmd_s;
+use crate::ffi::playermove::usercmd_s;
 use crate::handler;
 use crate::hooks::bxt::{OnTasPlaybackFrameData, BXT_IS_TAS_EDITOR_ACTIVE};
 use crate::hooks::engine::con_print;

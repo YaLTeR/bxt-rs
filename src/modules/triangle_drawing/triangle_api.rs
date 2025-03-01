@@ -65,32 +65,32 @@ impl<'a> TriangleApi<'a> {
 
     /// Starts the specified primitive drawing mode.
     pub fn begin(&self, primitive: Primitive) {
-        unsafe { (self.api.Begin)(primitive as _) }
+        unsafe { (self.api.Begin.unwrap())(primitive as _) }
     }
 
     /// Stops the current primitive drawing mode.
     pub fn end(&self) {
-        unsafe { (self.api.End)() }
+        unsafe { (self.api.End.unwrap())() }
     }
 
     /// Sets the render mode.
     pub fn render_mode(&self, mode: RenderMode) {
-        unsafe { (self.api.RenderMode)(mode as _) }
+        unsafe { (self.api.RenderMode.unwrap())(mode as _) }
     }
 
     /// Sets the cull style.
     pub fn cull(&self, style: CullStyle) {
-        unsafe { (self.api.CullFace)(style as _) }
+        unsafe { (self.api.CullFace.unwrap())(style as _) }
     }
 
     /// Sets the vertex color.
     pub fn color(&self, r: f32, g: f32, b: f32, a: f32) {
-        unsafe { (self.api.Color4f)(r, g, b, a) }
+        unsafe { (self.api.Color4f.unwrap())(r, g, b, a) }
     }
 
     /// Adds a vertex at the given position.
     pub fn vertex(&self, position: Vec3) {
-        unsafe { (self.api.Vertex3fv)(position.as_ref().as_ptr()) }
+        unsafe { (self.api.Vertex3fv.unwrap())(position.as_ref().as_ptr()) }
     }
 
     /// Converts screen coordinates to world coordinates.
@@ -100,7 +100,7 @@ impl<'a> TriangleApi<'a> {
     pub fn screen_to_world(&self, screen: Vec2) -> Vec3 {
         let screen = Vec3::from((screen, 0.));
         let mut world = Vec3::ZERO;
-        unsafe { (self.api.ScreenToWorld)(screen.as_ref().as_ptr(), world.as_mut().as_mut_ptr()) }
+        unsafe { (self.api.ScreenToWorld.unwrap())(screen.as_ref().as_ptr(), world.as_mut().as_mut_ptr()) }
         world
     }
 
@@ -113,7 +113,7 @@ impl<'a> TriangleApi<'a> {
     pub fn world_to_screen(&self, world: Vec3) -> Option<Vec2> {
         let mut screen = Vec3::ZERO;
         let is_in_front = unsafe {
-            (self.api.WorldToScreen)(world.as_ref().as_ptr(), screen.as_mut().as_mut_ptr())
+            (self.api.WorldToScreen.unwrap())(world.as_ref().as_ptr(), screen.as_mut().as_mut_ptr())
         } == 0;
         is_in_front.then_some(screen.truncate())
     }

@@ -78,7 +78,7 @@ pub unsafe fn player_trace(
         Hull::Point => 2,
     };
 
-    let tr = ((*pmove).PM_PlayerTrace)(
+    let tr = ((*pmove).PM_PlayerTrace.unwrap())(
         start.as_ref().as_ptr(),
         end.as_ref().as_ptr(),
         TraceFlags::PM_NORMAL,

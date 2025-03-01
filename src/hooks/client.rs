@@ -6,7 +6,7 @@ use std::os::raw::*;
 use std::ptr::NonNull;
 
 use super::engine::{self, ref_params_s};
-use crate::ffi::usercmd::usercmd_s;
+use crate::ffi::playermove::usercmd_s;
 use crate::modules::{hud, hud_scale, tas_studio, triangle_drawing, viewmodel_sway};
 use crate::utils::{abort_on_panic, MainThreadMarker, Pointer, PointerTrait};
 

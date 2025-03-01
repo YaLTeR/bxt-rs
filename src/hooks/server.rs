@@ -5,8 +5,7 @@
 use std::os::raw::*;
 use std::ptr::NonNull;
 
-use crate::ffi::playermove::playermove_s;
-use crate::ffi::usercmd::usercmd_s;
+use crate::ffi::playermove::{playermove_s, usercmd_s};
 use crate::hooks::engine;
 use crate::modules::{tas_logging, tas_optimizer, tas_recording, tas_server_time_fix};
 use crate::utils::*;

@@ -39,16 +39,21 @@ pub unsafe fn on_pm_move_start(marker: MainThreadMarker, ppmove: *mut playermove
         return;
     }
 
-    ORIGINAL_DATA.set(marker, Some((ppmove, (*ppmove).Sys_FloatTime)));
-    (*ppmove).Sys_FloatTime = my_Sys_FloatTime;
+    ORIGINAL_DATA.set(marker, Some((ppmove, (*ppmove).Sys_FloatTime.unwrap())));
+    (*ppmove).Sys_FloatTime = Some(my_Sys_FloatTime);
 }
 
 pub unsafe fn on_pm_move_end(marker: MainThreadMarker, ppmove: *mut playermove_s) {
     if let Some((ppmove_, sys_floattime)) = ORIGINAL_DATA.get(marker) {
         // Sanity checks.
         #[allow(clippy::fn_address_comparisons)]
-        if ppmove == ppmove_ && (*ppmove).Sys_FloatTime == my_Sys_FloatTime {
-            (*ppmove).Sys_FloatTime = sys_floattime;
+        if ppmove == ppmove_
+            && std::ptr::fn_addr_eq(
+                (*ppmove).Sys_FloatTime.unwrap(),
+                my_Sys_FloatTime as unsafe extern "C" fn() -> f64,
+            )
+        {
+            (*ppmove).Sys_FloatTime = Some(sys_floattime);
             ORIGINAL_DATA.set(marker, None);
         }
     }
