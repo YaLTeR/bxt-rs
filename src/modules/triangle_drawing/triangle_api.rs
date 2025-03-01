@@ -100,7 +100,9 @@ impl<'a> TriangleApi<'a> {
     pub fn screen_to_world(&self, screen: Vec2) -> Vec3 {
         let screen = Vec3::from((screen, 0.));
         let mut world = Vec3::ZERO;
-        unsafe { (self.api.ScreenToWorld.unwrap())(screen.as_ref().as_ptr(), world.as_mut().as_mut_ptr()) }
+        unsafe {
+            (self.api.ScreenToWorld.unwrap())(screen.as_ref().as_ptr(), world.as_mut().as_mut_ptr())
+        }
         world
     }
 
