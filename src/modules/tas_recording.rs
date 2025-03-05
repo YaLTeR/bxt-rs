@@ -13,7 +13,7 @@ use hltas::HLTAS;
 
 use super::Module;
 use crate::ffi::buttons::Buttons;
-use crate::ffi::playermove::usercmd_s;
+use crate::ffi::usercmd::usercmd_s;
 use crate::handler;
 use crate::hooks::engine::{self, con_print};
 use crate::hooks::server;

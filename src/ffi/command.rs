@@ -1,4 +1,4 @@
-#![allow(unused)]
+#![allow(unused, nonstandard_style, deref_nullptr)]
 
 use std::os::raw::*;
 

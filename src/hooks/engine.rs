@@ -16,8 +16,9 @@ use crate::ffi::com_model::{mleaf_s, model_s};
 use crate::ffi::command::cmd_function_s;
 use crate::ffi::cvar::cvar_s;
 use crate::ffi::edict::edict_s;
-use crate::ffi::playermove::{playermove_s, usercmd_s};
+use crate::ffi::playermove::playermove_s;
 use crate::ffi::triangleapi::triangleapi_s;
+use crate::ffi::usercmd::usercmd_s;
 #[cfg(windows)]
 use crate::hooks::opengl32;
 use crate::hooks::{bxt, sdl, server};
