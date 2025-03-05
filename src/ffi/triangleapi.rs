@@ -6,6 +6,7 @@
 // Add `--allowlist-var 'TRI_.*'` to generate the constants
 // Change `triangleapi_s` members who are functions from `Option<T>` to `T`
 // Remove the unnecessary qualifiers `::std::os::raw::` and `::std::mem::`
+// Remove `model_s` dummy struct and import `model_s` from com_model.rs
 
 #![allow(unused, nonstandard_style, deref_nullptr, clippy::upper_case_acronyms)]
 
@@ -97,10 +98,3 @@ const _: () = {
         [offset_of!(triangleapi_s, Color4fRendermode) - 72usize];
     ["Offset of field: triangleapi_s::FogParams"][offset_of!(triangleapi_s, FogParams) - 76usize];
 };
-
-// intentionally commented out
-// #[repr(C)]
-// #[derive(Debug)]
-// pub struct model_s {
-//     _unused: [u8; 0],
-// }

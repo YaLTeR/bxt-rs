@@ -11,6 +11,8 @@
 // Remove `physent_t` alias and replace `physent_t` with `physent_s`
 // Remove `pmtrace_t` alias and replace `pmtrace_t` with `pmtrace_s`
 // Remove `usercmd_t` alias and replace `usercmd_t` with `usercmd_s`
+// Remove `edict_t` alias and import `edict_s` from edict.rs
+// Remove `model_s` dummy struct and import `model_s` from com_model.rs
 
 // For some reasons, this `playermove_s` also generates physent, pmplane, pmtrace, and usercmd.
 // So put those structs along with tests in their own respective files.
@@ -23,6 +25,8 @@ use std::ptr::null;
 
 use bitflags::bitflags;
 
+use super::com_model::model_s;
+use super::edict::edict_s;
 use super::physent::physent_s;
 use super::pmplane::pmplane_t;
 use super::pmtrace::pmtrace_s;
@@ -55,12 +59,6 @@ pub const qboolean_true_: qboolean = 1;
 pub type qboolean = c_uint;
 #[repr(C)]
 #[derive(Debug)]
-pub struct edict_s {
-    _unused: [u8; 0],
-}
-pub type edict_t = edict_s;
-#[repr(C)]
-#[derive(Debug)]
 pub struct plane_t {
     pub normal: [f32; 3],
     pub dist: f32,
@@ -82,7 +80,7 @@ pub struct trace_t {
     pub fraction: f32,
     pub endpos: [f32; 3],
     pub plane: plane_t,
-    pub ent: *mut edict_t,
+    pub ent: *mut edict_s,
     pub hitgroup: c_int,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -407,11 +405,6 @@ const _: () = {
     ["Offset of field: playermove_s::PM_TraceLineEx"]
         [offset_of!(playermove_s, PM_TraceLineEx) - 325064usize];
 };
-#[repr(C)]
-#[derive(Debug)]
-pub struct model_s {
-    pub _address: u8,
-}
 #[repr(C)]
 #[derive(Debug)]
 pub struct movevars_s {
