@@ -18,7 +18,7 @@ pub const qboolean_false_: qboolean = 0;
 pub const qboolean_true_: qboolean = 1;
 pub type qboolean = c_uint;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct color24 {
     pub r: byte,
     pub g: byte,
@@ -41,7 +41,7 @@ pub const synctype_t_ST_SYNC: synctype_t = 0;
 pub const synctype_t_ST_RAND: synctype_t = 1;
 pub type synctype_t = c_uint;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct dmodel_t {
     pub mins: [f32; 3usize],
     pub maxs: [f32; 3usize],
@@ -64,7 +64,7 @@ const _: () = {
     ["Offset of field: dmodel_t::numfaces"][offset_of!(dmodel_t, numfaces) - 60usize];
 };
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct mplane_s {
     pub normal: [f32; 3],
     pub dist: f32,
@@ -84,7 +84,7 @@ const _: () = {
 };
 pub type mplane_t = mplane_s;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct mvertex_t {
     pub position: [f32; 3],
 }
@@ -95,7 +95,7 @@ const _: () = {
     ["Offset of field: mvertex_t::position"][offset_of!(mvertex_t, position) - 0usize];
 };
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct medge_t {
     pub v: [c_ushort; 2usize],
     pub cachededgeoffset: c_uint,
@@ -108,7 +108,7 @@ const _: () = {
     ["Offset of field: medge_t::cachededgeoffset"][offset_of!(medge_t, cachededgeoffset) - 4usize];
 };
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct texture_s {
     pub name: [c_char; 16usize],
     pub width: c_uint,
@@ -139,7 +139,7 @@ const _: () = {
 };
 pub type texture_t = texture_s;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct mtexinfo_t {
     pub vecs: [[f32; 4usize]; 2usize],
     pub mipadjust: f32,
@@ -156,7 +156,7 @@ const _: () = {
     ["Offset of field: mtexinfo_t::flags"][offset_of!(mtexinfo_t, flags) - 40usize];
 };
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct mnode_s {
     pub contents: c_int,
     pub visframe: c_int,
@@ -184,7 +184,7 @@ pub type mnode_t = mnode_s;
 pub type msurface_t = msurface_s;
 pub type decal_t = decal_s;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct decal_s {
     pub pnext: *mut decal_t,
     pub psurface: *mut msurface_t,
@@ -209,7 +209,7 @@ const _: () = {
     ["Offset of field: decal_s::entityIndex"][offset_of!(decal_s, entityIndex) - 16usize];
 };
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct mleaf_s {
     pub contents: c_int,
     pub visframe: c_int,
@@ -239,7 +239,7 @@ const _: () = {
         [offset_of!(mleaf_s, ambient_sound_level) - 44usize];
 };
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct msurface_s {
     pub visframe: c_int,
     pub dlightframe: c_int,
@@ -276,7 +276,7 @@ const _: () = {
     ["Offset of field: msurface_s::pdecals"][offset_of!(msurface_s, pdecals) - 64usize];
 };
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct dclipnode_t {
     pub planenum: c_int,
     pub children: [c_short; 2usize],
@@ -289,7 +289,7 @@ const _: () = {
     ["Offset of field: dclipnode_t::children"][offset_of!(dclipnode_t, children) - 4usize];
 };
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct hull_s {
     pub clipnodes: *mut dclipnode_t,
     pub planes: *mut mplane_t,
@@ -311,7 +311,7 @@ const _: () = {
 };
 pub type hull_t = hull_s;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct cache_user_s {
     pub data: *mut c_void,
 }
@@ -323,7 +323,7 @@ const _: () = {
 };
 pub type cache_user_t = cache_user_s;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct model_s {
     pub name: [c_char; 64usize],
     pub needload: qboolean,
@@ -414,12 +414,12 @@ const _: () = {
     ["Offset of field: model_s::cache"][offset_of!(model_s, cache) - 388usize];
 };
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct efrag_s {
     pub _address: u8,
 }
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct surfcache_s {
     pub _address: u8,
 }

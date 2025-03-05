@@ -6,7 +6,7 @@ use std::mem::{align_of, offset_of, size_of};
 use std::os::raw::*;
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct pmplane_t {
     pub normal: [f32; 3],
     pub dist: f32,

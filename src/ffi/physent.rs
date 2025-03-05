@@ -11,7 +11,7 @@ pub type string_t = c_uint;
 pub type byte = c_uchar;
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct physent_s {
     pub name: [c_char; 32usize],
     pub player: c_int,

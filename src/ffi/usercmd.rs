@@ -7,6 +7,8 @@ use std::os::raw::*;
 
 pub type byte = c_uchar;
 
+// this type is expected to have Clone and Copy because of
+// `my_CmdStart` in server.rs
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct usercmd_s {

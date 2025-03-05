@@ -54,13 +54,13 @@ pub const qboolean_false_: qboolean = 0;
 pub const qboolean_true_: qboolean = 1;
 pub type qboolean = c_uint;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct edict_s {
     _unused: [u8; 0],
 }
 pub type edict_t = edict_s;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct plane_t {
     pub normal: [f32; 3],
     pub dist: f32,
@@ -73,7 +73,7 @@ const _: () = {
     ["Offset of field: plane_t::dist"][offset_of!(plane_t, dist) - 12usize];
 };
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct trace_t {
     pub allsolid: qboolean,
     pub startsolid: qboolean,
@@ -101,7 +101,7 @@ const _: () = {
 };
 pub type int32 = c_int;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct playermove_s {
     pub player_index: c_int,
     pub server: qboolean,
@@ -408,17 +408,17 @@ const _: () = {
         [offset_of!(playermove_s, PM_TraceLineEx) - 325064usize];
 };
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct model_s {
     pub _address: u8,
 }
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct movevars_s {
     pub _address: u8,
 }
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct hull_s {
     _unused: [u8; 0],
 }

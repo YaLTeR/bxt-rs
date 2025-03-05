@@ -33,7 +33,7 @@ bitflags! {
 // [`*const c_char`]
 // instead of the generated [`*mut ...`]
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct cvar_s {
     pub name: *const c_char,
     pub string: *const c_char,

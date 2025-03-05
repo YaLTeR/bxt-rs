@@ -44,7 +44,7 @@ pub const kRenderTransAdd: c_int = 5;
 // pub type TRICULLSTYLE = c_uint;
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct triangleapi_s {
     pub version: c_int,
     pub RenderMode: unsafe extern "C" fn(mode: c_int),
@@ -100,7 +100,7 @@ const _: () = {
 
 // intentionally commented out
 // #[repr(C)]
-// #[derive(Debug, Copy, Clone)]
+// #[derive(Debug)]
 // pub struct model_s {
 //     _unused: [u8; 0],
 // }

@@ -59,7 +59,7 @@ pub const qboolean_false_: qboolean = 0;
 pub const qboolean_true_: qboolean = 1;
 pub type qboolean = c_uint;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct link_s {
     pub prev: *mut link_s,
     pub next: *mut link_s,
@@ -73,7 +73,7 @@ const _: () = {
 };
 pub type link_t = link_s;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct entvars_s {
     pub classname: string_t,
     pub globalname: string_t,
@@ -334,7 +334,7 @@ const _: () = {
 };
 pub type entvars_t = entvars_s;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct edict_s {
     pub free: qboolean,
     pub serialnumber: c_int,
