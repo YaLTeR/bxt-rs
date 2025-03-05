@@ -47,12 +47,7 @@ pub unsafe fn on_pm_move_end(marker: MainThreadMarker, ppmove: *mut playermove_s
     if let Some((ppmove_, sys_floattime)) = ORIGINAL_DATA.get(marker) {
         // Sanity checks.
         #[allow(clippy::fn_address_comparisons)]
-        if ppmove == ppmove_
-            && std::ptr::fn_addr_eq(
-                (*ppmove).Sys_FloatTime,
-                my_Sys_FloatTime as unsafe extern "C" fn() -> f64,
-            )
-        {
+        if ppmove == ppmove_ && (*ppmove).Sys_FloatTime == my_Sys_FloatTime {
             (*ppmove).Sys_FloatTime = sys_floattime;
             ORIGINAL_DATA.set(marker, None);
         }
