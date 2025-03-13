@@ -136,8 +136,7 @@ Extra arguments to pass to FFmpeg.
 
 When using this variable, you might want to also add some of the following arguments, that bxt-rs \
 adds automatically when this variable is unset: `-c:v libx264 -crf 15 -preset ultrafast \
--color_primaries bt709 -color_trc bt709 -colorspace bt709 -color_range tv \
--chroma_sample_location center`.",
+-color_range tv -chroma_sample_location center`.",
 );
 
 static HAVE_REQUIRED_GL_EXTENSIONS: MainThreadCell<bool> = MainThreadCell::new(false);
