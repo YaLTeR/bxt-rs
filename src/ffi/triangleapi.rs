@@ -7,6 +7,7 @@
 // Change `triangleapi_s` members who are functions from `Option<T>` to `T`
 // Remove the unnecessary qualifiers `::std::os::raw::` and `::std::mem::`
 // Remove `model_s` dummy struct and import `model_s` from com_model.rs
+// Change all `*mut ...` type arguments inside triangleapi_s struct members to `*const ...`
 
 #![allow(unused, nonstandard_style, deref_nullptr, clippy::upper_case_acronyms)]
 
@@ -58,13 +59,13 @@ pub struct triangleapi_s {
     pub Vertex3f: unsafe extern "C" fn(x: f32, y: f32, z: f32),
     pub Brightness: unsafe extern "C" fn(brightness: f32),
     pub CullFace: unsafe extern "C" fn(style: TRICULLSTYLE),
-    pub SpriteTexture: unsafe extern "C" fn(pSpriteModel: *mut model_s, frame: c_int) -> c_int,
-    pub WorldToScreen: unsafe extern "C" fn(world: *const f32, screen: *mut f32) -> c_int,
+    pub SpriteTexture: unsafe extern "C" fn(pSpriteModel: *const model_s, frame: c_int) -> c_int,
+    pub WorldToScreen: unsafe extern "C" fn(world: *const f32, screen: *const f32) -> c_int,
     pub Fog: unsafe extern "C" fn(flFogColor: *mut f32, flStart: f32, flEnd: f32, bOn: c_int),
-    pub ScreenToWorld: unsafe extern "C" fn(screen: *const f32, world: *mut f32),
-    pub GetMatrix: unsafe extern "C" fn(pname: c_int, matrix: *mut f32),
-    pub BoxInPVS: unsafe extern "C" fn(mins: *mut f32, maxs: *mut f32) -> c_int,
-    pub LightAtPoint: unsafe extern "C" fn(pos: *mut f32, value: *mut f32),
+    pub ScreenToWorld: unsafe extern "C" fn(screen: *const f32, world: *const f32),
+    pub GetMatrix: unsafe extern "C" fn(pname: c_int, matrix: *const f32),
+    pub BoxInPVS: unsafe extern "C" fn(mins: *const f32, maxs: *const f32) -> c_int,
+    pub LightAtPoint: unsafe extern "C" fn(pos: *const f32, value: *const f32),
     pub Color4fRendermode: unsafe extern "C" fn(r: f32, g: f32, b: f32, a: f32, rendermode: c_int),
     pub FogParams: unsafe extern "C" fn(flDensity: f32, iFogSkybox: c_int),
 }

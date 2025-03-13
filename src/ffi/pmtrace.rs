@@ -12,7 +12,7 @@ pub const qboolean_true_: qboolean = 1;
 pub type qboolean = c_uint;
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct pmtrace_s {
     pub allsolid: qboolean,
     pub startsolid: qboolean,

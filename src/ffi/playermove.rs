@@ -58,7 +58,7 @@ pub const qboolean_false_: qboolean = 0;
 pub const qboolean_true_: qboolean = 1;
 pub type qboolean = c_uint;
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct plane_t {
     pub normal: [f32; 3],
     pub dist: f32,
@@ -97,7 +97,6 @@ const _: () = {
     ["Offset of field: trace_t::ent"][offset_of!(trace_t, ent) - 48usize];
     ["Offset of field: trace_t::hitgroup"][offset_of!(trace_t, hitgroup) - 52usize];
 };
-pub type int32 = c_int;
 #[repr(C)]
 #[derive(Debug)]
 pub struct playermove_s {
@@ -189,13 +188,13 @@ pub struct playermove_s {
         ignore_pe: c_int,
     ) -> pmtrace_s,
     pub PM_TraceLine: unsafe extern "C" fn(
-        start: *mut f32,
-        end: *mut f32,
+        start: *const f32,
+        end: *const f32,
         flags: c_int,
         usehulll: c_int,
         ignore_pe: c_int,
     ) -> *mut pmtrace_s,
-    pub RandomLong: unsafe extern "C" fn(lLow: int32, lHigh: int32) -> int32,
+    pub RandomLong: unsafe extern "C" fn(lLow: c_int, lHigh: c_int) -> c_int,
     pub RandomFloat: unsafe extern "C" fn(flLow: f32, flHigh: f32) -> f32,
     pub PM_GetModelType: unsafe extern "C" fn(mod_: *mut model_s) -> c_int,
     pub PM_GetModelBounds: unsafe extern "C" fn(mod_: *mut model_s, mins: *mut f32, maxs: *mut f32),
@@ -243,8 +242,8 @@ pub struct playermove_s {
         bparam2: c_int,
     ),
     pub PM_PlayerTraceEx: unsafe extern "C" fn(
-        start: *mut f32,
-        end: *mut f32,
+        start: *const f32,
+        end: *const f32,
         traceFlags: c_int,
         pfnIgnore: unsafe extern "C" fn(pe: *mut physent_s) -> c_int,
     ) -> pmtrace_s,
@@ -254,8 +253,8 @@ pub struct playermove_s {
         pfnIgnore: unsafe extern "C" fn(pe: *mut physent_s) -> c_int,
     ) -> c_int,
     pub PM_TraceLineEx: unsafe extern "C" fn(
-        start: *mut f32,
-        end: *mut f32,
+        start: *const f32,
+        end: *const f32,
         flags: c_int,
         usehulll: c_int,
         pfnIgnore: unsafe extern "C" fn(pe: *mut physent_s) -> c_int,

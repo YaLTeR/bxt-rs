@@ -64,7 +64,7 @@ const _: () = {
     ["Offset of field: dmodel_t::numfaces"][offset_of!(dmodel_t, numfaces) - 60usize];
 };
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct mplane_s {
     pub normal: [f32; 3],
     pub dist: f32,
@@ -84,7 +84,7 @@ const _: () = {
 };
 pub type mplane_t = mplane_s;
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct mvertex_t {
     pub position: [f32; 3],
 }
@@ -95,7 +95,7 @@ const _: () = {
     ["Offset of field: mvertex_t::position"][offset_of!(mvertex_t, position) - 0usize];
 };
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct medge_t {
     pub v: [c_ushort; 2usize],
     pub cachededgeoffset: c_uint,
@@ -276,7 +276,7 @@ const _: () = {
     ["Offset of field: msurface_s::pdecals"][offset_of!(msurface_s, pdecals) - 64usize];
 };
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct dclipnode_t {
     pub planenum: c_int,
     pub children: [c_short; 2usize],
@@ -289,7 +289,7 @@ const _: () = {
     ["Offset of field: dclipnode_t::children"][offset_of!(dclipnode_t, children) - 4usize];
 };
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct hull_s {
     pub clipnodes: *mut dclipnode_t,
     pub planes: *mut mplane_t,
