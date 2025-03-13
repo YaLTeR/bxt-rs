@@ -135,8 +135,7 @@ static BXT_CAP_OVERRIDE_FFMPEG_ARGS: CVar = CVar::new(
 Extra arguments to pass to FFmpeg.
 
 When using this variable, you might want to also add some of the following arguments, that bxt-rs \
-adds automatically when this variable is unset: `-c:v libx264 -crf 15 -preset ultrafast \
--color_range tv -chroma_sample_location center`.",
+adds automatically when this variable is unset: `-c:v libx264 -crf 15 -preset ultrafast`.",
 );
 
 static HAVE_REQUIRED_GL_EXTENSIONS: MainThreadCell<bool> = MainThreadCell::new(false);

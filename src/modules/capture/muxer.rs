@@ -112,6 +112,8 @@ impl Muxer {
             "-color_primaries", "bt709",
             "-color_trc", "bt709",
             "-colorspace", "bt709",
+            "-chroma_sample_location", "center",
+            "-color_range", "tv",
             "-i", "pipe:"
         ];
 
@@ -127,8 +129,6 @@ impl Muxer {
                 "-c:v", "libx264",
                 "-crf", "15",
                 "-preset", "ultrafast",
-                "-color_range", "tv",
-                "-chroma_sample_location", "center",
             ]);
         }
 
