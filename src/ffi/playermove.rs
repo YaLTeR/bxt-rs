@@ -244,7 +244,7 @@ pub struct playermove_s {
     pub PM_PlayerTraceEx: unsafe extern "C" fn(
         start: *const f32,
         end: *const f32,
-        traceFlags: c_int,
+        traceFlags: TraceFlags,
         pfnIgnore: unsafe extern "C" fn(pe: *mut physent_s) -> c_int,
     ) -> pmtrace_s,
     pub PM_TestPlayerPositionEx: unsafe extern "C" fn(
@@ -255,7 +255,7 @@ pub struct playermove_s {
     pub PM_TraceLineEx: unsafe extern "C" fn(
         start: *const f32,
         end: *const f32,
-        flags: c_int,
+        flags: TraceLineFlag,
         usehulll: c_int,
         pfnIgnore: unsafe extern "C" fn(pe: *mut physent_s) -> c_int,
     ) -> *mut pmtrace_s,

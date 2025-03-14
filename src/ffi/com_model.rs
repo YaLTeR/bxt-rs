@@ -18,7 +18,7 @@ pub const qboolean_false_: qboolean = 0;
 pub const qboolean_true_: qboolean = 1;
 pub type qboolean = c_uint;
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct color24 {
     pub r: byte,
     pub g: byte,
@@ -41,7 +41,7 @@ pub const synctype_t_ST_SYNC: synctype_t = 0;
 pub const synctype_t_ST_RAND: synctype_t = 1;
 pub type synctype_t = c_uint;
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct dmodel_t {
     pub mins: [f32; 3usize],
     pub maxs: [f32; 3usize],
