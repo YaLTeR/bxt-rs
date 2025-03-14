@@ -1,8 +1,9 @@
-#![allow(unused, deref_nullptr)]
+// `pmplane_t` struct is from generated bindgen in playermove.rs
 
-use std::mem::{align_of, size_of};
+#![allow(unused, nonstandard_style, deref_nullptr)]
+
+use std::mem::{align_of, offset_of, size_of};
 use std::os::raw::*;
-use std::ptr::null;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -10,37 +11,10 @@ pub struct pmplane_t {
     pub normal: [f32; 3],
     pub dist: f32,
 }
-
-#[test]
-fn bindgen_test_layout_pmplane_t() {
-    assert_eq!(
-        size_of::<pmplane_t>(),
-        16usize,
-        concat!("Size of: ", stringify!(pmplane_t))
-    );
-    assert_eq!(
-        align_of::<pmplane_t>(),
-        4usize,
-        concat!("Alignment of ", stringify!(pmplane_t))
-    );
-    assert_eq!(
-        unsafe { &(*(null::<pmplane_t>())).normal as *const _ as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(pmplane_t),
-            "::",
-            stringify!(normal)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<pmplane_t>())).dist as *const _ as usize },
-        12usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(pmplane_t),
-            "::",
-            stringify!(dist)
-        )
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of pmplane_t"][size_of::<pmplane_t>() - 16usize];
+    ["Alignment of pmplane_t"][align_of::<pmplane_t>() - 4usize];
+    ["Offset of field: pmplane_t::normal"][offset_of!(pmplane_t, normal) - 0usize];
+    ["Offset of field: pmplane_t::dist"][offset_of!(pmplane_t, dist) - 12usize];
+};
