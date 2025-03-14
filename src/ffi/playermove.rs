@@ -190,7 +190,7 @@ pub struct playermove_s {
     pub PM_TraceLine: unsafe extern "C" fn(
         start: *const f32,
         end: *const f32,
-        flags: c_int,
+        flags: TraceLineFlag,
         usehulll: c_int,
         ignore_pe: c_int,
     ) -> *mut pmtrace_s,
