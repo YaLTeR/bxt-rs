@@ -1,156 +1,45 @@
-#![allow(unused, deref_nullptr)]
+// `usercmd_s` struct is from generated bindgen in playermove.rs
 
-use std::mem::{align_of, size_of};
+#![allow(unused, nonstandard_style, deref_nullptr)]
+
+use std::mem::{align_of, offset_of, size_of};
 use std::os::raw::*;
-use std::ptr::null;
 
+pub type byte = c_uchar;
+
+// this type is expected to have Clone and Copy because of
+// `my_CmdStart` in server.rs
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct usercmd_s {
     pub lerp_msec: c_short,
-    pub msec: c_uchar,
-    pub viewangles: [f32; 3usize],
+    pub msec: byte,
+    pub viewangles: [f32; 3],
     pub forwardmove: f32,
     pub sidemove: f32,
     pub upmove: f32,
-    pub lightlevel: c_uchar,
+    pub lightlevel: byte,
     pub buttons: c_ushort,
-    pub impulse: c_uchar,
-    pub weaponselect: c_uchar,
+    pub impulse: byte,
+    pub weaponselect: byte,
     pub impact_index: c_int,
-    pub impact_position: [f32; 3usize],
+    pub impact_position: [f32; 3],
 }
-
-#[test]
-fn bindgen_test_layout_usercmd_s() {
-    assert_eq!(
-        size_of::<usercmd_s>(),
-        52usize,
-        concat!("Size of: ", stringify!(usercmd_s))
-    );
-    assert_eq!(
-        align_of::<usercmd_s>(),
-        4usize,
-        concat!("Alignment of ", stringify!(usercmd_s))
-    );
-    assert_eq!(
-        unsafe { &(*(null::<usercmd_s>())).lerp_msec as *const _ as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(usercmd_s),
-            "::",
-            stringify!(lerp_msec)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<usercmd_s>())).msec as *const _ as usize },
-        2usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(usercmd_s),
-            "::",
-            stringify!(msec)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<usercmd_s>())).viewangles as *const _ as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(usercmd_s),
-            "::",
-            stringify!(viewangles)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<usercmd_s>())).forwardmove as *const _ as usize },
-        16usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(usercmd_s),
-            "::",
-            stringify!(forwardmove)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<usercmd_s>())).sidemove as *const _ as usize },
-        20usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(usercmd_s),
-            "::",
-            stringify!(sidemove)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<usercmd_s>())).upmove as *const _ as usize },
-        24usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(usercmd_s),
-            "::",
-            stringify!(upmove)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<usercmd_s>())).lightlevel as *const _ as usize },
-        28usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(usercmd_s),
-            "::",
-            stringify!(lightlevel)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<usercmd_s>())).buttons as *const _ as usize },
-        30usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(usercmd_s),
-            "::",
-            stringify!(buttons)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<usercmd_s>())).impulse as *const _ as usize },
-        32usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(usercmd_s),
-            "::",
-            stringify!(impulse)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<usercmd_s>())).weaponselect as *const _ as usize },
-        33usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(usercmd_s),
-            "::",
-            stringify!(weaponselect)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<usercmd_s>())).impact_index as *const _ as usize },
-        36usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(usercmd_s),
-            "::",
-            stringify!(impact_index)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<usercmd_s>())).impact_position as *const _ as usize },
-        40usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(usercmd_s),
-            "::",
-            stringify!(impact_position)
-        )
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of usercmd_s"][size_of::<usercmd_s>() - 52usize];
+    ["Alignment of usercmd_s"][align_of::<usercmd_s>() - 4usize];
+    ["Offset of field: usercmd_s::lerp_msec"][offset_of!(usercmd_s, lerp_msec) - 0usize];
+    ["Offset of field: usercmd_s::msec"][offset_of!(usercmd_s, msec) - 2usize];
+    ["Offset of field: usercmd_s::viewangles"][offset_of!(usercmd_s, viewangles) - 4usize];
+    ["Offset of field: usercmd_s::forwardmove"][offset_of!(usercmd_s, forwardmove) - 16usize];
+    ["Offset of field: usercmd_s::sidemove"][offset_of!(usercmd_s, sidemove) - 20usize];
+    ["Offset of field: usercmd_s::upmove"][offset_of!(usercmd_s, upmove) - 24usize];
+    ["Offset of field: usercmd_s::lightlevel"][offset_of!(usercmd_s, lightlevel) - 28usize];
+    ["Offset of field: usercmd_s::buttons"][offset_of!(usercmd_s, buttons) - 30usize];
+    ["Offset of field: usercmd_s::impulse"][offset_of!(usercmd_s, impulse) - 32usize];
+    ["Offset of field: usercmd_s::weaponselect"][offset_of!(usercmd_s, weaponselect) - 33usize];
+    ["Offset of field: usercmd_s::impact_index"][offset_of!(usercmd_s, impact_index) - 36usize];
+    ["Offset of field: usercmd_s::impact_position"]
+        [offset_of!(usercmd_s, impact_position) - 40usize];
+};

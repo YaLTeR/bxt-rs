@@ -1,8 +1,14 @@
-#![allow(unused, deref_nullptr)]
+// `physent_s` struct is from generated bindgen in playermove.rs
 
-use std::mem::{align_of, size_of};
+#![allow(unused, nonstandard_style, deref_nullptr)]
+
+use std::mem::{align_of, offset_of, size_of};
 use std::os::raw::*;
-use std::ptr::null;
+
+use super::com_model::model_s;
+
+pub type string_t = c_uint;
+pub type byte = c_uchar;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -10,8 +16,8 @@ pub struct physent_s {
     pub name: [c_char; 32usize],
     pub player: c_int,
     pub origin: [f32; 3],
-    pub model: *mut c_void,
-    pub studiomodel: *mut c_void,
+    pub model: *mut model_s,
+    pub studiomodel: *mut model_s,
     pub mins: [f32; 3],
     pub maxs: [f32; 3],
     pub info: c_int,
@@ -21,8 +27,8 @@ pub struct physent_s {
     pub rendermode: c_int,
     pub frame: f32,
     pub sequence: c_int,
-    pub controller: [c_uchar; 4usize],
-    pub blending: [c_uchar; 2usize],
+    pub controller: [byte; 4usize],
+    pub blending: [byte; 2usize],
     pub movetype: c_int,
     pub takedamage: c_int,
     pub blooddecal: c_int,
@@ -41,348 +47,41 @@ pub struct physent_s {
     pub vuser3: [f32; 3],
     pub vuser4: [f32; 3],
 }
-
-#[cfg(target_arch = "x86")]
-#[test]
-fn bindgen_test_layout_physent_s() {
-    assert_eq!(
-        size_of::<physent_s>(),
-        224usize,
-        concat!("Size of: ", stringify!(physent_s))
-    );
-    assert_eq!(
-        align_of::<physent_s>(),
-        4usize,
-        concat!("Alignment of ", stringify!(physent_s))
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).name as *const _ as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(name)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).player as *const _ as usize },
-        32usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(player)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).origin as *const _ as usize },
-        36usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(origin)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).model as *const _ as usize },
-        48usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(model)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).studiomodel as *const _ as usize },
-        52usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(studiomodel)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).mins as *const _ as usize },
-        56usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(mins)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).maxs as *const _ as usize },
-        68usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(maxs)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).info as *const _ as usize },
-        80usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(info)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).angles as *const _ as usize },
-        84usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(angles)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).solid as *const _ as usize },
-        96usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(solid)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).skin as *const _ as usize },
-        100usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(skin)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).rendermode as *const _ as usize },
-        104usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(rendermode)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).frame as *const _ as usize },
-        108usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(frame)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).sequence as *const _ as usize },
-        112usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(sequence)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).controller as *const _ as usize },
-        116usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(controller)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).blending as *const _ as usize },
-        120usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(blending)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).movetype as *const _ as usize },
-        124usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(movetype)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).takedamage as *const _ as usize },
-        128usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(takedamage)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).blooddecal as *const _ as usize },
-        132usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(blooddecal)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).team as *const _ as usize },
-        136usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(team)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).classnumber as *const _ as usize },
-        140usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(classnumber)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).iuser1 as *const _ as usize },
-        144usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(iuser1)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).iuser2 as *const _ as usize },
-        148usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(iuser2)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).iuser3 as *const _ as usize },
-        152usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(iuser3)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).iuser4 as *const _ as usize },
-        156usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(iuser4)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).fuser1 as *const _ as usize },
-        160usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(fuser1)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).fuser2 as *const _ as usize },
-        164usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(fuser2)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).fuser3 as *const _ as usize },
-        168usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(fuser3)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).fuser4 as *const _ as usize },
-        172usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(fuser4)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).vuser1 as *const _ as usize },
-        176usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(vuser1)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).vuser2 as *const _ as usize },
-        188usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(vuser2)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).vuser3 as *const _ as usize },
-        200usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(vuser3)
-        )
-    );
-    assert_eq!(
-        unsafe { &(*(null::<physent_s>())).vuser4 as *const _ as usize },
-        212usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(physent_s),
-            "::",
-            stringify!(vuser4)
-        )
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of physent_s"][size_of::<physent_s>() - 224usize];
+    ["Alignment of physent_s"][align_of::<physent_s>() - 4usize];
+    ["Offset of field: physent_s::name"][offset_of!(physent_s, name) - 0usize];
+    ["Offset of field: physent_s::player"][offset_of!(physent_s, player) - 32usize];
+    ["Offset of field: physent_s::origin"][offset_of!(physent_s, origin) - 36usize];
+    ["Offset of field: physent_s::model"][offset_of!(physent_s, model) - 48usize];
+    ["Offset of field: physent_s::studiomodel"][offset_of!(physent_s, studiomodel) - 52usize];
+    ["Offset of field: physent_s::mins"][offset_of!(physent_s, mins) - 56usize];
+    ["Offset of field: physent_s::maxs"][offset_of!(physent_s, maxs) - 68usize];
+    ["Offset of field: physent_s::info"][offset_of!(physent_s, info) - 80usize];
+    ["Offset of field: physent_s::angles"][offset_of!(physent_s, angles) - 84usize];
+    ["Offset of field: physent_s::solid"][offset_of!(physent_s, solid) - 96usize];
+    ["Offset of field: physent_s::skin"][offset_of!(physent_s, skin) - 100usize];
+    ["Offset of field: physent_s::rendermode"][offset_of!(physent_s, rendermode) - 104usize];
+    ["Offset of field: physent_s::frame"][offset_of!(physent_s, frame) - 108usize];
+    ["Offset of field: physent_s::sequence"][offset_of!(physent_s, sequence) - 112usize];
+    ["Offset of field: physent_s::controller"][offset_of!(physent_s, controller) - 116usize];
+    ["Offset of field: physent_s::blending"][offset_of!(physent_s, blending) - 120usize];
+    ["Offset of field: physent_s::movetype"][offset_of!(physent_s, movetype) - 124usize];
+    ["Offset of field: physent_s::takedamage"][offset_of!(physent_s, takedamage) - 128usize];
+    ["Offset of field: physent_s::blooddecal"][offset_of!(physent_s, blooddecal) - 132usize];
+    ["Offset of field: physent_s::team"][offset_of!(physent_s, team) - 136usize];
+    ["Offset of field: physent_s::classnumber"][offset_of!(physent_s, classnumber) - 140usize];
+    ["Offset of field: physent_s::iuser1"][offset_of!(physent_s, iuser1) - 144usize];
+    ["Offset of field: physent_s::iuser2"][offset_of!(physent_s, iuser2) - 148usize];
+    ["Offset of field: physent_s::iuser3"][offset_of!(physent_s, iuser3) - 152usize];
+    ["Offset of field: physent_s::iuser4"][offset_of!(physent_s, iuser4) - 156usize];
+    ["Offset of field: physent_s::fuser1"][offset_of!(physent_s, fuser1) - 160usize];
+    ["Offset of field: physent_s::fuser2"][offset_of!(physent_s, fuser2) - 164usize];
+    ["Offset of field: physent_s::fuser3"][offset_of!(physent_s, fuser3) - 168usize];
+    ["Offset of field: physent_s::fuser4"][offset_of!(physent_s, fuser4) - 172usize];
+    ["Offset of field: physent_s::vuser1"][offset_of!(physent_s, vuser1) - 176usize];
+    ["Offset of field: physent_s::vuser2"][offset_of!(physent_s, vuser2) - 188usize];
+    ["Offset of field: physent_s::vuser3"][offset_of!(physent_s, vuser3) - 200usize];
+    ["Offset of field: physent_s::vuser4"][offset_of!(physent_s, vuser4) - 212usize];
+};
