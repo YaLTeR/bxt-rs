@@ -42,6 +42,7 @@ pub mod remote_forbid;
 pub mod rng_set;
 pub mod scoreboard_remove;
 pub mod shake_remove;
+pub mod show_player_in_hltv;
 pub mod skybox_change;
 pub mod skybox_remove;
 pub mod tas_logging;
@@ -110,6 +111,7 @@ pub static MODULES: &[&dyn Module] = &[
     &rng_set::RngSet,
     &scoreboard_remove::ScoreboardRemove,
     &shake_remove::ShakeRemove,
+    &show_player_in_hltv::ShowPlayerInHltv,
     &skybox_change::SkyboxChange,
     &skybox_remove::SkyboxRemove,
     &tas_logging::TasLogging,
