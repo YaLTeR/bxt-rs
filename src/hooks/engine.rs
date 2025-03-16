@@ -1489,34 +1489,6 @@ pub unsafe fn player_edict(marker: MainThreadMarker) -> Option<NonNull<edict_s>>
     }
 }
 
-pub unsafe fn find_cmd(marker: MainThreadMarker, name: &str) -> Option<NonNull<cmd_function_s>> {
-    let cmd_functions_ = &*cmd_functions.get_opt(marker)?;
-
-    // in case the list is empty
-    if cmd_functions_.is_null() {
-        return None;
-    }
-
-    let mut curr_cmd_function = *cmd_functions_;
-
-    loop {
-        let cmd_function = &*curr_cmd_function;
-        let curr_name = CStr::from_ptr(cmd_function.name as *mut i8);
-
-        if curr_name.to_str().ok()? == name {
-            return NonNull::new(curr_cmd_function);
-        }
-
-        if cmd_function.next.is_null() {
-            break;
-        }
-
-        curr_cmd_function = cmd_function.next;
-    }
-
-    None
-}
-
 /// # Safety
 ///
 /// [`reset_pointers()`] must be called before hw is unloaded so the pointers don't go stale.

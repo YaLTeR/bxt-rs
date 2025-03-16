@@ -1,4 +1,4 @@
-//! `Show player model in HLTV spectate`
+//! Show player model in HLTV spectate
 
 use super::Module;
 use crate::hooks::{bxt, engine};
@@ -30,7 +30,6 @@ Free spectate is not available in `playdemo` nonetheless."
             && engine::ClientDLL_IsThirdPerson.is_set(marker)
             && engine::CL_IsSpectateOnly.is_set(marker)
             && engine::pmove.is_set(marker)
-            && unsafe { engine::find_cmd(marker, "dem_forcehltv") }.is_some()
     }
 }
 
