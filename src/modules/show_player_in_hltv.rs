@@ -1,4 +1,4 @@
-//! Show player model in HLTV spectate
+//! Show player model in HLTV spectate.
 
 use super::Module;
 use crate::hooks::{bxt, engine};
