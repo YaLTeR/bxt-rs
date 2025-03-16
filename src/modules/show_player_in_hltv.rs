@@ -12,16 +12,16 @@ impl Module for ShowPlayerInHltv {
 
     fn description(&self) -> &'static str {
         "\
-When record a demo with camera path, it is desirable for the demo to be in third person. \
-To enter third person in a demo, there are two options.
+When recording a demo with a custom camera path, you frequently want to see the player in third person. \
+There are two ways to do this.
 
-`playdemo` and `thirdperson`. If there is campath loaded, this is the most straightforward way to record. \
-The player model will always show up. But just like any `playdemo`, you can only play a demo.
+- `playdemo` and `thirdperson`. If a campath is loaded, this is the most straightforward way to record. \
+The player model will always show up.
 
-`viewdemo` and `dem_forcehltv 1`. There are more functionalities available with this method such as pausing, fastforwarding, and rewinding. \
-However, the player model does not consistently show up.
+- `viewdemo` and `dem_forcehltv 1`. This gives you more functionality such as pausing, fast-forwarding, and rewinding. \
+However, the player model is not consistently visible.
 
-This fix is for `viewdemo` and `dem_forcehltv 1` route. This fix forces the player model to show up."
+This module makes the player model consistently visible in `viewdemo` with `dem_forcehltv 1`."
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
