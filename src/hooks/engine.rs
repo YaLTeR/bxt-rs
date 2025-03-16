@@ -2,7 +2,7 @@
 
 #![allow(non_snake_case, non_upper_case_globals)]
 
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::fmt;
 use std::num::ParseIntError;
 use std::os::raw::*;
@@ -99,6 +99,20 @@ pub static CL_GameDir_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patter
     ]),
     null_mut(),
 );
+pub static CL_IsSpectateOnly: Pointer<unsafe extern "C" fn() -> c_int> = Pointer::empty_patterns(
+    b"CL_IsSpectateOnly\0",
+    // To find, search for "Redirected to invalid server".
+    // You are inside CL_SignonReply. This string is printed inside a conditional scope based on
+    // two conditions. The value that is equal compared to a false value is cls.spectator.
+    // Cycle through references of cls.spectator until you find a short function that has exactly
+    // one function call and returns not equal comparison between cls.spectator and a false
+    // value.
+    Patterns(&[
+        // 8684
+        pattern!(FF 15 ?? ?? ?? ?? 8B 0D ?? ?? ?? ?? 33 C0 85 C9 0F 95 C0),
+    ]),
+    null_mut(),
+);
 pub static cl_lightstyle: Pointer<*mut [lightstyle_t; 64]> = Pointer::empty(b"cl_lightstyle\0");
 pub static CL_Move: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"CL_Move\0",
@@ -162,6 +176,19 @@ pub static ClientDLL_DrawTransparentTriangles: Pointer<unsafe extern "C" fn()> =
             pattern!(55 8B EC 83 3D ?? ?? ?? ?? 00 74 ?? FF 15 ?? ?? ?? ?? 6A 00 FF 15 ?? ?? ?? ?? 83 C4 04 5D C3 55 8B EC 83 3D ?? ?? ?? ?? 00 74 06 FF 15 ?? ?? ?? ?? 5D),
         ]),
         null_mut(),
+    );
+pub static ClientDLL_IsThirdPerson: Pointer<unsafe extern "C" fn() -> c_int> =
+    Pointer::empty_patterns(
+        b"ClientDLL_IsThirdPerson\0",
+        // To find, search for "CL_IsThirdPerson".
+        // You are inside the function that sets CL_IsThirdPerson pointer in cl_funcs.
+        // Look for another function referencing this pointer. That function is
+        // ClientDLL_IsThirdPerson.
+        Patterns(&[
+            // 8684
+            pattern!(A1 ?? ?? ?? ?? 85 C0 74 ?? FF E0 33 C0),
+        ]),
+        my_ClientDLL_IsThirdPerson as _,
     );
 pub static cl: Pointer<*mut client_state_t> = Pointer::empty(b"cl\0");
 pub static cl_stats: Pointer<*mut [i32; 32]> = Pointer::empty(
@@ -992,6 +1019,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &CL_Disconnect,
     &cl_funcs,
     &CL_GameDir_f,
+    &CL_IsSpectateOnly,
     &cl_lightstyle,
     &CL_Move,
     &CL_Parse_LightStyle,
@@ -999,6 +1027,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &CL_ViewDemo_f,
     &ClientDLL_Init,
     &ClientDLL_DrawTransparentTriangles,
+    &ClientDLL_IsThirdPerson,
     &cl,
     &cl_stats,
     &cl_viewent,
@@ -2543,6 +2572,19 @@ pub mod exported {
             ClientDLL_Init.get(marker)();
 
             client::hook_client_interface(marker);
+        })
+    }
+
+    #[export_name = "ClientDLL_IsThirdPerson"]
+    pub unsafe extern "C" fn my_ClientDLL_IsThirdPerson() -> c_int {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if show_player_in_hltv::should_force_emit_player_entity(marker) {
+                return 1;
+            }
+
+            ClientDLL_IsThirdPerson.get(marker)()
         })
     }
 
