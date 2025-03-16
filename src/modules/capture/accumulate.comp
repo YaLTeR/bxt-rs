@@ -10,6 +10,17 @@ layout (push_constant) uniform push_constants {
     float weight;
 };
 
+// Transfer functions are the sRGB reference monitor EOTF of x^2.2, explicitly
+//  not the piecewise functions.
+//  https://en.wikipedia.org/wiki/SRGB#Transfer_function_(%22gamma%22)
+//  definitions of terms: https://cie.co.at/e-ilv
+
+// sRGB electro-optical transfer function
+vec3 sRGB_EOTF(vec3 value)
+{
+    return pow(value, vec3(2.2));
+}
+
 void main() {
     ivec2 size = imageSize(image_frame);
     uint width = uint(size.x), height = uint(size.y);
@@ -23,6 +34,9 @@ void main() {
     vec4 frameColor = imageLoad(image_frame, coords);
     vec4 sampleColor = imageLoad(image_sample, coords);
 
-    vec4 newColor = sampleColor + frameColor * weight;
+    vec4 newColor = vec4(
+        sampleColor.rgb + sRGB_EOTF(frameColor.rgb) * weight,
+        sampleColor + frameColor * weight // alpha channel isn't encoded
+    );
     imageStore(image_sample, coords, newColor);
 }
