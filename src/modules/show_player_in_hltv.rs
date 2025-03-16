@@ -12,15 +12,16 @@ impl Module for ShowPlayerInHltv {
 
     fn description(&self) -> &'static str {
         "\
-When people do cam path, they usually want to see the player in the demo. This means the demo will be recorded in third person. \
-The only way to enter third person and free camera is to do `dem_forcehltv 1` and then use `viewdemo` command. \
-For a brief moment in free spectate in `viewdemo`, the player model will show up. \
-However, after cycling through all spectating options once, the player model disappears.
+When record a demo with camera path, it is desirable for the demo to be in third person. \
+To enter third person in a demo, there are two options.
 
-This is the fix for that.
+`playdemo` and `thirdperson`. If there is campath loaded, this is the most straightforward way to record. \
+The player model will always show up. But just like any `playdemo`, you can only play a demo.
 
-Alternatively, with this fix, it is possible to use `playdemo` with `thirdperson` to have the player model show up to just record. \
-Free spectate is not available in `playdemo` nonetheless."
+`viewdemo` and `dem_forcehltv 1`. There are more functionalities available with this method such as pausing, fastforwarding, and rewinding. \
+However, the player model does not consistently show up.
+
+This fix is for `viewdemo` and `dem_forcehltv 1` route. This fix forces the player model to show up."
     }
 
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
