@@ -11,6 +11,7 @@ use std::str::FromStr;
 
 use bxt_macros::pattern;
 use bxt_patterns::Patterns;
+use serde::{Deserialize, Serialize};
 
 use crate::ffi::com_model::{mleaf_s, model_s};
 use crate::ffi::command::cmd_function_s;
@@ -1351,7 +1352,7 @@ impl SCREENINFO {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 pub struct RngState {
     pub idum: c_int,
     pub iy: c_int,
