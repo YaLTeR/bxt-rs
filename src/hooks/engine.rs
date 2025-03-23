@@ -2136,6 +2136,7 @@ pub mod exported {
 
             tas_optimizer::maybe_start_client_connection_thread(marker);
             tas_studio::maybe_start_client_connection_thread(marker);
+            capture_video_per_demo::maybe_start_client_connection_thread(marker);
 
             rv
         })
@@ -2459,6 +2460,8 @@ pub mod exported {
 
                 tas_studio::update_client_connection_condition(marker);
                 tas_studio::maybe_receive_messages_from_remote_server(marker);
+
+                capture_video_per_demo::capture_video_per_demo_multigame_polling(marker);
             }
 
             rv
