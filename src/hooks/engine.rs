@@ -2,7 +2,7 @@
 
 #![allow(non_snake_case, non_upper_case_globals)]
 
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::fmt;
 use std::num::ParseIntError;
 use std::os::raw::*;
@@ -12,6 +12,7 @@ use std::str::FromStr;
 use bxt_macros::pattern;
 use bxt_patterns::Patterns;
 
+use crate::ffi::cl_entity::cl_entity_s;
 use crate::ffi::com_model::{mleaf_s, model_s};
 use crate::ffi::command::cmd_function_s;
 use crate::ffi::cvar::cvar_s;
@@ -74,6 +75,16 @@ pub static Cbuf_AddTextToBuffer: Pointer<unsafe extern "C" fn(*const c_char, *mu
     );
 pub static Cbuf_InsertText: Pointer<unsafe extern "C" fn(*const c_char)> =
     Pointer::empty(b"Cbuf_InsertText\0");
+pub static CheckMultiTextureExtensions: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"CheckMultiTextureExtensions\0",
+    // To find, search for "GL_ARB_multitexture ".
+    // You are inside CheckMultiTextureExtensions().
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 51 A1 ?? ?? ?? ?? 85 C0 0F 84 ?? ?? ?? ?? 68 ?? ?? ?? ?? 50),
+    ]),
+    my_CheckMultiTextureExtensions as _,
+);
 pub static CL_Disconnect: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"CL_Disconnect\0",
     // To find, search for "ExitGame".
@@ -153,6 +164,31 @@ pub static CL_ViewDemo_f: Pointer<unsafe extern "C" fn()> = Pointer::empty_patte
         pattern!(55 8B EC 81 EC 04 01 00 00 A1 ?? ?? ?? ?? 56 BE 01 00 00 00 57 3B C6 0F 85),
     ]),
     my_CL_ViewDemo_f as _,
+);
+pub static ClientDLL_AddEntity: Pointer<unsafe extern "C" fn(c_int, *mut cl_entity_s) -> c_int> =
+    Pointer::empty_patterns(
+        b"ClientDLL_AddEntity\0",
+        // To find, search for "HUD_AddEntity".
+        // You are inside the function that sets HUD_AddEntity pointer in cl_funcs.
+        // Look for another function referencing this pointer. That function is
+        // ClientDLL_AddEntity.
+        Patterns(&[
+            // 8684
+            pattern!(55 8B EC 83 EC 18 8B 0D ?? ?? ?? ?? 56),
+        ]),
+        my_ClientDLL_AddEntity as _,
+    );
+pub static ClientDLL_HudRedraw: Pointer<unsafe extern "C" fn(c_int)> = Pointer::empty_patterns(
+    b"ClientDLL_HudRedraw\0",
+    // To find, search for "HUD_Redraw".
+    // You are inside the function that sets HUD_Redraw pointer in cl_funcs.
+    // Look for another function referencing this pointer. That function is
+    // HUD_Redraw.
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC E8 ?? ?? ?? ?? 85 C0 75 ?? A1 ?? ?? ?? ?? 85 C0),
+    ]),
+    my_ClientDLL_HudRedraw as _,
 );
 pub static ClientDLL_Init: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"ClientDLL_Init\0",
@@ -641,6 +677,18 @@ pub static R_DrawViewModel: Pointer<unsafe extern "C" fn()> = Pointer::empty_pat
     ]),
     my_R_DrawViewModel as _,
 );
+pub static R_DrawWorld: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
+    b"R_DrawWorld\0",
+    // To find, search for "R_StoreEfrags: Bad entity type".
+    // You are inside R_StoreEfrags. Search for the function referencing R_StoreEfrags.
+    // You are inside R_RecursiveWorldNode. Search for the function referencing
+    // R_RecursiveWorldNode. You are inside R_DrawWorld.
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 81 EC B8 0B 00 00),
+    ]),
+    my_R_DrawWorld as _,
+);
 pub static R_LoadSkys: Pointer<unsafe extern "C" fn()> = Pointer::empty_patterns(
     b"R_LoadSkys\0",
     // To find, search for "done\n".
@@ -1016,6 +1064,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Cbuf_AddText,
     &Cbuf_AddTextToBuffer,
     &Cbuf_InsertText,
+    &CheckMultiTextureExtensions,
     &CL_Disconnect,
     &cl_funcs,
     &CL_GameDir_f,
@@ -1025,6 +1074,8 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &CL_Parse_LightStyle,
     &CL_PlayDemo_f,
     &CL_ViewDemo_f,
+    &ClientDLL_AddEntity,
+    &ClientDLL_HudRedraw,
     &ClientDLL_Init,
     &ClientDLL_DrawTransparentTriangles,
     &ClientDLL_IsThirdPerson,
@@ -1086,6 +1137,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &R_DrawSequentialPoly,
     &R_DrawSkyBox,
     &R_DrawViewModel,
+    &R_DrawWorld,
     &R_LoadSkys,
     &R_PreDrawViewModel,
     &S_PaintChannels,
@@ -1227,11 +1279,6 @@ pub struct dma_t {
     pub speed: c_int,
     pub dmaspeed: c_int,
     pub buffer: *mut c_uchar,
-}
-
-#[repr(C)]
-pub struct cl_entity_s {
-    pub index: c_int,
 }
 
 #[repr(C)]
@@ -2093,6 +2140,7 @@ pub mod exported {
     #![allow(clippy::missing_safety_doc)]
 
     use super::*;
+    use crate::ffi::com_model::{modtype_t_mod_brush, modtype_t_mod_sprite, modtype_t_mod_studio};
     use crate::gl;
     use crate::hooks::client;
 
@@ -2200,11 +2248,15 @@ pub mod exported {
             // background. Finally, while in the TAS editor we're frequently out of bounds, so we
             // want to clear to make it easier to see.
             if wallhack::is_active(marker)
-                || skybox_remove::is_active(marker)
+                || remove_stuffs::should_remove_skybox(marker)
                 || tas_studio::should_clear(marker)
+                || remove_stuffs::should_remove_world(marker)
+                || clear::should_clear_frame(marker)
             {
                 if let Some(gl) = gl::GL.borrow(marker).as_ref() {
-                    gl.ClearColor(0., 0., 0., 1.);
+                    let clear_color = clear::get_clear_color(marker);
+
+                    gl.ClearColor(clear_color[0], clear_color[1], clear_color[2], 1.);
                     gl.Clear(gl::COLOR_BUFFER_BIT);
                 }
             }
@@ -2218,7 +2270,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if skybox_remove::is_active(marker) {
+            if remove_stuffs::should_remove_skybox(marker) {
                 return;
             }
 
@@ -2231,11 +2283,24 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if viewmodel_remove::is_removed(marker) {
+            if remove_stuffs::should_remove_viewmodel(marker) {
                 return;
             }
 
             R_DrawViewModel.get(marker)();
+        })
+    }
+
+    #[export_name = "R_DrawWorld"]
+    pub unsafe extern "C" fn my_R_DrawWorld() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if remove_stuffs::should_remove_world(marker) {
+                return;
+            }
+
+            R_DrawWorld.get(marker)();
         })
     }
 
@@ -2253,7 +2318,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if viewmodel_remove::is_removed(marker) {
+            if remove_stuffs::should_remove_viewmodel(marker) {
                 return;
             }
 
@@ -2270,7 +2335,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if shake_remove::is_active(marker) {
+            if remove_stuffs::should_remove_shake(marker) {
                 return;
             }
 
@@ -2283,7 +2348,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if fade_remove::is_active(marker) {
+            if remove_stuffs::should_remove_fade(marker) {
                 0
             } else {
                 V_FadeAlpha.get(marker)()
@@ -2318,7 +2383,7 @@ pub mod exported {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
 
-            if disable_loading_text::is_active(marker) {
+            if remove_stuffs::should_remove_loading_text(marker) {
                 return;
             }
 
@@ -2465,6 +2530,19 @@ pub mod exported {
         })
     }
 
+    #[export_name = "CheckMultiTextureExtensions"]
+    pub unsafe extern "C" fn my_CheckMultiTextureExtensions() {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if remove_stuffs::should_remove_multitexture_support() {
+                return;
+            }
+
+            CheckMultiTextureExtensions.get(marker)();
+        })
+    }
+
     #[export_name = "CL_Disconnect"]
     pub unsafe extern "C" fn my_CL_Disconnect() {
         abort_on_panic(move || {
@@ -2564,6 +2642,52 @@ pub mod exported {
         })
     }
 
+    #[export_name = "ClientDLL_AddEntity"]
+    pub unsafe extern "C" fn my_ClientDLL_AddEntity(type_: c_int, ent: *mut cl_entity_s) -> c_int {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            let entity_model_type = (*(*ent).model).type_;
+
+            if remove_stuffs::should_remove_entity(marker) {
+                return 0;
+            }
+
+            if entity_model_type == modtype_t_mod_brush
+                && remove_stuffs::should_remove_entity_brush(marker)
+            {
+                return 0;
+            }
+
+            if entity_model_type == modtype_t_mod_studio
+                && remove_stuffs::should_remove_entity_model(marker)
+            {
+                return 0;
+            }
+
+            if entity_model_type == modtype_t_mod_sprite
+                && remove_stuffs::should_remove_entity_sprite(marker)
+            {
+                return 0;
+            }
+
+            ClientDLL_AddEntity.get(marker)(type_, ent)
+        })
+    }
+
+    #[export_name = "ClientDLL_HudRedraw"]
+    pub unsafe extern "C" fn my_ClientDLL_HudRedraw(intermission: c_int) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            if remove_stuffs::should_remove_hud(marker) {
+                return;
+            }
+
+            ClientDLL_HudRedraw.get(marker)(intermission)
+        })
+    }
+
     #[export_name = "ClientDLL_Init"]
     pub unsafe extern "C" fn my_ClientDLL_Init() {
         abort_on_panic(move || {
@@ -2592,6 +2716,10 @@ pub mod exported {
     pub unsafe extern "C" fn my_DrawCrosshair(x: c_int, y: c_int) {
         abort_on_panic(move || {
             let marker = MainThreadMarker::new();
+
+            if remove_stuffs::should_remove_crosshair(marker) {
+                return;
+            }
 
             hud_scale::with_scaled_projection_matrix(marker, move || {
                 let scale = hud_scale::scale(marker).unwrap_or(1.);
@@ -2643,7 +2771,7 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             let text = comment_overflow_fix::strip_prefix_comments(text);
-            let text = scoreboard_remove::strip_showscores(marker, text);
+            let text = remove_stuffs::maybe_strip_showscores(marker, text);
 
             if tas_studio::should_skip_command(marker, text) {
                 return;
@@ -2661,7 +2789,7 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             let text = comment_overflow_fix::strip_prefix_comments(text);
-            let text = scoreboard_remove::strip_showscores(marker, text);
+            let text = remove_stuffs::maybe_strip_showscores(marker, text);
 
             Cbuf_AddFilteredText.get(marker)(text);
         })
@@ -2673,7 +2801,7 @@ pub mod exported {
             let marker = MainThreadMarker::new();
 
             let text = comment_overflow_fix::strip_prefix_comments(text);
-            let text = scoreboard_remove::strip_showscores(marker, text);
+            let text = remove_stuffs::maybe_strip_showscores(marker, text);
 
             Cbuf_AddTextToBuffer.get(marker)(text, buffer);
         })
