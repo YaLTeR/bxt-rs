@@ -78,9 +78,11 @@ static BXT_CAMPATH_ROTATE: CVar = CVar::new(
     "\
 Rotates all camera points around origin by Z up axis. HLAE CAM format is mainly for Source. But, Source horizontal rotation is slightly different from GoldSrc.
 
-If you have created campath in Blender based on map file exported from TrenchBroom or jack, you should set this value to 90. 
+If you want to import campath created in Blender based on map file exported from TrenchBroom or jack, you should set this value to 90. 
 
-Other tools such as Nem's Crafty are meant for Source. Its .OBJ export implicitly adds rotation. 
+If you want to export campath to Blender based on map file exported from TrenchBroom or jack, you should set this value to -90.
+
+Other tools such as Nem's Crafty are meant for Source. Its .OBJ export implicitly adds rotation. Therefore, you don't need to add rotation.
 ",
 );
 
@@ -310,18 +312,19 @@ pub fn capture_motion(marker: MainThreadMarker) {
         let r_refdef_viewangles = unsafe { &mut *engine::r_refdef_viewangles.get(marker) };
         let fov = unsafe { *engine::scr_fov_value.get(marker) };
 
+        let rotation_z = BXT_CAMPATH_ROTATE.as_f32(marker);
+        let rotated_vieworg = rotate_round_z(
+            glam::Vec3::from_slice(r_refdef_vieworg),
+            rotation_z.to_radians(),
+        );
+
         exporter.append_entry(
             TIME.get(marker),
-            [
-                r_refdef_vieworg[0],
-                r_refdef_vieworg[1],
-                r_refdef_vieworg[2],
-            ]
-            .into(),
+            rotated_vieworg,
             [
                 r_refdef_viewangles[2], // flip the order
                 r_refdef_viewangles[0],
-                r_refdef_viewangles[1],
+                r_refdef_viewangles[1] + rotation_z,
             ]
             .into(),
             fov,
