@@ -78,7 +78,7 @@ static BXT_CAMPATH_ROTATE: CVar = CVar::new(
     b"bxt_campath_rotate\0",
     b"0\0",
     "\
-Rotates all camera points about origin by Z up axis by angle in degree.
+Rotates all camera points about the Z-up axis at the origin by this angle in degrees.
 
 HLAE CAM format is mainly for Source. But, Source horizontal rotation is slightly different from GoldSrc.
 
