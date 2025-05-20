@@ -2,6 +2,8 @@
 
 use std::path::PathBuf;
 
+use glam::Vec3Swizzles;
+
 use self::bvh::{read_bvh, Bvh};
 use self::camio::CamIO;
 use self::exporter::Exporter;
@@ -76,13 +78,15 @@ static BXT_CAMPATH_ROTATE: CVar = CVar::new(
     b"bxt_campath_rotate\0",
     b"0\0",
     "\
-Rotates all camera points around origin by Z up axis. HLAE CAM format is mainly for Source. But, Source horizontal rotation is slightly different from GoldSrc.
+Rotates all camera points about origin by Z up axis by angle in degree.
+
+HLAE CAM format is mainly for Source. But, Source horizontal rotation is slightly different from GoldSrc.
 
 If you want to import campath created in Blender based on map file exported from TrenchBroom or jack, you should set this value to 90. 
 
 If you want to export campath to Blender based on map file exported from TrenchBroom or jack, you should set this value to -90.
 
-Other tools such as Nem's Crafty are meant for Source. Its .OBJ export implicitly adds rotation. Therefore, you don't need to add rotation.
+Other tools such as Nem's Crafty are meant for Source. Its OBJ export implicitly adds rotation. Therefore, you don't need to add rotation.
 ",
 );
 
@@ -176,15 +180,11 @@ fn force_live(marker: MainThreadMarker) {
     IS_FORCED.set(marker, true);
 }
 
-fn rotate_round_z(point: glam::Vec3, rad: f32) -> glam::Vec3 {
-    // only change x and y
-    let orig_x = point.x;
-    let orig_y = point.y;
+fn rotate_about_z(point: glam::Vec3, rad: f32) -> glam::Vec3 {
+    let rot_mat = glam::Mat2::from_angle(rad);
+    let what = rot_mat * point.xy();
 
-    let x = orig_x * rad.cos() - orig_y * rad.sin();
-    let y = orig_x * rad.sin() + orig_y * rad.cos();
-
-    glam::vec3(x, y, point.z)
+    glam::vec3(what.x, what.y, point.z)
 }
 
 pub fn override_view(marker: MainThreadMarker) {
@@ -211,7 +211,7 @@ pub fn override_view(marker: MainThreadMarker) {
             Mdt::Bvh(mdt) => {
                 match mdt.get_view(TIME.get(marker) - BXT_CAMPATH_OFFSET.as_f32(marker) as f64) {
                     Some(cam) => {
-                        let rotated_vieworg = rotate_round_z(cam.vieworg, rotation_z.to_radians());
+                        let rotated_vieworg = rotate_about_z(cam.vieworg, rotation_z.to_radians());
                         let mut rotated_viewangles = cam.viewangles;
                         rotated_viewangles[1] += rotation_z;
 
@@ -228,7 +228,7 @@ pub fn override_view(marker: MainThreadMarker) {
                 match mdt.get_view(TIME.get(marker) - BXT_CAMPATH_OFFSET.as_f32(marker) as f64) {
                     Some(cam) => {
                         let rotated_vieworg =
-                            rotate_round_z(cam.viewinfo.vieworg, rotation_z.to_radians());
+                            rotate_about_z(cam.viewinfo.vieworg, rotation_z.to_radians());
                         let mut rotated_viewangles = cam.viewinfo.viewangles;
                         rotated_viewangles[1] += rotation_z;
 
@@ -313,7 +313,7 @@ pub fn capture_motion(marker: MainThreadMarker) {
         let fov = unsafe { *engine::scr_fov_value.get(marker) };
 
         let rotation_z = BXT_CAMPATH_ROTATE.as_f32(marker);
-        let rotated_vieworg = rotate_round_z(
+        let rotated_vieworg = rotate_about_z(
             glam::Vec3::from_slice(r_refdef_vieworg),
             rotation_z.to_radians(),
         );
