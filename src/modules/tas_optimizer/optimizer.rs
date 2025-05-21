@@ -432,6 +432,7 @@ impl Optimizer {
                 Line::RenderYawOverride(_) => (),
                 Line::PitchOverride(_) => (),
                 Line::RenderPitchOverride(_) => (),
+                Line::IgnoreSmoothing => (),
             }
         }
 
