@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
 
       matrix:
-        os: [ubuntu-20.04, windows-2019]
+        os: [ubuntu-22.04, windows-2019]
         rust: [stable, beta]
         configuration: [debug, release]
         cross: [false, true]
@@ -29,13 +29,13 @@ jobs:
             os: windows-2019
 
         include:
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             cross: false
             label: Ubuntu
             target: i686-unknown-linux-gnu
             filename: libbxt_rs.so
 
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             cross: true
             label: Debian (cross to Windows)
             target: i686-pc-windows-gnu
@@ -79,7 +79,7 @@ jobs:
           apt-get install sudo -y
 
       - name: Install dependencies
-        if: matrix.os == 'ubuntu-20.04'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update -y
           sudo apt-get install -y libc6-dev-i386 ${{ matrix.cross-dep }}
@@ -135,7 +135,7 @@ jobs:
         if: >
           github.event_name == 'push' &&
           github.ref == 'refs/heads/master' &&
-          matrix.os == 'ubuntu-20.04' &&
+          matrix.os == 'ubuntu-22.04' &&
           matrix.rust == 'stable' &&
           matrix.configuration == 'release' &&
           !matrix.cross
@@ -148,7 +148,7 @@ jobs:
         if: >
           github.event_name == 'push' &&
           github.ref == 'refs/heads/master' &&
-          matrix.os == 'ubuntu-20.04' &&
+          matrix.os == 'ubuntu-22.04' &&
           matrix.rust == 'stable' &&
           matrix.configuration == 'release' &&
           !matrix.cross
@@ -162,7 +162,7 @@ jobs:
 
       matrix:
         include:
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             label: Ubuntu
             target: i686-unknown-linux-gnu
 
@@ -179,7 +179,7 @@ jobs:
           show-progress: false
 
       - name: Install dependencies
-        if: matrix.os == 'ubuntu-20.04'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install libc6-dev-i386
@@ -196,7 +196,7 @@ jobs:
         run: cargo clippy --all --all-targets --target ${{ matrix.target }}
 
   rustfmt:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v4
@@ -216,7 +216,7 @@ jobs:
     name: Publish Wiki
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: [build, clippy, rustfmt]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/download-artifact@v4
