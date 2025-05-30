@@ -277,6 +277,16 @@ pub static Cvar_RegisterVariable: Pointer<unsafe extern "C" fn(*mut cvar_s)> =
         ]),
         null_mut(),
     );
+pub static CreateNamedEntity: Pointer<unsafe extern "C" fn(c_int) -> *mut edict_s> =
+    Pointer::empty_patterns(
+        b"CreateNamedEntity\0",
+        // To find, search for "Spawned a NULL entity!"
+        Patterns(&[
+            // 8684
+            pattern!(55 8B EC 53 56 57 8B 7D ?? 85 FF 75 ?? 68 ?? ?? ?? ?? E8 ?? ?? ?? ?? 83 C4 04),
+        ]),
+        null_mut(),
+    );
 pub static cvar_vars: Pointer<*mut *mut cvar_s> = Pointer::empty(b"cvar_vars\0");
 pub static Draw_FillRGBABlend: Pointer<
     unsafe extern "C" fn(c_int, c_int, c_int, c_int, c_int, c_int, c_int, c_int),
@@ -336,6 +346,7 @@ pub static GL_BeginRendering: Pointer<
     null_mut(),
 );
 pub static gEntityInterface: Pointer<*mut DllFunctions> = Pointer::empty(b"gEntityInterface\0");
+pub static gGlobalVariables: Pointer<*mut globalvars_s> = Pointer::empty(b"gGlobalVariables\0");
 pub static gLoadSky: Pointer<*mut c_int> = Pointer::empty(b"gLoadSky\0");
 pub static g_svmove: Pointer<*mut playermove_s> = Pointer::empty(b"g_svmove\0");
 pub static Key_Event: Pointer<unsafe extern "C" fn(c_int, c_int)> = Pointer::empty_patterns(
@@ -501,6 +512,19 @@ pub static hudGetViewAngles: Pointer<unsafe extern "C" fn(*mut [c_float; 3])> =
         //
         // Be careful! The very next function is hudSetViewAngles() which looks VERY similar, yet
         // does the exact opposite thing!
+        Patterns(&[
+            // 8684
+            pattern!(55 8B EC 8D 45 ?? 50 FF 15 ?? ?? ?? ?? 8B 55),
+        ]),
+        null_mut(),
+    );
+pub static hudSetViewAngles: Pointer<unsafe extern "C" fn(*mut [c_float; 3])> =
+    Pointer::empty_patterns(
+        b"hudSetViewAngles\0",
+        // 36th pointer in cl_enginefuncs.
+        //
+        // Be careful! The very previous function is hudGetViewAngles() which looks VERY similar,
+        // yet does the exact opposite thing!
         Patterns(&[
             // 8684
             pattern!(55 8B EC 8D 45 ?? 50 FF 15 ?? ?? ?? ?? 8B 55),
@@ -815,6 +839,10 @@ pub static sv_num_edicts: Pointer<*mut c_int> = Pointer::empty(
     // Not a real symbol name.
     b"sv_num_edicts\0",
 );
+pub static sv_paused: Pointer<*mut c_int> = Pointer::empty(
+    // Not a real symbol name.
+    b"sv_paused\0",
+);
 pub static svs: Pointer<*mut server_static_s> = Pointer::empty(b"svs\0");
 pub static sv_areanodes: Pointer<*mut c_void> = Pointer::empty(b"sv_areanodes\0");
 pub static SV_AddLinksToPM: Pointer<unsafe extern "C" fn(*mut c_void, *const [f32; 3])> =
@@ -1043,6 +1071,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Con_ToggleConsole_f,
     &com_gamedir,
     &Cvar_RegisterVariable,
+    &CreateNamedEntity,
     &cvar_vars,
     &DrawCrosshair,
     &Draw_FillRGBABlend,
@@ -1050,6 +1079,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &frametime_remainder,
     &GL_BeginRendering,
     &gEntityInterface,
+    &gGlobalVariables,
     &gLoadSky,
     &g_svmove,
     &Key_Event,
@@ -1064,6 +1094,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &Host_ValidSave,
     &hudGetScreenInfo,
     &hudGetViewAngles,
+    &hudSetViewAngles,
     &idum,
     &movevars,
     &listener_origin,
@@ -1101,6 +1132,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &sv,
     &sv_edicts,
     &sv_num_edicts,
+    &sv_paused,
     &svs,
     &sv_areanodes,
     &SV_AddLinksToPM,
@@ -1126,9 +1158,11 @@ static ORIGINAL_FUNCTIONS: MainThreadRefCell<Vec<*mut c_void>> = MainThreadRefCe
 
 #[repr(C)]
 pub struct DllFunctions {
-    _padding_1: [u8; 136],
+    _padding_1: [u8; 4],
+    pub spawn: Option<unsafe extern "C" fn(*mut edict_s) -> c_int>,
+    _padding_2: [u8; 128],
     pub pm_move: Option<unsafe extern "C" fn(*mut playermove_s, c_int)>,
-    _padding_2: [u8; 32],
+    _padding_3: [u8; 32],
     pub cmd_start: Option<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)>,
 }
 
@@ -1338,6 +1372,41 @@ pub struct sfx_s {
     pub servercount: c_int,
 }
 
+#[repr(C)]
+pub struct globalvars_s {
+    pub time: c_float,
+    pub frametime: c_float,
+    pub force_retouch: c_float,
+    pub mapname: c_uint,
+    pub startspot: c_uint,
+    pub deathmatch: c_float,
+    pub coop: c_float,
+    pub teamplay: c_float,
+    pub serverflags: c_float,
+    pub found_secrets: c_float,
+    pub v_forward: [c_float; 3],
+    pub v_up: [c_float; 3],
+    pub v_right: [c_float; 3],
+    pub trace_allsolid: c_float,
+    pub trace_startsolid: c_float,
+    pub trace_fraction: c_float,
+    pub trace_endpos: [c_float; 3],
+    pub trace_plane_normal: [c_float; 3],
+    pub trace_plane_dist: c_float,
+    pub trace_ent: *mut edict_s,
+    pub trace_inopen: c_float,
+    pub trace_inwater: c_float,
+    pub trace_hitgroup: c_int,
+    pub trace_flags: c_int,
+    pub msg_entity: c_int,
+    pub cdAudioTrack: c_int,
+    pub maxClients: c_int,
+    pub maxEntities: c_int,
+    pub pStringBase: *mut c_char,
+    pub pSaveData: *mut c_void,
+    pub vecLandmarkOffset: [c_float; 3],
+}
+
 impl SCREENINFO {
     pub const fn zeroed() -> Self {
         Self {
@@ -1489,6 +1558,45 @@ pub unsafe fn player_edict(marker: MainThreadMarker) -> Option<NonNull<edict_s>>
     }
 }
 
+pub unsafe fn get_global_string_offset_from_string(marker: MainThreadMarker, s: &str) -> u32 {
+    // pro gamer move
+    let a = s.as_ptr();
+    let a = a as u64;
+    let offset0 = (*gGlobalVariables.get(marker)).pStringBase as u64;
+
+    (a.overflowing_sub(offset0)).0 as u32
+}
+
+pub unsafe fn create_entity(
+    marker: MainThreadMarker,
+    classname: &str,
+    origin: [f32; 3],
+) -> Option<*mut edict_s> {
+    // need to add null terminator
+    let classname = if classname.ends_with("\0") {
+        classname
+    } else {
+        &(classname.to_owned() + "\0")
+    };
+
+    let ent = CreateNamedEntity.get(marker)(
+        get_global_string_offset_from_string(marker, classname) as i32,
+    );
+
+    if ent.is_null() {
+        return None;
+    }
+
+    (*ent).v.origin = origin;
+    if let Some(spawn) = (*gEntityInterface.get(marker)).spawn {
+        spawn(ent);
+
+        return Some(ent);
+    }
+
+    None
+}
+
 /// # Safety
 ///
 /// [`reset_pointers()`] must be called before hw is unloaded so the pointers don't go stale.
@@ -1536,6 +1644,7 @@ unsafe fn find_pointers(marker: MainThreadMarker) {
     client_s_edict_offset.set(marker, Some(19076));
     sv_edicts.set(marker, sv.offset(marker, 244824));
     sv_num_edicts.set(marker, sv.offset(marker, 0x3bc50));
+    sv_paused.set(marker, sv.offset(marker, 4));
 
     for pointer in POINTERS {
         pointer.log(marker);
@@ -1963,6 +2072,11 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         // 6153
         Some(0) => {
             sv.set(marker, ptr.by_offset(marker, 1));
+            sv_paused.set(
+                marker,
+                ptr.by_offset(marker, 1)
+                    .and_then(|ptr| NonNull::new(ptr.as_ptr().add(4))),
+            );
             host_frametime.set(marker, ptr.by_offset(marker, 11));
         }
         // CoF-5936
@@ -1989,6 +2103,19 @@ pub unsafe fn find_pointers(marker: MainThreadMarker, base: *mut c_void, size: u
         Some(2) => {
             sv_areanodes.set(marker, ptr.by_offset(marker, 2450));
             SV_AddLinksToPM.set(marker, ptr.by_relative_call(marker, 2455));
+        }
+        _ => (),
+    }
+
+    let ptr = &SCR_DrawPause;
+    match ptr.pattern_index(marker) {
+        // 8684
+        Some(0) => {
+            gGlobalVariables.set(
+                marker,
+                ptr.by_offset(marker, 48)
+                    .and_then(|ptr| NonNull::new(ptr.as_ptr().sub(12))),
+            );
         }
         _ => (),
     }
@@ -2454,6 +2581,8 @@ pub mod exported {
 
                 campath::update_time(marker);
 
+                ghost::update_ghosts(marker);
+
                 tas_optimizer::update_client_connection_condition(marker);
                 tas_optimizer::maybe_receive_messages_from_remote_server(marker);
 
@@ -2478,6 +2607,7 @@ pub mod exported {
 
             campath::on_cl_disconnect(marker);
             viewmodel_sway::on_cl_disconnnect(marker);
+            ghost::on_cl_disconnect(marker);
 
             CL_Disconnect.get(marker)();
         })
