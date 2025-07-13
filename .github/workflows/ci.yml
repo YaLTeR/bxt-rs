@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
 
       matrix:
-        os: [ubuntu-22.04, windows-2019]
+        os: [ubuntu-22.04, windows-2022]
         rust: [stable, beta]
         configuration: [debug, release]
         cross: [false, true]
@@ -26,7 +26,7 @@ jobs:
             rust: beta
 
           - cross: true
-            os: windows-2019
+            os: windows-2022
 
         include:
           - os: ubuntu-22.04
@@ -44,7 +44,7 @@ jobs:
             # MinGW on Ubuntu fails to link, so use rust:latest which is based on Debian.
             container: rust:latest
 
-          - os: windows-2019
+          - os: windows-2022
             label: Windows
             target: i686-pc-windows-msvc
             filename: bxt_rs.dll
@@ -166,7 +166,7 @@ jobs:
             label: Ubuntu
             target: i686-unknown-linux-gnu
 
-          - os: windows-2019
+          - os: windows-2022
             label: Windows
             target: i686-pc-windows-msvc
 
