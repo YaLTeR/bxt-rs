@@ -6,6 +6,8 @@
 
 [target."i686-pc-windows-msvc"]
 rustflags = ["-C", "target-feature=+crt-static"]
+# https://github.com/rust-lang/rust/issues/141626#issuecomment-2919988483
+linker = "rust-lld"
 
 # You may need to uncomment this line on Fedora or other Linux distributions if you get SQLite build errors.
 [env]
