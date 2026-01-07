@@ -25,9 +25,12 @@ pub mod campath;
 pub mod capture;
 pub mod capture_skip_non_gameplay;
 pub mod capture_video_per_demo;
+pub mod cheats;
+pub mod checkpoint_menu;
 pub mod comment_overflow_fix;
 pub mod demo_playback;
 pub mod disable_loading_text;
+pub mod disable_metamod;
 pub mod emit_sound;
 pub mod fade_remove;
 pub mod fix_widescreen;
@@ -36,8 +39,11 @@ pub mod help;
 pub mod hud;
 pub mod hud_scale;
 pub mod lightstyle;
+pub mod manual_autofuncs;
+pub mod menu;
 pub mod novis;
 pub mod player_movement_tracing;
+pub mod pointfile_tb;
 pub mod remote_forbid;
 pub mod rng_set;
 pub mod scoreboard_remove;
@@ -45,15 +51,19 @@ pub mod shake_remove;
 pub mod show_player_in_hltv;
 pub mod skybox_change;
 pub mod skybox_remove;
+pub mod sprite;
 pub mod tas_logging;
 pub mod tas_optimizer;
 pub mod tas_recording;
 pub mod tas_server_time_fix;
 pub mod tas_studio;
+pub mod timer;
 pub mod triangle_drawing;
+pub mod user_defined_menu;
 pub mod viewmodel_remove;
 pub mod viewmodel_sway;
 pub mod wallhack;
+pub mod wallhack_esp;
 
 /// Trait for getting module information.
 pub trait Module: Sync {
@@ -92,11 +102,18 @@ pub static MODULES: &[&dyn Module] = &[
     &capture::Capture,
     &capture_skip_non_gameplay::CaptureSkipNonGameplay,
     &capture_video_per_demo::CaptureVideoPerDemo,
+    &cheats::give::CheatGive,
+    &cheats::health::CheatHealth,
+    &cheats::hook::CheatHook,
+    &cheats::noclip::CheatNoclip,
+    &cheats::position::CheatPos,
+    &checkpoint_menu::CheckpointMenu,
     &commands::Commands,
     &comment_overflow_fix::CommentOverflowFix,
     &cvars::CVars,
     &demo_playback::DemoPlayback,
     &disable_loading_text::DisableLoadingText,
+    &disable_metamod::DisableMetamod,
     &emit_sound::EmitSound,
     &fade_remove::FadeRemove,
     &fix_widescreen::FixWidescreen,
@@ -105,8 +122,11 @@ pub static MODULES: &[&dyn Module] = &[
     &hud::Hud,
     &hud_scale::HudScale,
     &lightstyle::LightStyle,
+    &menu::Menu,
+    &manual_autofuncs::ManualAutofuncs,
     &novis::NoVis,
     &player_movement_tracing::PlayerMovementTracing,
+    &pointfile_tb::PointfileTB,
     &remote_forbid::RemoteForbid,
     &rng_set::RngSet,
     &scoreboard_remove::ScoreboardRemove,
@@ -119,8 +139,12 @@ pub static MODULES: &[&dyn Module] = &[
     &tas_recording::TasRecording,
     &tas_server_time_fix::TasServerTimeFix,
     &tas_studio::TasStudio,
+    &timer::Timer,
+    &sprite::Sprite,
     &triangle_drawing::TriangleDrawing,
+    &user_defined_menu::UserDefinedMenu,
     &viewmodel_remove::ViewmodelRemove,
     &viewmodel_sway::ViewmodelSway,
     &wallhack::Wallhack,
+    &wallhack_esp::WallhackEsp,
 ];

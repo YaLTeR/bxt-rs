@@ -32,11 +32,10 @@ use super::tas_optimizer::{self, optim_init_internal, parameters, player_data};
 use super::triangle_drawing::{TriangleApi, TriangleDrawing};
 use super::{hud, Module};
 use crate::ffi::buttons::Buttons;
-use crate::ffi::cvar::cvar_s;
 use crate::ffi::usercmd::usercmd_s;
 use crate::handler;
 use crate::hooks::bxt::{OnTasPlaybackFrameData, BXT_IS_TAS_EDITOR_ACTIVE};
-use crate::hooks::engine::con_print;
+use crate::hooks::engine::{con_print, find_cvar};
 use crate::hooks::{bxt, client, engine, sdl};
 use crate::modules::tas_studio::editor::{CameraViewAdjustmentMode, MaxAccelYawOffsetMode};
 use crate::utils::*;
@@ -2376,23 +2375,6 @@ pub fn is_main_instance(marker: MainThreadMarker) -> bool {
 }
 
 pub unsafe fn with_m_rawinput_one<T>(marker: MainThreadMarker, f: impl FnOnce() -> T) -> T {
-    // TODO: make good.
-    unsafe fn find_cvar(marker: MainThreadMarker, name: &str) -> Option<*mut cvar_s> {
-        let mut ptr = *engine::cvar_vars.get_opt(marker)?;
-        while !ptr.is_null() {
-            match std::ffi::CStr::from_ptr((*ptr).name).to_str() {
-                Ok(x) if x == name => {
-                    return Some(ptr);
-                }
-                _ => (),
-            }
-
-            ptr = (*ptr).next;
-        }
-
-        None
-    }
-
     let m_rawinput = find_cvar(marker, "m_rawinput");
     let mut prev = None;
 
