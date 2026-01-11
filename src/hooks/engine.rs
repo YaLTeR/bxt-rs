@@ -512,6 +512,15 @@ pub static idum: Pointer<*mut c_int> = Pointer::empty(
     b"idum\0",
 );
 pub static listener_origin: Pointer<*mut [f32; 3]> = Pointer::empty(b"listener_origin\0");
+pub static LoadThisDll: Pointer<unsafe extern "C" fn(*mut c_char)> = Pointer::empty_patterns(
+    b"LoadThisDll\0",
+    // To find, search for "Too many DLLs, ignoring remainder".
+    Patterns(&[
+        // 8684
+        pattern!(55 8B EC 53 8B 5D ?? 57 53 E8 ?? ?? ?? ?? 8B F8 83 C4 04 85 FF 75),
+    ]),
+    my_LoadThisDll as _,
+);
 pub static Memory_Init: Pointer<unsafe extern "C" fn(*mut c_void, c_int) -> c_int> =
     Pointer::empty_patterns(
         b"Memory_Init\0",
@@ -1067,6 +1076,7 @@ static POINTERS: &[&dyn PointerTrait] = &[
     &idum,
     &movevars,
     &listener_origin,
+    &LoadThisDll,
     &Memory_Init,
     &Mem_Free,
     &paintbuffer,
@@ -2130,6 +2140,17 @@ pub mod exported {
     use super::*;
     use crate::gl;
     use crate::hooks::client;
+
+    #[export_name = "LoadThisDll"]
+    pub unsafe extern "C" fn my_LoadThisDll(dll_file_name: *mut c_char) {
+        abort_on_panic(move || {
+            let marker = MainThreadMarker::new();
+
+            disable_metamod::replace_dll_name(marker, dll_file_name);
+
+            LoadThisDll.get(marker)(dll_file_name);
+        });
+    }
 
     #[export_name = "Memory_Init"]
     pub unsafe extern "C" fn my_Memory_Init(buf: *mut c_void, size: c_int) -> c_int {
