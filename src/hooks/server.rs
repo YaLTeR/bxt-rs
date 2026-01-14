@@ -2,6 +2,7 @@
 
 #![allow(non_snake_case, non_upper_case_globals)]
 
+use std::borrow::BorrowMut;
 use std::os::raw::*;
 use std::ptr::NonNull;
 
@@ -70,9 +71,14 @@ pub unsafe extern "C" fn my_CmdStart(
         tas_recording::on_cmd_start(marker, *cmd, random_seed);
         tas_optimizer::on_cmd_start(marker);
 
+        *RANDOM_SEED.borrow_mut(marker) = Some(random_seed);
+
         CmdStart.get(marker)(player, cmd, random_seed);
     })
 }
+
+// TODO: directly grab from server, see comment https://github.com/YaLTeR/bxt-rs/pull/110#discussion_r1899846171
+pub static RANDOM_SEED: MainThreadRefCell<Option<c_uint>> = MainThreadRefCell::new(None);
 
 pub unsafe extern "C" fn my_PM_Move(ppmove: *mut playermove_s, server: c_int) {
     abort_on_panic(move || {

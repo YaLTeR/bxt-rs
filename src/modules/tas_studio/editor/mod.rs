@@ -1,4 +1,5 @@
-use std::cmp::{max, min};
+use std::cmp::min;
+use std::ffi::CStr;
 use std::fmt::Write;
 use std::iter::{self, zip};
 use std::num::NonZeroU32;
@@ -8,14 +9,15 @@ use std::time::Instant;
 
 use bxt_ipc_types::Frame;
 use bxt_strafe::{Hull, Trace};
-use color_eyre::eyre::{self, ensure};
+use color_eyre::eyre::{self, ensure, Context};
+use db::SplitInfo;
 use glam::{IVec2, Vec2, Vec3};
 use hltas::types::{
     AutoMovement, Change, ChangeTarget, Line, StrafeDir, StrafeSettings, StrafeType,
     VectorialStrafingConstraints,
 };
 use hltas::HLTAS;
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 use thiserror::Error;
 
 use self::db::{Action, ActionKind, Branch, Db};
@@ -27,7 +29,10 @@ use self::utils::{
     FrameBulkExt, MaxAccelOffsetValuesMut,
 };
 use super::remote::{AccurateFrame, PlayRequest};
+use super::MainThreadMarker;
+use crate::hooks::engine::{self, rng_state};
 use crate::hooks::sdl::MouseState;
+use crate::hooks::server::RANDOM_SEED;
 use crate::modules::tas_optimizer::simulator::Simulator;
 use crate::modules::tas_studio::editor::utils::MaxAccelOffsetValues;
 use crate::modules::triangle_drawing::triangle_api::{Primitive, RenderMode};
@@ -672,6 +677,13 @@ impl Editor {
         self.recompute_extra_camera_frame_data_if_needed();
 
         self.generation = self.generation.wrapping_add(1);
+
+        // TODO: is this fine
+        unsafe {
+            let marker = MainThreadMarker::new();
+            self.invalidate_splits_fb_idx(frame_idx, marker);
+            self.update_split_hltas(marker);
+        }
     }
 
     pub fn recompute_extra_camera_frame_data_if_needed(&mut self) {
@@ -3308,13 +3320,96 @@ impl Editor {
         let mut buffer = Vec::new();
         hltas::write::gen_lines(&mut buffer, to)
             .expect("writing to an in-memory buffer should never fail");
-        let to = String::from_utf8(buffer)
+        let to_str = String::from_utf8(buffer)
             .expect("Line serialization should never produce invalid UTF-8");
+
+        // remove split covered by `count`
+        if count == 0 {
+            // inserts lines, check if `to` inserts into split range
+            self.split_markers_mut().retain(|s| {
+                s.split_range.start > first_line_idx || s.split_range.end <= first_line_idx
+            });
+        } else {
+            self.split_markers_mut().retain(|s| {
+                s.split_range.start >= first_line_idx + count
+                    || (s.split_range.start < first_line_idx
+                        && s.split_range.end <= first_line_idx + count)
+            });
+        }
+
+        // generate splits in `to`
+
+        // if the first split in `to` is at index 0, and previous framebulk exists before `to` lines in the final script, the split marker generation wouldn't pick this up
+        // to get around this issue, we just include the lines before `to` up to the framebulk
+        let mut prev_script_start_idx = 0usize;
+        let lines = &self.script().lines;
+        for (i, line) in lines[..first_line_idx].iter().enumerate().rev() {
+            if matches!(line, Line::FrameBulk(_)) {
+                prev_script_start_idx = i;
+                break;
+            }
+        }
+        let to_for_splits = lines[prev_script_start_idx..first_line_idx]
+            .iter()
+            .chain(to)
+            .chain(&lines[first_line_idx + count..]);
+
+        let mut to_splits_stop = lines[first_line_idx + count..].iter();
+        let to_splits_stop = if first_line_idx < lines.len()
+            && matches!(&lines[first_line_idx], Line::FrameBulk(_))
+            && to.len().saturating_sub(count) == 0
+        {
+            // doesn't need to regenerate split, go before fb
+            to_splits_stop
+                .take_while(|t| !matches!(t, Line::FrameBulk(_)))
+                .count()
+        } else {
+            to_splits_stop
+                .take_while_inclusive(|t| !matches!(t, Line::FrameBulk(_)))
+                .count()
+        } + to.len();
+        let mut to_splits = SplitInfo::split_lines_with_stop(to_for_splits, to_splits_stop);
+        let offset_from = if !to_splits.is_empty() {
+            for split in to_splits.iter_mut() {
+                // offset to make up for the missing count
+                split.bulk_idx += prev_script_start_idx;
+                split.split_range.start += prev_script_start_idx;
+                split.split_range.end += prev_script_start_idx;
+            }
+            let splits = self.split_markers_mut();
+            let insert_idx = splits
+                .iter()
+                .position(|s| to_splits[0].split_range.start > s.split_range.start)
+                .map(|i| i + 1)
+                .unwrap_or(splits.len());
+            let offset_from = insert_idx + to_splits.len();
+            for (i, split) in to_splits.into_iter().enumerate() {
+                splits.insert(insert_idx + i, split);
+            }
+            offset_from
+        } else {
+            let splits = self.split_markers();
+            splits
+                .iter()
+                .position(|s| s.split_range.start >= first_line_idx)
+                .unwrap_or(splits.len())
+        };
+
+        // offset after `to` splits
+        let offset = isize::try_from(to.len())
+            .expect("length of `to` cannot be represented as isize")
+            - isize::try_from(count).expect("`count` cannot be represented as isize");
+        for split in self.split_markers_mut()[offset_from..].iter_mut() {
+            // shouldn't panic
+            split.bulk_idx = split.bulk_idx.checked_add_signed(offset).unwrap();
+            split.split_range.start = split.split_range.start.checked_add_signed(offset).unwrap();
+            split.split_range.end = split.split_range.end.checked_add_signed(offset).unwrap();
+        }
 
         let op = Operation::ReplaceMultiple {
             first_line_idx,
             from,
-            to,
+            to: to_str,
         };
         self.apply_operation(op)
     }
@@ -3460,7 +3555,8 @@ impl Editor {
             return Err(ManualOpError::CannotDoDuringAdjustment);
         }
 
-        let script = self.script();
+        let branch = &mut self.branch_mut().branch;
+        let script = &branch.script;
         if new_script == *script {
             return Ok(());
         }
@@ -3469,6 +3565,26 @@ impl Editor {
         if let Some((first_line_idx, count, to)) = replace_multiple_params(script, &new_script) {
             self.replace_multiple(first_line_idx, count, to)?;
             return Ok(());
+        }
+
+        // don't validate by checking save file, its a rewrite
+        branch.splits = SplitInfo::split_lines(new_script.lines.iter());
+
+        #[cfg(not(test))]
+        {
+            // TODO: is this fine to do
+            let game_dir = Path::new(
+                unsafe { CStr::from_ptr(engine::com_gamedir.get(MainThreadMarker::new()).cast()) }
+                    .to_str()
+                    .unwrap(),
+            );
+
+            // removes all corresponding saves so a game reload won't use wrong saves
+            for split in branch.splits.iter_mut() {
+                split
+                    .invalidate(game_dir)
+                    .wrap_err("Failed to delete save file linked to split")?;
+            }
         }
 
         let mut buffer = Vec::new();
@@ -3713,8 +3829,11 @@ impl Editor {
             return None;
         }
 
+        // TODO: test
+        let split_frame_idx = self.split_hltas().map(|split| split.1).unwrap_or_default();
+        let actual_frame_idx = frame.frame_idx + split_frame_idx;
         // TODO: make this nicer somehow maybe?
-        if frame.frame_idx == 0 {
+        if actual_frame_idx == 0 {
             // Initial frame is the same for all branches and between smoothed/unsmoothed.
             for branch_idx in 0..self.branches.len() {
                 let branch = &mut self.branches[branch_idx];
@@ -3735,7 +3854,7 @@ impl Editor {
 
         let branch = &mut self.branches[frame.branch_idx];
 
-        if frame.frame_idx > branch.first_predicted_frame {
+        if actual_frame_idx > branch.first_predicted_frame {
             // TODO: we can still use newer frames.
             return None;
         }
@@ -3747,35 +3866,55 @@ impl Editor {
 
             let frames = &mut branch.auto_smoothing.frames;
 
-            if frames.len() == frame.frame_idx {
+            if frames.len() == actual_frame_idx {
                 frames.push(frame.frame);
             } else {
-                let current_frame = &mut frames[frame.frame_idx];
+                let current_frame = &mut frames[actual_frame_idx];
                 if *current_frame != frame.frame {
                     *current_frame = frame.frame;
-                    frames.truncate(frame.frame_idx + 1);
+                    frames.truncate(actual_frame_idx + 1);
                 }
             }
 
             return None;
         }
 
-        branch.first_predicted_frame = max(frame.frame_idx + 1, branch.first_predicted_frame);
+        if actual_frame_idx + 1 > branch.first_predicted_frame {
+            branch.first_predicted_frame = actual_frame_idx + 1;
 
-        if branch.frames.len() == frame.frame_idx {
+            // TODO: test
+            let splits = &mut branch.branch.splits;
+            let split_valid_to =
+                splits.partition_point(|s| s.bulk_idx >= branch.first_predicted_frame);
+            for split in splits[..split_valid_to].iter_mut() {
+                split.ready = true;
+            }
+
+            // just in case
+            // TODO: test
+            if split_valid_to <= splits.len() {
+                let split = &mut splits[split_valid_to - 1];
+
+                // TODO: test if rng is accurate
+                split.shared_rng = Some(frame.random_seed);
+                split.non_shared_rng = Some(Either::Right(frame.rng_state));
+            }
+        }
+
+        if branch.frames.len() == actual_frame_idx {
             branch.frames.push(frame.frame);
             branch.extra_cam.clear();
         } else {
-            let current_frame = &mut branch.frames[frame.frame_idx];
+            let current_frame = &mut branch.frames[actual_frame_idx];
             if *current_frame != frame.frame {
                 *current_frame = frame.frame;
 
                 branch.first_predicted_frame =
-                    min(branch.first_predicted_frame, frame.frame_idx + 1);
+                    min(branch.first_predicted_frame, actual_frame_idx + 1);
                 branch.extra_cam.clear();
 
                 if truncate_on_mismatch {
-                    branch.frames.truncate(frame.frame_idx + 1);
+                    branch.frames.truncate(actual_frame_idx + 1);
                 }
             }
         }
@@ -3789,8 +3928,19 @@ impl Editor {
                 .map(|bulk| bulk.frame_count.get() as usize)
                 .sum::<usize>();
 
-            if frame.frame_idx + 1 == frame_count {
-                let mut smoothed_script = branch.branch.script.clone();
+            if actual_frame_idx + 1 == frame_count {
+                // TODO: test
+                unsafe {
+                    self.update_split_hltas(MainThreadMarker::new());
+                }
+
+                let branch = &mut self.branches[frame.branch_idx];
+                let mut smoothed_script = branch
+                    .branch
+                    .split
+                    .as_ref()
+                    .map(|split| split.0.clone())
+                    .unwrap_or_else(|| branch.branch.script.clone());
 
                 // Enable vectorial strafing if it wasn't enabled.
                 smoothed_script
@@ -3849,6 +3999,11 @@ impl Editor {
                 }
 
                 branch.auto_smoothing.script = Some(smoothed_script.clone());
+                // TODO: test
+                if let Some(split) = &branch.branch.split {
+                    branch.branch.split = Some((smoothed_script.clone(), split.1));
+                }
+
                 return Some(PlayRequest {
                     script: smoothed_script,
                     generation: self.generation,
@@ -4552,6 +4707,93 @@ impl Editor {
 
         tri.end();
     }
+
+    pub fn split_markers(&self) -> &[SplitInfo] {
+        &self.branch().branch.splits
+    }
+
+    pub fn split_markers_mut(&mut self) -> &mut Vec<SplitInfo> {
+        &mut self.branch_mut().branch.splits
+    }
+
+    /// Invalidates split markers with a framebulk index
+    pub fn invalidate_splits_fb_idx(&mut self, fb_idx: usize, _marker: MainThreadMarker) {
+        let invalid_split_idx = self.split_idx_from_fb_idx(fb_idx);
+        let splits = self.split_markers_mut();
+
+        #[cfg(not(test))]
+        let game_dir = Path::new(
+            unsafe { CStr::from_ptr(engine::com_gamedir.get(_marker).cast()) }
+                .to_str()
+                .unwrap(),
+        );
+
+        for split in splits[invalid_split_idx..].iter_mut() {
+            #[cfg(test)]
+            {
+                split.ready = false;
+            }
+
+            // TODO: propagate error, print outside.
+            #[cfg(not(test))]
+            if let Err(err) = split.invalidate(game_dir) {
+                error!("error receiving request from server: {err:?}");
+            }
+        }
+    }
+
+    // TODO: test
+    /// Updates split state
+    pub fn update_split_hltas(&mut self, _marker: MainThreadMarker) {
+        #[cfg(not(test))]
+        let game_dir = Path::new(
+            unsafe { CStr::from_ptr(engine::com_gamedir.get(_marker).cast()) }
+                .to_str()
+                .unwrap(),
+        );
+
+        let mut split_found = None;
+        let fb_idx = self.branch().first_predicted_frame;
+
+        for (i, split) in self.split_markers_mut().iter_mut().enumerate().rev() {
+            // uses >= comparison because, if first predicted frame is passed in and it is 0
+            // it could match with a split where there's 1 framebulk before split (bulk_idx is 0)
+            if split.bulk_idx >= fb_idx {
+                continue;
+            }
+            #[cfg(not(test))]
+            split.validate(game_dir);
+            if split.ready {
+                split_found = Some(i);
+                break;
+            }
+        }
+
+        let Some(split) = split_found else {
+            self.branch_mut().branch.split = None;
+            return;
+        };
+        let split = &self.split_markers()[split];
+
+        let split_script = split.split_hltas(self.script());
+        self.branch_mut().branch.split = Some((split_script, fb_idx));
+    }
+
+    /// Gets the split index equals or higher than fb_idx
+    fn split_idx_from_fb_idx(&self, fb_idx: usize) -> usize {
+        self.split_markers()
+            .partition_point(|s| s.bulk_idx < fb_idx)
+    }
+
+    /// Gets the split index before fb_idx
+    fn split_idx_before_fb_idx(&self, fb_idx: usize) -> usize {
+        self.split_markers()
+            .partition_point(|s| s.bulk_idx >= fb_idx)
+    }
+
+    pub fn split_hltas(&self) -> Option<&(HLTAS, usize)> {
+        self.branch().branch.split.as_ref()
+    }
 }
 
 fn perpendicular(prev: Vec3, next: Vec3) -> Vec3 {
@@ -5102,6 +5344,123 @@ mod tests {
                     -0.9,
                 ]
             "#]],
+        );
+    }
+
+    #[test]
+    fn rewrite_split_check() {
+        let script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|0|-|6\n\
+                ----------|------|------|0.004|10|-|6\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.004|20|-|6\n\
+                ----------|------|------|0.004|30|-|6",
+        )
+        .unwrap();
+        let mut editor = Editor::create_in_memory(&script).unwrap();
+
+        let new_script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|0|-|6\n\
+                ----------|------|------|0.004|10|-|6\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.004|30|-|6",
+        )
+        .unwrap();
+        editor.rewrite(new_script).unwrap();
+        assert_eq!(
+            &[SplitInfo {
+                split_range: 2..3,
+                bulk_idx: 1,
+                name: "name".to_string(),
+                split_type: db::SplitType::Comment,
+                ready: false,
+                non_shared_rng: None,
+                shared_rng: None,
+            }],
+            editor.split_markers()
+        );
+
+        let new_script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|0|-|6\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.004|30|-|6",
+        )
+        .unwrap();
+        editor.rewrite(new_script).unwrap();
+        assert_eq!(
+            &[SplitInfo {
+                split_range: 1..2,
+                bulk_idx: 0,
+                name: "name".to_string(),
+                split_type: db::SplitType::Comment,
+                ready: false,
+                non_shared_rng: None,
+                shared_rng: None,
+            }],
+            editor.split_markers()
+        );
+
+        let script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|10|-|6\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.004|20|-|6",
+        )
+        .unwrap();
+        let mut editor = Editor::create_in_memory(&script).unwrap();
+
+        let new_script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|20|-|6",
+        )
+        .unwrap();
+        editor.rewrite(new_script).unwrap();
+        assert!(editor.split_markers().is_empty());
+
+        let new_script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|20|-|6\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.004|10|-|6",
+        )
+        .unwrap();
+        editor.rewrite(new_script).unwrap();
+        assert_eq!(
+            vec![SplitInfo {
+                split_range: 1..2,
+                bulk_idx: 0,
+                name: "name".to_owned(),
+                split_type: db::SplitType::Comment,
+                ready: false,
+                non_shared_rng: None,
+                shared_rng: None,
+            }],
+            editor.split_markers()
+        );
+
+        let new_script = HLTAS::from_str(
+            "version 1\nframes\n\
+                ----------|------|------|0.004|20|-|6\n\
+                seed 0\n\
+                // bxt-rs-split name\n\
+                ----------|------|------|0.004|10|-|6",
+        )
+        .unwrap();
+        editor.rewrite(new_script).unwrap();
+        assert_eq!(
+            vec![SplitInfo {
+                split_range: 1..3,
+                bulk_idx: 0,
+                name: "name".to_owned(),
+                split_type: db::SplitType::Comment,
+                ready: false,
+                non_shared_rng: None,
+                shared_rng: Some(u32::wrapping_neg(14)),
+            }],
+            editor.split_markers()
         );
     }
 
