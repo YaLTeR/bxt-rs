@@ -11,6 +11,12 @@ layout (binding = 1) buffer OutputBuffer {
     uint8_t output_buffer[];
 };
 
+// sRGB opto-electronic transfer function
+vec3 sRGB_OETF(vec3 value)
+{
+    return pow(value, vec3(1.0 / 2.2));
+}
+
 void main() {
     vec2 size = textureSize(image_sample, 0);
     uint width = uint(size.x), height = uint(size.y);
@@ -20,6 +26,7 @@ void main() {
         return;
 
     vec4 color = texture(image_sample, vec2(x + 0.5, y + 0.5));
+    color.rgb = sRGB_OETF(color.rgb);
 
     // The OpenGL coordinate system is upside-down compared to the usual video coordinate systems.
     // Let's invert it here in the shader.
