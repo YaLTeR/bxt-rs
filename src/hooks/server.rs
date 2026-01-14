@@ -5,16 +5,19 @@
 use std::os::raw::*;
 use std::ptr::NonNull;
 
+use crate::ffi::edict::edict_s;
 use crate::ffi::playermove::playermove_s;
 use crate::ffi::usercmd::usercmd_s;
 use crate::hooks::engine;
-use crate::modules::{tas_logging, tas_optimizer, tas_recording, tas_server_time_fix};
+use crate::modules::{tas_logging, tas_optimizer, tas_recording, tas_server_time_fix, timer};
 use crate::utils::*;
 
-pub static CmdStart: Pointer<unsafe extern "C" fn(*mut c_void, *mut usercmd_s, c_uint)> =
+pub static CmdStart: Pointer<unsafe extern "C" fn(*const edict_s, *const usercmd_s, c_uint)> =
     Pointer::empty(b"CmdStart\0");
 pub static PM_Move: Pointer<unsafe extern "C" fn(*mut playermove_s, c_int)> =
     Pointer::empty(b"PM_Move\0");
+pub static DispatchTouch: Pointer<unsafe extern "C" fn(*mut edict_s, *mut edict_s)> =
+    Pointer::empty(b"DispatchTouch\0");
 
 /// # Safety
 ///
@@ -34,6 +37,11 @@ pub unsafe fn hook_entity_interface(marker: MainThreadMarker) {
     if let Some(cmd_start) = &mut functions.cmd_start {
         CmdStart.set(marker, Some(NonNull::new_unchecked(*cmd_start as _)));
         *cmd_start = my_CmdStart;
+    }
+
+    if let Some(pfnTouch) = &mut functions.pfnTouch {
+        DispatchTouch.set(marker, Some(NonNull::new_unchecked(*pfnTouch as _)));
+        *pfnTouch = my_DispatchTouch;
     }
 }
 
@@ -56,11 +64,16 @@ pub unsafe fn reset_entity_interface(marker: MainThreadMarker) {
         *cmd_start = CmdStart.get(marker);
         CmdStart.reset(marker);
     }
+
+    if let Some(pfnTouch) = &mut functions.pfnTouch {
+        *pfnTouch = DispatchTouch.get(marker);
+        DispatchTouch.reset(marker);
+    }
 }
 
 pub unsafe extern "C" fn my_CmdStart(
-    player: *mut c_void,
-    cmd: *mut usercmd_s,
+    player: *const edict_s,
+    cmd: *const usercmd_s,
     random_seed: c_uint,
 ) {
     abort_on_panic(move || {
@@ -86,5 +99,15 @@ pub unsafe extern "C" fn my_PM_Move(ppmove: *mut playermove_s, server: c_int) {
         tas_server_time_fix::on_pm_move_end(marker, ppmove);
         tas_logging::write_post_pm_state(marker, ppmove);
         tas_logging::end_cmd_frame(marker);
+    })
+}
+
+pub unsafe extern "C" fn my_DispatchTouch(used: *mut edict_s, other: *mut edict_s) {
+    abort_on_panic(move || {
+        let marker = MainThreadMarker::new();
+
+        timer::on_dispatch_touch(marker, used);
+
+        DispatchTouch.get(marker)(used, other);
     })
 }

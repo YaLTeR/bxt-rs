@@ -7,8 +7,11 @@
 //! ```
 //!
 //! and then manually cleaned up a bit.
+//!
+//! Some files are manually done though!
 
 pub mod buttons;
+pub mod cl_enginefuncs;
 pub mod com_model;
 pub mod command;
 pub mod cvar;
@@ -17,5 +20,7 @@ pub mod physent;
 pub mod playermove;
 pub mod pmplane;
 pub mod pmtrace;
+pub mod progdefs;
+pub mod server;
 pub mod triangleapi;
 pub mod usercmd;

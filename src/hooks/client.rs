@@ -7,7 +7,7 @@ use std::ptr::NonNull;
 
 use super::engine::{self, ref_params_s};
 use crate::ffi::usercmd::usercmd_s;
-use crate::modules::{hud, hud_scale, tas_studio, triangle_drawing, viewmodel_sway};
+use crate::modules::{hud, hud_scale, sprite, tas_studio, triangle_drawing, viewmodel_sway};
 use crate::utils::{abort_on_panic, MainThreadMarker, Pointer, PointerTrait};
 
 pub static HudInitFunc: Pointer<unsafe extern "C" fn()> = Pointer::empty(b"HudInitFunc\0");
@@ -198,6 +198,8 @@ pub unsafe extern "C" fn my_HudVidInitFunc() {
         if let Some(f) = HudVidInitFunc.get_opt(marker) {
             hud_scale::with_scaled_screen_info(marker, move || f());
         }
+
+        sprite::load_sprite(marker);
     })
 }
 
