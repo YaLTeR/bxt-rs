@@ -25,6 +25,7 @@ pub mod campath;
 pub mod capture;
 pub mod capture_skip_non_gameplay;
 pub mod capture_video_per_demo;
+pub mod checkpoint_menu;
 pub mod comment_overflow_fix;
 pub mod demo_playback;
 pub mod disable_loading_text;
@@ -36,6 +37,7 @@ pub mod help;
 pub mod hud;
 pub mod hud_scale;
 pub mod lightstyle;
+pub mod menu;
 pub mod novis;
 pub mod player_movement_tracing;
 pub mod remote_forbid;
@@ -51,6 +53,7 @@ pub mod tas_recording;
 pub mod tas_server_time_fix;
 pub mod tas_studio;
 pub mod triangle_drawing;
+pub mod user_defined_menu;
 pub mod viewmodel_remove;
 pub mod viewmodel_sway;
 pub mod wallhack;
@@ -92,6 +95,7 @@ pub static MODULES: &[&dyn Module] = &[
     &capture::Capture,
     &capture_skip_non_gameplay::CaptureSkipNonGameplay,
     &capture_video_per_demo::CaptureVideoPerDemo,
+    &checkpoint_menu::CheckpointMenu,
     &commands::Commands,
     &comment_overflow_fix::CommentOverflowFix,
     &cvars::CVars,
@@ -105,6 +109,7 @@ pub static MODULES: &[&dyn Module] = &[
     &hud::Hud,
     &hud_scale::HudScale,
     &lightstyle::LightStyle,
+    &menu::Menu,
     &novis::NoVis,
     &player_movement_tracing::PlayerMovementTracing,
     &remote_forbid::RemoteForbid,
@@ -120,6 +125,7 @@ pub static MODULES: &[&dyn Module] = &[
     &tas_server_time_fix::TasServerTimeFix,
     &tas_studio::TasStudio,
     &triangle_drawing::TriangleDrawing,
+    &user_defined_menu::UserDefinedMenu,
     &viewmodel_remove::ViewmodelRemove,
     &viewmodel_sway::ViewmodelSway,
     &wallhack::Wallhack,
