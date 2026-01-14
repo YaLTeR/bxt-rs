@@ -25,11 +25,10 @@ pub mod campath;
 pub mod capture;
 pub mod capture_skip_non_gameplay;
 pub mod capture_video_per_demo;
+pub mod clear;
 pub mod comment_overflow_fix;
 pub mod demo_playback;
-pub mod disable_loading_text;
 pub mod emit_sound;
-pub mod fade_remove;
 pub mod fix_widescreen;
 pub mod force_fov;
 pub mod help;
@@ -39,19 +38,16 @@ pub mod lightstyle;
 pub mod novis;
 pub mod player_movement_tracing;
 pub mod remote_forbid;
+pub mod remove_stuffs;
 pub mod rng_set;
-pub mod scoreboard_remove;
-pub mod shake_remove;
 pub mod show_player_in_hltv;
 pub mod skybox_change;
-pub mod skybox_remove;
 pub mod tas_logging;
 pub mod tas_optimizer;
 pub mod tas_recording;
 pub mod tas_server_time_fix;
 pub mod tas_studio;
 pub mod triangle_drawing;
-pub mod viewmodel_remove;
 pub mod viewmodel_sway;
 pub mod wallhack;
 
@@ -92,13 +88,12 @@ pub static MODULES: &[&dyn Module] = &[
     &capture::Capture,
     &capture_skip_non_gameplay::CaptureSkipNonGameplay,
     &capture_video_per_demo::CaptureVideoPerDemo,
+    &clear::Clear,
     &commands::Commands,
     &comment_overflow_fix::CommentOverflowFix,
     &cvars::CVars,
     &demo_playback::DemoPlayback,
-    &disable_loading_text::DisableLoadingText,
     &emit_sound::EmitSound,
-    &fade_remove::FadeRemove,
     &fix_widescreen::FixWidescreen,
     &force_fov::ForceFov,
     &help::Help,
@@ -108,19 +103,16 @@ pub static MODULES: &[&dyn Module] = &[
     &novis::NoVis,
     &player_movement_tracing::PlayerMovementTracing,
     &remote_forbid::RemoteForbid,
+    &remove_stuffs::RemoveStuffs,
     &rng_set::RngSet,
-    &scoreboard_remove::ScoreboardRemove,
-    &shake_remove::ShakeRemove,
     &show_player_in_hltv::ShowPlayerInHltv,
     &skybox_change::SkyboxChange,
-    &skybox_remove::SkyboxRemove,
     &tas_logging::TasLogging,
     &tas_optimizer::TasOptimizer,
     &tas_recording::TasRecording,
     &tas_server_time_fix::TasServerTimeFix,
     &tas_studio::TasStudio,
     &triangle_drawing::TriangleDrawing,
-    &viewmodel_remove::ViewmodelRemove,
     &viewmodel_sway::ViewmodelSway,
     &wallhack::Wallhack,
 ];

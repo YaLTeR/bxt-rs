@@ -9,6 +9,7 @@
 //! and then manually cleaned up a bit.
 
 pub mod buttons;
+pub mod cl_entity;
 pub mod com_model;
 pub mod command;
 pub mod cvar;
