@@ -17,6 +17,7 @@ use hltas::types::{
 use hltas::HLTAS;
 use itertools::Itertools;
 use thiserror::Error;
+use utils::get_ignore_smoothing_frames;
 
 use self::db::{Action, ActionKind, Branch, Db};
 use self::operation::{Key, Operation};
@@ -3512,12 +3513,15 @@ impl Editor {
         let yaws = frames.iter().map(|f| f.state.prev_frame_input.yaw);
         let pitches = frames.iter().map(|f| f.state.prev_frame_input.pitch);
 
+        let ignore_smoothing_frames = get_ignore_smoothing_frames(&self.script(), frames.len());
+
         let smoothed_yaws = smoothed_views(
             self.smooth_window_s,
             self.smooth_small_window_s,
             self.smooth_small_window_multiplier,
             &frames[..frames.len()],
             yaws,
+            ignore_smoothing_frames.as_slice(),
         );
 
         let smoothed_pitches = smoothed_views(
@@ -3526,6 +3530,7 @@ impl Editor {
             self.smooth_small_window_multiplier,
             &frames[..frames.len()],
             pitches,
+            ignore_smoothing_frames.as_slice(),
         );
 
         let mut line = "target_yaw_override".to_string();
@@ -3583,6 +3588,8 @@ impl Editor {
             ));
         }
 
+        let ignore_smoothing_frames = get_ignore_smoothing_frames(&self.script(), frames.len());
+
         let yaws = frames.iter().map(|f| f.state.prev_frame_input.yaw);
         let mut smoothed_yaws = smoothed_views(
             self.smooth_window_s,
@@ -3590,6 +3597,7 @@ impl Editor {
             self.smooth_small_window_multiplier,
             &frames[start..=end],
             yaws,
+            &ignore_smoothing_frames.as_slice()[start..=end],
         );
 
         // Skip the first frame because it is the initial frame before the start of the TAS.
@@ -3807,12 +3815,16 @@ impl Editor {
                 let yaws = branch.frames.iter().map(|f| f.state.prev_frame_input.yaw);
                 let pitches = branch.frames.iter().map(|f| f.state.prev_frame_input.pitch);
 
+                let ignore_smoothing_frames =
+                    get_ignore_smoothing_frames(&smoothed_script, branch.frames.len());
+
                 let mut smoothed_yaws = smoothed_views(
                     self.smooth_window_s,
                     self.smooth_small_window_s,
                     self.smooth_small_window_multiplier,
                     &branch.frames,
                     yaws,
+                    &ignore_smoothing_frames.as_slice(),
                 );
                 let mut smoothed_pitches = smoothed_views(
                     self.smooth_window_s,
@@ -3820,6 +3832,7 @@ impl Editor {
                     self.smooth_small_window_multiplier,
                     &branch.frames,
                     pitches,
+                    &ignore_smoothing_frames.as_slice(),
                 );
 
                 // First yaw corresponds to the initial frame, which is not controlled by the TAS.
@@ -4581,10 +4594,11 @@ fn forward(pitch: f32, yaw: f32) -> Vec3 {
 }
 
 fn unwrap_angles(xs: impl Iterator<Item = f32>) -> impl Iterator<Item = f32> {
-    use std::f32::consts::PI;
+    // does things in f64 to avoid imprecision
+    use std::f64::consts::PI;
 
     xs.scan((0., 0.), |(prev, offset), curr| {
-        let mut diff = curr - *prev + *offset;
+        let mut diff = curr as f64 - *prev as f64 + *offset as f64;
         while diff >= PI {
             diff -= 2. * PI;
             *offset -= 2. * PI;
@@ -4595,7 +4609,7 @@ fn unwrap_angles(xs: impl Iterator<Item = f32>) -> impl Iterator<Item = f32> {
         }
 
         *prev += diff;
-        Some(*prev)
+        Some(*prev as f32)
     })
 }
 
@@ -4605,6 +4619,7 @@ fn smoothed_views(
     small_window_multiplier: f32,
     frames: &[Frame],
     views: impl Iterator<Item = f32>,
+    ignore_smoothing_frames: &[bool],
 ) -> Vec<f32> {
     if frames.is_empty() {
         return vec![];
@@ -4626,6 +4641,11 @@ fn smoothed_views(
     // The smoothing window is centered at the center of each yaw.
     // For pitch smoothing, every frame has both pitch and yaw so iterate over this is ok.
     for i in 0..unwrapped.len() {
+        if ignore_smoothing_frames[i] {
+            rv.push(unwrapped[i]);
+            continue;
+        }
+
         let mut total_view = 0.;
         let mut total_weight = 0.;
 
@@ -4950,6 +4970,7 @@ mod tests {
         input: impl IntoIterator<Item = (f32, f32)>,
         small_window_size: f32,
         expect: Expect,
+        ignore_smoothing_frames: &[bool],
     ) {
         let frames: Vec<Frame> = input
             .into_iter()
@@ -4969,7 +4990,14 @@ mod tests {
             .collect();
 
         let yaws = frames.iter().map(|f| f.state.prev_frame_input.yaw);
-        let smoothed = smoothed_views(1., small_window_size, 4., &frames, yaws);
+        let smoothed = smoothed_views(
+            1.,
+            small_window_size,
+            4.,
+            &frames,
+            yaws,
+            ignore_smoothing_frames,
+        );
         expect.assert_debug_eq(&smoothed);
     }
 
@@ -4985,6 +5013,7 @@ mod tests {
                 2.0,
             ]
         "#]],
+            vec![false; 3].as_slice(),
         );
     }
 
@@ -5008,6 +5037,7 @@ mod tests {
                     -0.75,
                 ]
             "#]],
+            vec![false; 5].as_slice(),
         );
     }
 
@@ -5031,6 +5061,7 @@ mod tests {
                     -0.75,
                 ]
             "#]],
+            vec![false; 5].as_slice(),
         );
     }
 
@@ -5054,6 +5085,7 @@ mod tests {
                     -0.9,
                 ]
             "#]],
+            vec![false; 5].as_slice(),
         );
     }
 
@@ -5079,6 +5111,7 @@ mod tests {
                     -0.9,
                 ]
             "#]],
+            vec![false; 6].as_slice(),
         );
     }
 
@@ -5102,6 +5135,79 @@ mod tests {
                     -0.9,
                 ]
             "#]],
+            vec![false; 5].as_slice(),
+        );
+    }
+
+    #[test]
+    fn test_smoothing_ignore1() {
+        check_smoothing(
+            [
+                (0.25, -1.),
+                (0.25, -1.),
+                (0.4, 1.),
+                (0.25, -1.),
+                (0.25, -1.),
+            ],
+            0.5,
+            expect![[r#"
+                [
+                    -1.0,
+                    -0.4,
+                    0.28000003,
+                    -0.4,
+                    -0.9,
+                ]
+            "#]],
+            &[true, false, false, false, false],
+        );
+    }
+
+    #[test]
+    fn test_smoothing_ignore2() {
+        check_smoothing(
+            [
+                (0.25, -1.),
+                (0.25, -1.),
+                (0.4, 1.),
+                (0.25, -1.),
+                (0.25, -1.),
+            ],
+            0.5,
+            expect![[r#"
+                [
+                    -1.0,
+                    -0.4,
+                    0.28000003,
+                    -0.4,
+                    -1.0,
+                ]
+            "#]],
+            &[true, false, false, false, true],
+        );
+    }
+
+    #[test]
+    fn test_smoothing_ignore3() {
+        check_smoothing(
+            [
+                (0.25, -1.),
+                (0.25, -1.),
+                (0.4, 1.),
+                (0.25, -1.),
+                (0.25, -1.),
+            ],
+            0.5,
+            expect![[r#"
+                [
+                    -1.0,
+                    -0.4,
+                    1.0,
+                    -0.4,
+                    -1.0,
+                ]
+            "#]],
+            &[true, false, true, false, true],
         );
     }
 
