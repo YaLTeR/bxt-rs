@@ -2496,6 +2496,8 @@ pub mod exported {
 
                 tas_studio::update_client_connection_condition(marker);
                 tas_studio::maybe_receive_messages_from_remote_server(marker);
+
+                manual_autofuncs::process_manual_autofuncs(marker);
             }
 
             rv
