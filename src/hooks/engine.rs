@@ -1489,6 +1489,23 @@ pub unsafe fn player_edict(marker: MainThreadMarker) -> Option<NonNull<edict_s>>
     }
 }
 
+// TODO: make good.
+pub unsafe fn find_cvar(marker: MainThreadMarker, name: &str) -> Option<*mut cvar_s> {
+    let mut ptr = *cvar_vars.get_opt(marker)?;
+    while !ptr.is_null() {
+        match std::ffi::CStr::from_ptr((*ptr).name).to_str() {
+            Ok(x) if x == name => {
+                return Some(ptr);
+            }
+            _ => (),
+        }
+
+        ptr = (*ptr).next;
+    }
+
+    None
+}
+
 /// # Safety
 ///
 /// [`reset_pointers()`] must be called before hw is unloaded so the pointers don't go stale.

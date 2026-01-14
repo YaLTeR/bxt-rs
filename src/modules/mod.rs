@@ -26,6 +26,7 @@ pub mod capture;
 pub mod capture_skip_non_gameplay;
 pub mod capture_video_per_demo;
 pub mod comment_overflow_fix;
+pub mod cvar_toggle;
 pub mod demo_playback;
 pub mod disable_loading_text;
 pub mod emit_sound;
@@ -95,6 +96,7 @@ pub static MODULES: &[&dyn Module] = &[
     &commands::Commands,
     &comment_overflow_fix::CommentOverflowFix,
     &cvars::CVars,
+    &cvar_toggle::CVarToggle,
     &demo_playback::DemoPlayback,
     &disable_loading_text::DisableLoadingText,
     &emit_sound::EmitSound,

@@ -27,97 +27,44 @@ pub trait CommandHandler {
 // And if the lifetime is not explicit, then "as fn(_, _)" doesn't work because it wants "for<'r>
 // fn(&'r _, _)" or something.
 
-impl CommandHandler for fn(MainThreadMarker) {
-    unsafe fn handle(self, marker: MainThreadMarker) -> bool {
-        let args = Args::new(marker).skip(1);
-        if args.len() != 0 {
-            return false;
+macro_rules! impl_command_handler {
+    ($($arg:ident),*) => {
+        impl<$($arg: FromStr),*> CommandHandler for fn(MainThreadMarker, $($arg),*) {
+            unsafe fn handle(self, marker: MainThreadMarker) -> bool {
+                let mut args = Args::new(marker).skip(1);
+                let expected_len = 0 $(+ { let _ = stringify!($arg); 1 })*;
+
+                if args.len() != expected_len {
+                    return false;
+                }
+
+                $(
+                    let $arg = match args.next().and_then(|s| parse_arg::<$arg>(s)) {
+                        Some(val) => val,
+                        None => return false,
+                    };
+                )*
+
+                drop(args);
+                self(marker, $($arg),*);
+
+                true
+            }
         }
-
-        drop(args);
-        self(marker);
-
-        true
-    }
+    };
 }
 
-impl<A1: FromStr> CommandHandler for fn(MainThreadMarker, A1) {
-    unsafe fn handle(self, marker: MainThreadMarker) -> bool {
-        let mut args = Args::new(marker).skip(1);
-        if args.len() != 1 {
-            return false;
-        }
-
-        let a1 = if let Some(a1) = args.next().and_then(parse_arg) {
-            a1
-        } else {
-            return false;
-        };
-
-        drop(args);
-        self(marker, a1);
-
-        true
-    }
-}
-
-impl<A1: FromStr, A2: FromStr> CommandHandler for fn(MainThreadMarker, A1, A2) {
-    unsafe fn handle(self, marker: MainThreadMarker) -> bool {
-        let mut args = Args::new(marker).skip(1);
-        if args.len() != 2 {
-            return false;
-        }
-
-        let a1 = if let Some(a1) = args.next().and_then(parse_arg) {
-            a1
-        } else {
-            return false;
-        };
-
-        let a2 = if let Some(a2) = args.next().and_then(parse_arg) {
-            a2
-        } else {
-            return false;
-        };
-
-        drop(args);
-        self(marker, a1, a2);
-
-        true
-    }
-}
-
-impl<A1: FromStr, A2: FromStr, A3: FromStr> CommandHandler for fn(MainThreadMarker, A1, A2, A3) {
-    unsafe fn handle(self, marker: MainThreadMarker) -> bool {
-        let mut args = Args::new(marker).skip(1);
-        if args.len() != 3 {
-            return false;
-        }
-
-        let a1 = if let Some(a1) = args.next().and_then(parse_arg) {
-            a1
-        } else {
-            return false;
-        };
-
-        let a2 = if let Some(a2) = args.next().and_then(parse_arg) {
-            a2
-        } else {
-            return false;
-        };
-
-        let a3 = if let Some(a3) = args.next().and_then(parse_arg) {
-            a3
-        } else {
-            return false;
-        };
-
-        drop(args);
-        self(marker, a1, a2, a3);
-
-        true
-    }
-}
+impl_command_handler!();
+impl_command_handler!(A1);
+impl_command_handler!(A1, A2);
+impl_command_handler!(A1, A2, A3);
+impl_command_handler!(A1, A2, A3, A4);
+impl_command_handler!(A1, A2, A3, A4, A5);
+impl_command_handler!(A1, A2, A3, A4, A5, A6);
+impl_command_handler!(A1, A2, A3, A4, A5, A6, A7);
+impl_command_handler!(A1, A2, A3, A4, A5, A6, A7, A8);
+impl_command_handler!(A1, A2, A3, A4, A5, A6, A7, A8, A9);
+impl_command_handler!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10);
 
 /// Wraps a function accepting `FromStr` arguments as a console command handler.
 ///
