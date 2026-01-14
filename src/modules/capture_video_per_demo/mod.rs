@@ -2,13 +2,23 @@
 
 use std::ffi::{CStr, CString, OsStr};
 use std::path::PathBuf;
+use std::time::Duration;
 use std::{fs, mem};
 
 use super::commands::{self, Command};
-use super::{capture, Module};
+use super::cvars::CVar;
+use super::{capture, demo_playback, Module};
 use crate::handler;
 use crate::hooks::engine::{self, con_print};
 use crate::utils::*;
+
+mod remote;
+
+pub use remote::{
+    maybe_receive_request_from_remote_server, maybe_start_client_connection_thread,
+    update_client_connection_condition,
+};
+use remote::{maybe_receive_status_and_send_requests, start_server};
 
 pub struct CaptureVideoPerDemo;
 impl Module for CaptureVideoPerDemo {
@@ -25,11 +35,23 @@ impl Module for CaptureVideoPerDemo {
         COMMANDS
     }
 
+    fn cvars(&self) -> &'static [&'static CVar] {
+        static CVARS: &[&CVar] = &[
+            &BXT_CAP_SEPARATE_MULTIGAME,
+            &BXT_CAP_SEPARATE_MULTIGAME_EXEC,
+        ];
+        CVARS
+    }
+
     fn is_enabled(&self, marker: MainThreadMarker) -> bool {
         capture::Capture.is_enabled(marker)
             && commands::Commands.is_enabled(marker)
             && engine::CL_PlayDemo_f.is_set(marker)
             && engine::cls_demos.is_set(marker)
+            && demo_playback::DemoPlayback.is_enabled(marker)
+            && engine::Host_FilterTime.is_set(marker)
+            && engine::host_frametime.is_set(marker)
+            && engine::com_gamedir.is_set(marker)
     }
 }
 
@@ -51,6 +73,22 @@ Use `bxt_cap_stop` to stop the recording.",
     ),
 );
 
+static BXT_CAP_SEPARATE_MULTIGAME: CVar = CVar::new(
+    b"bxt_cap_separate_multigame\0",
+    b"0\0",
+    "\
+Enables multi-game recording when used along with bxt_play_folder/run.
+
+Simply starting another instance of the game to capture.",
+);
+
+static BXT_CAP_SEPARATE_MULTIGAME_EXEC: CVar = CVar::new(
+    b"bxt_cap_separate_multigame_exec\0",
+    b"\0",
+    "\
+Sets the config file name (.cfg) to load before capturing.",
+);
+
 /// Name of the demo currently being played back.
 static CURRENT_DEMO: MainThreadRefCell<Option<CString>> = MainThreadRefCell::new(None);
 /// Name of the demo about to be played back.
@@ -65,6 +103,9 @@ static IS_ACTIVE: MainThreadCell<bool> = MainThreadCell::new(false);
 ///
 /// If `None`, videos are saved in the same folders as the demos.
 static TARGET_DIR: MainThreadRefCell<Option<PathBuf>> = MainThreadRefCell::new(None);
+
+// static RECORD_REQUEST: MainThreadRefCell<Option<RecordRequest>> = MainThreadRefCell::new(None);
+// static PLAY_REQUEST: Arc<Mutex<Option<RecordRequest>>> = Arc::new(Mutex::new(None));
 
 fn cap_separate_start(marker: MainThreadMarker) {
     if !CaptureVideoPerDemo.is_enabled(marker) {
@@ -109,6 +150,13 @@ fn cap_separate_start_with_dir(marker: MainThreadMarker, target_dir: PathBuf) {
 }
 
 fn maybe_start_capture(marker: MainThreadMarker) {
+    if let Err(err) = start_server() {
+        con_print(
+            marker,
+            &format!("Could not start a server for multi-game recording: {err:?}"),
+        );
+    }
+
     let Some(current_demo) = &*CURRENT_DEMO.borrow(marker) else {
         return;
     };
@@ -212,4 +260,35 @@ pub unsafe fn on_cl_disconnect(marker: MainThreadMarker) -> bool {
     }
 
     true
+}
+
+static POLLING_TIMER: MainThreadRefCell<Duration> = MainThreadRefCell::new(Duration::from_secs(2));
+
+pub fn capture_video_per_demo_multigame_polling(marker: MainThreadMarker) {
+    if !CaptureVideoPerDemo.is_enabled(marker) {
+        return;
+    }
+
+    let mut timer = POLLING_TIMER.borrow_mut(marker);
+
+    if !timer.is_zero() {
+        unsafe {
+            *timer =
+                timer.saturating_sub(Duration::from_secs_f64(*engine::host_frametime.get(marker)))
+        };
+
+        return;
+    }
+
+    *timer += Duration::from_secs(2);
+
+    if BXT_CAP_SEPARATE_MULTIGAME.as_bool(marker) {
+        maybe_receive_status_and_send_requests(marker);
+    }
+
+    update_client_connection_condition(marker);
+
+    unsafe {
+        maybe_receive_request_from_remote_server(marker);
+    }
 }
