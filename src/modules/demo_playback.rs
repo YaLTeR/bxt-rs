@@ -39,10 +39,12 @@ static DEMOS: MainThreadRefCell<Vec<Vec<u8>>> = MainThreadRefCell::new(Vec::new(
 static BXT_PLAY_RUN: Command = Command::new(
     b"bxt_play_run\0",
     handler!(
-        "bxt_play_run <name>
+        "bxt_play_run <name> [start_index]
 
-Plays back all `name_N.dem` demos in order.",
-        play_run as fn(_, _)
+Plays back all `name_N.dem` demos in order.
+Optionally begin from start_index if supplied"
+        play_run as fn(_, _),
+        play_run_from_number as fn(_, _, _)
     ),
 );
 
@@ -57,7 +59,11 @@ Plays back all demos in the folder in alphabetic order.",
 );
 
 fn play_run(marker: MainThreadMarker, prefix: PathBuf) {
-    play(marker, &prefix, run_demos_by_number);
+    play_run_from_number(marker, prefix, 0);
+}
+
+fn play_run_from_number(marker: MainThreadMarker, prefix: PathBuf, start_index: usize) {
+     play(marker, &prefix, |prefix| run_demos_by_number(prefix, start_index));
 }
 
 fn play_folder(marker: MainThreadMarker, folder: PathBuf) {
@@ -110,7 +116,10 @@ fn demos_in_folder(dir: &Path) -> Result<impl Iterator<Item = PathBuf>, String> 
         .filter(|path| path.extension().map(|ext| ext == "dem").unwrap_or(false)))
 }
 
-fn run_demos_by_number(prefix: &Path) -> Result<impl DoubleEndedIterator<Item = PathBuf>, String> {
+fn run_demos_by_number(
+    prefix: &Path,
+    start_number: usize,
+) -> Result<impl DoubleEndedIterator<Item = PathBuf>, String> {
     let name_prefix = match prefix.file_name() {
         Some(prefix) => {
             format!(
@@ -130,6 +139,7 @@ fn run_demos_by_number(prefix: &Path) -> Result<impl DoubleEndedIterator<Item = 
                 .and_then(OsStr::to_str)
                 .filter(|name| name.starts_with(&name_prefix))
                 .and_then(|name| name[name_prefix.len()..].parse::<usize>().ok())
+                .filter(|&number| number >= start_number)
                 .map(|number| (path, number))
         })
         .collect();
