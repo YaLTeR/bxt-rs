@@ -3,8 +3,8 @@
 use std::str::FromStr;
 
 use bxt_ipc_types::Frame;
-use bxt_strafe::State;
-use glam::Vec3Swizzles;
+use bxt_strafe::{Player, State};
+use glam::{Vec3, Vec3Swizzles};
 use rhai::serde::to_dynamic;
 
 /// The variable to optimize.
@@ -122,6 +122,57 @@ impl Constraint {
     }
 }
 
+/// Box the player should reach as early as possible.
+#[derive(Debug, Clone, Copy)]
+pub struct Region {
+    mins: Vec3,
+    maxs: Vec3,
+}
+
+impl FromStr for Region {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let values: Vec<f32> = s
+            .split_whitespace()
+            .map(str::parse)
+            .collect::<Result<_, _>>()
+            .map_err(|_| ())?;
+        let [x1, y1, z1, x2, y2, z2] = values[..] else {
+            return Err(());
+        };
+
+        let a = Vec3::new(x1, y1, z1);
+        let b = Vec3::new(x2, y2, z2);
+        Ok(Self {
+            mins: a.min(b),
+            maxs: a.max(b),
+        })
+    }
+}
+
+impl Region {
+    /// Returns `true` if the player's bounding box touches the region, like a trigger.
+    fn is_touched_by(&self, player: &Player) -> bool {
+        let half_size = if player.ducking {
+            Vec3::new(16., 16., 18.)
+        } else {
+            Vec3::new(16., 16., 36.)
+        };
+
+        (player.pos - half_size).cmple(self.maxs).all()
+            && (player.pos + half_size).cmpge(self.mins).all()
+    }
+
+    /// Returns the first frame where the player touches the region, and the speed on that frame.
+    fn first_touch(&self, frames: &[Frame]) -> Option<(usize, f32)> {
+        frames
+            .iter()
+            .position(|frame| self.is_touched_by(&frame.state.player))
+            .map(|i| (i, Variable::Speed.get(&frames[i].state)))
+    }
+}
+
 /// Result of an optimization attempt.
 #[derive(Debug)]
 pub enum AttemptResult {
@@ -156,6 +207,11 @@ pub enum Objective {
         direction: Direction,
         constraint: Option<Constraint>,
     },
+    /// Reach a region as early as possible, then as fast as possible.
+    Reach {
+        region: Region,
+        constraint: Option<Constraint>,
+    },
     /// Objective defined as a Rhai script.
     Rhai {
         engine: rhai::Engine,
@@ -187,6 +243,27 @@ impl Objective {
 
                 AttemptResult::Better {
                     value: new_value.to_string(),
+                }
+            }
+            Objective::Reach { region, constraint } => {
+                if let Some(constraint) = constraint {
+                    if !constraint.is_valid(new_frames) {
+                        return AttemptResult::Invalid;
+                    }
+                }
+
+                let Some((new_frame, new_speed)) = region.first_touch(new_frames) else {
+                    return AttemptResult::Invalid;
+                };
+
+                if let Some((old_frame, old_speed)) = region.first_touch(old_frames) {
+                    if new_frame > old_frame || (new_frame == old_frame && new_speed <= old_speed) {
+                        return AttemptResult::Worse;
+                    }
+                }
+
+                AttemptResult::Better {
+                    value: format!("frame {new_frame}, speed {new_speed}"),
                 }
             }
             Objective::Rhai { engine, ast } => {
@@ -287,5 +364,41 @@ impl Objective {
                 AttemptResult::Better { value }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn player_at(pos: Vec3, ducking: bool) -> Player {
+        Player {
+            pos,
+            ducking,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn region_parses_corners_in_any_order() {
+        let region: Region = "10 20 30 -10 -20 -30".parse().unwrap();
+        assert_eq!(region.mins, Vec3::new(-10., -20., -30.));
+        assert_eq!(region.maxs, Vec3::new(10., 20., 30.));
+
+        assert!("1 2 3 4 5".parse::<Region>().is_err());
+        assert!("1 2 3 4 5 x".parse::<Region>().is_err());
+    }
+
+    #[test]
+    fn region_is_touched_by_player_bounding_box() {
+        let region: Region = "100 -10 -10 200 10 10".parse().unwrap();
+
+        // The standing hull is 32 units wide, so its edge touches the box at x = 84.
+        assert!(region.is_touched_by(&player_at(Vec3::new(84., 0., 0.), false)));
+        assert!(!region.is_touched_by(&player_at(Vec3::new(83., 0., 0.), false)));
+
+        // The standing hull reaches 36 units up, the ducked one only 18.
+        assert!(region.is_touched_by(&player_at(Vec3::new(150., 0., -40.), false)));
+        assert!(!region.is_touched_by(&player_at(Vec3::new(150., 0., -40.), true)));
     }
 }
