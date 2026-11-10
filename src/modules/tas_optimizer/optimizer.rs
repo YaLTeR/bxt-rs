@@ -635,7 +635,7 @@ fn mutate_single_frame_bulk<R: Rng>(change_pitch: bool, hltas: &mut HLTAS, rng: 
     if !same_frame_time_bulks.is_empty() {
         // Frame bulks closer to the current one get weighted more.
         let other_index = *same_frame_time_bulks
-            .choose_weighted(rng, |i| i.abs_diff(index))
+            .choose_weighted(rng, |i| 1.0 / i.abs_diff(index) as f32)
             .unwrap();
 
         let other_frame_bulk = hltas.frame_bulks_mut().nth(other_index).unwrap();
