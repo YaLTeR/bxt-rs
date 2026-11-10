@@ -10,7 +10,9 @@ use bxt_strafe::{Parameters, Player, State};
 use glam::Vec3;
 use hltas::HLTAS;
 
-use self::objective::{AttemptResult, Constraint, ConstraintType, Direction, Objective, Variable};
+use self::objective::{
+    AttemptResult, Constraint, ConstraintType, Direction, Objective, Region, Variable,
+};
 use super::cvars::CVar;
 use super::player_movement_tracing::Tracer;
 use super::triangle_drawing::{self, TriangleApi};
@@ -75,6 +77,7 @@ impl Module for TasOptimizer {
             &BXT_TAS_OPTIM_CONSTRAINT_VARIABLE,
             &BXT_TAS_OPTIM_DIRECTION,
             &BXT_TAS_OPTIM_VARIABLE,
+            &BXT_TAS_OPTIM_REACH,
             &BXT_TAS_OPTIM_RHAI_FILE,
         ];
         CVARS
@@ -166,6 +169,17 @@ static BXT_TAS_OPTIM_DIRECTION: CVar = CVar::new(
     b"maximize\0",
     "Direction to optimize `bxt_tas_optim_variable` towards. Can be `minimize` or `maximize`.",
 );
+static BXT_TAS_OPTIM_REACH: CVar = CVar::new(
+    b"bxt_tas_optim_reach\0",
+    b"\0",
+    "\
+Set to `x1 y1 z1 x2 y2 z2` to optimize for reaching the box between these two corners as early as \
+possible, then for the highest horizontal speed on that frame. This replaces \
+`bxt_tas_optim_variable` and `bxt_tas_optim_direction`.
+
+The box counts as reached on the first frame where the player's bounding box touches it, like a \
+trigger. Brute-force attempts that never reach it get discarded.",
+);
 static BXT_TAS_OPTIM_CONSTRAINT_VARIABLE: CVar = CVar::new(
     b"bxt_tas_optim_constraint_variable\0",
     b"\0",
@@ -223,7 +237,8 @@ fn to_string(curr) {
 
 The script can also define a `should_pass_all_frames` variable set to `true` to receive an array \
 of all simulated frames of the brute-force attempt, rather than just the last one. Note that this \
-makes it considerably slower. Here's an example:
+makes it considerably slower. To reach an area as early as possible, use `bxt_tas_optim_reach` \
+instead, which is much faster. Here's an example:
 
 ```
 // Set this to true to get all frames rather than just one
@@ -573,6 +588,20 @@ fn optim_start(marker: MainThreadMarker) {
     }
 
     if !set_with_script {
+        let reach = BXT_TAS_OPTIM_REACH.to_string(marker);
+        let region = if reach.is_empty() {
+            None
+        } else if let Ok(x) = reach.parse::<Region>() {
+            Some(x)
+        } else {
+            con_print(
+                marker,
+                "Could not parse bxt_tas_optim_reach. \
+                It should be six numbers: x1 y1 z1 x2 y2 z2.\n",
+            );
+            return;
+        };
+
         let variable = match BXT_TAS_OPTIM_VARIABLE.to_string(marker).parse::<Variable>() {
             Ok(x) => x,
             Err(_) => {
@@ -653,10 +682,13 @@ fn optim_start(marker: MainThreadMarker) {
             None
         };
 
-        *OBJECTIVE.borrow_mut(marker) = Objective::Console {
-            variable,
-            direction,
-            constraint,
+        *OBJECTIVE.borrow_mut(marker) = match region {
+            Some(region) => Objective::Reach { region, constraint },
+            None => Objective::Console {
+                variable,
+                direction,
+                constraint,
+            },
         };
     }
 
